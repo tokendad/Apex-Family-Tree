@@ -1,4 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext.js';
+import { ProtectedRoute } from './components/ProtectedRoute.js';
 
 // Placeholder page component
 function PlaceholderPage({ title }: { title: string }) {
@@ -13,35 +15,37 @@ function PlaceholderPage({ title }: { title: string }) {
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        {/* Auth routes */}
-        <Route path="/login" element={<PlaceholderPage title="Login" />} />
-        <Route path="/setup" element={<PlaceholderPage title="Admin Setup" />} />
-        <Route path="/register/:token" element={<PlaceholderPage title="Register" />} />
-        <Route path="/forgot-password" element={<PlaceholderPage title="Forgot Password" />} />
-        <Route path="/reset-password" element={<PlaceholderPage title="Reset Password" />} />
+      <AuthProvider>
+        <Routes>
+          {/* Auth routes (public) */}
+          <Route path="/login" element={<PlaceholderPage title="Login" />} />
+          <Route path="/setup" element={<PlaceholderPage title="Admin Setup" />} />
+          <Route path="/register/:token" element={<PlaceholderPage title="Register" />} />
+          <Route path="/forgot-password" element={<PlaceholderPage title="Forgot Password" />} />
+          <Route path="/reset-password" element={<PlaceholderPage title="Reset Password" />} />
 
-        {/* Main app routes */}
-        <Route path="/" element={<PlaceholderPage title="Family Tree Canvas" />} />
-        <Route path="/tree" element={<Navigate to="/" replace />} />
-        <Route path="/people" element={<PlaceholderPage title="People List" />} />
-        <Route path="/people/:id" element={<PlaceholderPage title="Person Detail" />} />
-        <Route path="/families" element={<PlaceholderPage title="Families" />} />
-        <Route path="/families/:id" element={<PlaceholderPage title="Family Detail" />} />
-        <Route path="/sources" element={<PlaceholderPage title="Sources" />} />
-        <Route path="/media" element={<PlaceholderPage title="Media Gallery" />} />
+          {/* Main app routes (protected) */}
+          <Route path="/" element={<ProtectedRoute><PlaceholderPage title="Family Tree Canvas" /></ProtectedRoute>} />
+          <Route path="/tree" element={<Navigate to="/" replace />} />
+          <Route path="/people" element={<ProtectedRoute><PlaceholderPage title="People List" /></ProtectedRoute>} />
+          <Route path="/people/:id" element={<ProtectedRoute><PlaceholderPage title="Person Detail" /></ProtectedRoute>} />
+          <Route path="/families" element={<ProtectedRoute><PlaceholderPage title="Families" /></ProtectedRoute>} />
+          <Route path="/families/:id" element={<ProtectedRoute><PlaceholderPage title="Family Detail" /></ProtectedRoute>} />
+          <Route path="/sources" element={<ProtectedRoute><PlaceholderPage title="Sources" /></ProtectedRoute>} />
+          <Route path="/media" element={<ProtectedRoute><PlaceholderPage title="Media Gallery" /></ProtectedRoute>} />
 
-        {/* Import/Export */}
-        <Route path="/import" element={<PlaceholderPage title="GEDCOM Import" />} />
-        <Route path="/export" element={<PlaceholderPage title="GEDCOM Export" />} />
+          {/* Import/Export (protected) */}
+          <Route path="/import" element={<ProtectedRoute><PlaceholderPage title="GEDCOM Import" /></ProtectedRoute>} />
+          <Route path="/export" element={<ProtectedRoute><PlaceholderPage title="GEDCOM Export" /></ProtectedRoute>} />
 
-        {/* Admin routes */}
-        <Route path="/admin/users" element={<PlaceholderPage title="User Management" />} />
-        <Route path="/admin/settings" element={<PlaceholderPage title="Settings" />} />
+          {/* Admin routes (protected) */}
+          <Route path="/admin/users" element={<ProtectedRoute><PlaceholderPage title="User Management" /></ProtectedRoute>} />
+          <Route path="/admin/settings" element={<ProtectedRoute><PlaceholderPage title="Settings" /></ProtectedRoute>} />
 
-        {/* Catch-all */}
-        <Route path="*" element={<PlaceholderPage title="404 — Page Not Found" />} />
-      </Routes>
+          {/* Catch-all */}
+          <Route path="*" element={<PlaceholderPage title="404 — Page Not Found" />} />
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   );
 }

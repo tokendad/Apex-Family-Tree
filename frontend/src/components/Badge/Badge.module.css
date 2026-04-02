@@ -1,0 +1,46 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--radius-full);
+  line-height: var(--line-height-tight);
+  white-space: nowrap;
+}
+
+/* Role badges */
+.admin {
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-800);
+}
+.editor {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+.limited_editor {
+  background-color: var(--color-accent-100);
+  color: var(--color-accent-800);
+}
+.viewer {
+  background-color: var(--color-gray-100);
+  color: var(--color-gray-700);
+}
+
+/* Status badges */
+.active {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+.inactive {
+  background-color: var(--color-gray-100);
+  color: var(--color-gray-600);
+}
+.suspended {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+.invited {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
