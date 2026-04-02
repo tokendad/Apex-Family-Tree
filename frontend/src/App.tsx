@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext.js';
 import { ProtectedRoute } from './components/ProtectedRoute.js';
+import TreePage from './pages/TreePage';
 
 // Placeholder page component
 function PlaceholderPage({ title }: { title: string }) {
@@ -25,7 +26,7 @@ function App() {
           <Route path="/reset-password" element={<PlaceholderPage title="Reset Password" />} />
 
           {/* Main app routes (protected) */}
-          <Route path="/" element={<ProtectedRoute><PlaceholderPage title="Family Tree Canvas" /></ProtectedRoute>} />
+          <Route path="/" element={<ProtectedRoute><TreePage /></ProtectedRoute>} />
           <Route path="/tree" element={<Navigate to="/" replace />} />
           <Route path="/people" element={<ProtectedRoute><PlaceholderPage title="People List" /></ProtectedRoute>} />
           <Route path="/people/:id" element={<ProtectedRoute><PlaceholderPage title="Person Detail" /></ProtectedRoute>} />
