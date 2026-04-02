@@ -3,7 +3,19 @@ import { useCanvasStore } from '@/stores/canvasStore';
 import { useAuth } from '@/contexts/AuthContext.js';
 import styles from './ContextMenu.module.css';
 
-const ContextMenu: React.FC = () => {
+interface ContextMenuProps {
+  onEditPerson?: (personId: string) => void;
+  onAddParent?: (personId: string) => void;
+  onAddSpouse?: (personId: string) => void;
+  onAddChild?: (personId: string) => void;
+}
+
+const ContextMenu: React.FC<ContextMenuProps> = ({
+  onEditPerson,
+  onAddParent,
+  onAddSpouse,
+  onAddChild,
+}) => {
   const { contextMenuPosition, setContextMenu, setSelectedPerson } = useCanvasStore();
   const { user } = useAuth();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -48,12 +60,19 @@ const ContextMenu: React.FC = () => {
         setSelectedPerson(personId);
         break;
       case 'edit':
+        onEditPerson?.(personId);
+        break;
       case 'add-parent':
+        onAddParent?.(personId);
+        break;
       case 'add-spouse':
+        onAddSpouse?.(personId);
+        break;
       case 'add-child':
+        onAddChild?.(personId);
+        break;
       case 'set-home':
       case 'delete':
-        // Placeholder actions for future phases
         break;
     }
   };

@@ -1,0 +1,9 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.marriageDateRow {
+  margin-top: var(--space-2);
+}

@@ -3,12 +3,16 @@ import Button from '@/components/Button/Button';
 import { useCanvasStore } from '@/stores/canvasStore';
 import styles from './CanvasToolbar.module.css';
 
-const CanvasToolbar: React.FC = () => {
+interface CanvasToolbarProps {
+  onAddPerson?: () => void;
+}
+
+const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ onAddPerson }) => {
   const { zoom, zoomIn, zoomOut, resetView } = useCanvasStore();
 
   return (
     <div className={styles.toolbar}>
-      <Button variant="primary" size="sm">
+      <Button variant="primary" size="sm" onClick={onAddPerson}>
         Add Person
       </Button>
       <Button variant="ghost" size="sm">
