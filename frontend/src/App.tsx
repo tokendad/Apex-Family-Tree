@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext.js';
 import { ProtectedRoute } from './components/ProtectedRoute.js';
 import { AdminRoute } from './components/AdminRoute.js';
@@ -11,8 +11,14 @@ const TreePage = React.lazy(() => import('./pages/TreePage'));
 const PeoplePage = React.lazy(() => import('./pages/PeoplePage'));
 const AdminUsersPage = React.lazy(() => import('./pages/AdminUsersPage'));
 const AdminSettingsPage = React.lazy(() => import('./pages/AdminSettingsPage'));
+const AdminPage = React.lazy(() => import('./pages/AdminPage'));
 const ImportPage = React.lazy(() => import('./pages/ImportPage'));
 const ExportPage = React.lazy(() => import('./pages/ExportPage'));
+const SetupPage = React.lazy(() => import('./pages/SetupPage'));
+const LoginPage = React.lazy(() => import('./pages/LoginPage'));
+const RegisterPage = React.lazy(() => import('./pages/RegisterPage'));
+const ForgotPasswordPage = React.lazy(() => import('./pages/ForgotPasswordPage'));
+const ResetPasswordPage = React.lazy(() => import('./pages/ResetPasswordPage'));
 
 function LoadingFallback() {
   return (
@@ -22,12 +28,19 @@ function LoadingFallback() {
   );
 }
 
-// Placeholder page component
-function PlaceholderPage({ title }: { title: string }) {
+function ComingSoonPage({ title }: { title: string }) {
+  const navigate = useNavigate();
   return (
-    <div style={{ padding: '2rem' }}>
-      <h1>{title}</h1>
-      <p>This page will be implemented in a future phase.</p>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: '1rem' }}>
+      <span style={{ fontSize: '3rem' }}>🚧</span>
+      <h1 style={{ margin: 0 }}>{title}</h1>
+      <p style={{ color: 'var(--color-text-secondary)' }}>This feature is coming soon.</p>
+      <button
+        onClick={() => navigate(-1)}
+        style={{ padding: '0.5rem 1.5rem', background: 'var(--color-primary-600)', color: 'white', border: 'none', borderRadius: 'var(--radius-md)', cursor: 'pointer', fontFamily: 'var(--font-family)' }}
+      >
+        Go Back
+      </button>
     </div>
   );
 }
@@ -41,32 +54,33 @@ function App() {
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
               {/* Auth routes (public) */}
-              <Route path="/login" element={<PlaceholderPage title="Login" />} />
-              <Route path="/setup" element={<PlaceholderPage title="Admin Setup" />} />
-              <Route path="/register/:token" element={<PlaceholderPage title="Register" />} />
-              <Route path="/forgot-password" element={<PlaceholderPage title="Forgot Password" />} />
-              <Route path="/reset-password" element={<PlaceholderPage title="Reset Password" />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/setup" element={<SetupPage />} />
+              <Route path="/register/:token" element={<RegisterPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
 
               {/* Main app routes (protected) */}
               <Route path="/" element={<ProtectedRoute><TreePage /></ProtectedRoute>} />
               <Route path="/tree" element={<Navigate to="/" replace />} />
               <Route path="/people" element={<ProtectedRoute><PeoplePage /></ProtectedRoute>} />
-              <Route path="/people/:id" element={<ProtectedRoute><PlaceholderPage title="Person Detail" /></ProtectedRoute>} />
-              <Route path="/families" element={<ProtectedRoute><PlaceholderPage title="Families" /></ProtectedRoute>} />
-              <Route path="/families/:id" element={<ProtectedRoute><PlaceholderPage title="Family Detail" /></ProtectedRoute>} />
-              <Route path="/sources" element={<ProtectedRoute><PlaceholderPage title="Sources" /></ProtectedRoute>} />
-              <Route path="/media" element={<ProtectedRoute><PlaceholderPage title="Media Gallery" /></ProtectedRoute>} />
+              <Route path="/people/:id" element={<ProtectedRoute><ComingSoonPage title="Person Detail" /></ProtectedRoute>} />
+              <Route path="/families" element={<ProtectedRoute><ComingSoonPage title="Families" /></ProtectedRoute>} />
+              <Route path="/families/:id" element={<ProtectedRoute><ComingSoonPage title="Family Detail" /></ProtectedRoute>} />
+              <Route path="/sources" element={<ProtectedRoute><ComingSoonPage title="Sources" /></ProtectedRoute>} />
+              <Route path="/media" element={<ProtectedRoute><ComingSoonPage title="Media Gallery" /></ProtectedRoute>} />
 
               {/* Import/Export (protected) */}
               <Route path="/import" element={<ProtectedRoute><ImportPage /></ProtectedRoute>} />
               <Route path="/export" element={<ProtectedRoute><ExportPage /></ProtectedRoute>} />
 
               {/* Admin routes (protected, admin only) */}
+              <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
               <Route path="/admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
               <Route path="/admin/settings" element={<AdminRoute><AdminSettingsPage /></AdminRoute>} />
 
               {/* Catch-all */}
-              <Route path="*" element={<PlaceholderPage title="404 — Page Not Found" />} />
+              <Route path="*" element={<ComingSoonPage title="404 — Page Not Found" />} />
             </Routes>
           </Suspense>
         </AuthProvider>
