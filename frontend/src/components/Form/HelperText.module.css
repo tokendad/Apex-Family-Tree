@@ -1,0 +1,13 @@
+.helperText {
+  display: block;
+  font-size: var(--font-size-sm);
+  margin-top: var(--space-1);
+}
+
+.info {
+  color: var(--color-text-secondary);
+}
+
+.error {
+  color: var(--color-error);
+}

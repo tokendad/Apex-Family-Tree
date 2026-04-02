@@ -1,0 +1,20 @@
+.infoBox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background-color: var(--color-bg-secondary);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-normal);
+}
+
+.icon {
+  flex-shrink: 0;
+  color: var(--color-text-tertiary);
+}
+
+.content {
+  flex: 1;
+}
