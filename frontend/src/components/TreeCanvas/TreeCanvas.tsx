@@ -132,6 +132,8 @@ const TreeCanvas: React.FC = () => {
         ref={svgRef}
         className={styles.svg}
         viewBox={`${minX} ${minY} ${vbWidth} ${vbHeight}`}
+        role="img"
+        aria-label="Family tree diagram"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}

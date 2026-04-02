@@ -1,0 +1,46 @@
+/* ========================================
+   Responsive Layout Breakpoints
+   ======================================== */
+
+/* Tablet: 768–1023px */
+@media (max-width: 1023px) {
+  /* Hide the sidebar toggle on tablet (use hamburger instead) */
+  .sidebar-desktop-toggle {
+    display: none !important;
+  }
+}
+
+/* Mobile: <768px */
+@media (max-width: 767px) {
+  /* Minimum touch targets for interactive elements */
+  button,
+  [role="button"],
+  a,
+  input,
+  select,
+  textarea,
+  label {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  input[type="radio"],
+  input[type="checkbox"] {
+    min-height: 20px;
+    min-width: 20px;
+  }
+}
+
+/* ========================================
+   Reduced Motion Support
+   ======================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
