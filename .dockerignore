@@ -1,0 +1,15 @@
+node_modules
+.data
+.git
+.github
+Docs
+*.md
+!README.md
+.env
+.env.*
+.prettierrc
+.prettierignore
+eslint.config.js
+.vscode
+.idea
+coverage
