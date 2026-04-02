@@ -14,3 +14,8 @@ export {
   FormRow,
   FormGroup,
 } from './Form';
+export { default as WizardModal } from './WizardModal/WizardModal';
+export { default as StepIndicator } from './StepIndicator/StepIndicator';
+export { default as CollapsibleSection } from './CollapsibleSection/CollapsibleSection';
+export { default as TagPicker } from './TagPicker/TagPicker';
+export { default as PersonSearch } from './PersonSearch/PersonSearch';

@@ -1,7 +1,13 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext.js';
 import { ProtectedRoute } from './components/ProtectedRoute.js';
+import { AdminRoute } from './components/AdminRoute.js';
 import TreePage from './pages/TreePage';
+import PeoplePage from './pages/PeoplePage';
+import AdminUsersPage from './pages/AdminUsersPage';
+import AdminSettingsPage from './pages/AdminSettingsPage';
+import ImportPage from './pages/ImportPage';
+import ExportPage from './pages/ExportPage';
 
 // Placeholder page component
 function PlaceholderPage({ title }: { title: string }) {
@@ -28,7 +34,7 @@ function App() {
           {/* Main app routes (protected) */}
           <Route path="/" element={<ProtectedRoute><TreePage /></ProtectedRoute>} />
           <Route path="/tree" element={<Navigate to="/" replace />} />
-          <Route path="/people" element={<ProtectedRoute><PlaceholderPage title="People List" /></ProtectedRoute>} />
+          <Route path="/people" element={<ProtectedRoute><PeoplePage /></ProtectedRoute>} />
           <Route path="/people/:id" element={<ProtectedRoute><PlaceholderPage title="Person Detail" /></ProtectedRoute>} />
           <Route path="/families" element={<ProtectedRoute><PlaceholderPage title="Families" /></ProtectedRoute>} />
           <Route path="/families/:id" element={<ProtectedRoute><PlaceholderPage title="Family Detail" /></ProtectedRoute>} />
@@ -36,12 +42,12 @@ function App() {
           <Route path="/media" element={<ProtectedRoute><PlaceholderPage title="Media Gallery" /></ProtectedRoute>} />
 
           {/* Import/Export (protected) */}
-          <Route path="/import" element={<ProtectedRoute><PlaceholderPage title="GEDCOM Import" /></ProtectedRoute>} />
-          <Route path="/export" element={<ProtectedRoute><PlaceholderPage title="GEDCOM Export" /></ProtectedRoute>} />
+          <Route path="/import" element={<ProtectedRoute><ImportPage /></ProtectedRoute>} />
+          <Route path="/export" element={<ProtectedRoute><ExportPage /></ProtectedRoute>} />
 
-          {/* Admin routes (protected) */}
-          <Route path="/admin/users" element={<ProtectedRoute><PlaceholderPage title="User Management" /></ProtectedRoute>} />
-          <Route path="/admin/settings" element={<ProtectedRoute><PlaceholderPage title="Settings" /></ProtectedRoute>} />
+          {/* Admin routes (protected, admin only) */}
+          <Route path="/admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
+          <Route path="/admin/settings" element={<AdminRoute><AdminSettingsPage /></AdminRoute>} />
 
           {/* Catch-all */}
           <Route path="*" element={<PlaceholderPage title="404 — Page Not Found" />} />

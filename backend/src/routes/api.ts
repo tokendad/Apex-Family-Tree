@@ -7,6 +7,9 @@ import { treeRouter } from './tree.js';
 import { mediaRouter } from './media.js';
 import { sourcesRouter } from './sources.js';
 import { homePersonRouter } from './homePerson.js';
+import { adminRouter } from './admin.js';
+import { settingsRouter } from './settings.js';
+import { gedcomRouter } from './gedcom.js';
 
 const apiRouter = Router();
 
@@ -19,5 +22,8 @@ apiRouter.use('/v1/tree', treeRouter);
 apiRouter.use('/v1/media', mediaRouter);
 apiRouter.use('/v1/sources', sourcesRouter);
 apiRouter.use('/v1/home-person', homePersonRouter);
+apiRouter.use('/v1/admin', adminRouter);
+apiRouter.use('/v1/admin', settingsRouter);
+apiRouter.use('/v1/gedcom', gedcomRouter);
 
 export { apiRouter };
