@@ -1,0 +1,47 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--color-bg-primary);
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+.detailPanel {
+  width: 320px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--color-gray-200);
+  overflow-y: auto;
+  background-color: var(--color-bg-primary);
+  transition: width var(--transition-normal);
+}
+
+.detailPanelHidden {
+  width: 0;
+  overflow: hidden;
+  border-left: none;
+}
+
+@media (max-width: 768px) {
+  .detailPanel {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    z-index: var(--z-modal);
+    box-shadow: var(--shadow-xl);
+  }
+}

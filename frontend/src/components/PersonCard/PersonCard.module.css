@@ -1,0 +1,111 @@
+.card {
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: box-shadow var(--transition-fast);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: var(--space-2);
+  font-family: var(--font-family);
+  width: 200px;
+  height: 120px;
+  box-sizing: border-box;
+  position: relative;
+  border: 2px solid transparent;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.selected {
+  border-color: var(--color-primary-500);
+  box-shadow: 0 0 0 3px var(--color-primary-100);
+}
+
+.hovered {
+  box-shadow: var(--shadow-lg);
+}
+
+/* Sex-based color schemes */
+.male {
+  background-color: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.male.selected {
+  border-color: var(--color-primary-500);
+}
+
+.female {
+  background-color: #fdf2f8;
+  border-color: #fbcfe8;
+}
+
+.female.selected {
+  border-color: var(--color-primary-500);
+}
+
+.other {
+  background-color: var(--color-primary-50);
+  border-color: var(--color-primary-200);
+}
+
+.other.selected {
+  border-color: var(--color-primary-500);
+}
+
+.unknown {
+  background-color: var(--color-gray-50);
+  border-color: var(--color-gray-200);
+}
+
+.unknown.selected {
+  border-color: var(--color-primary-500);
+}
+
+.avatar {
+  flex-shrink: 0;
+}
+
+.info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  overflow: hidden;
+  width: 100%;
+}
+
+.name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  text-align: center;
+}
+
+.dates {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+}
+
+.homeBadge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 0.5rem;
+  padding: 1px 4px;
+  background-color: var(--color-accent-400);
+  color: var(--color-gray-900);
+  border-radius: var(--radius-sm);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
