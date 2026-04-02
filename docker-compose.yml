@@ -1,0 +1,21 @@
+services:
+  apex-family-tree:
+    build: .
+    image: neuman1812/ApexFamily:latest
+    container_name: apex-family-tree
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - ./.data:/app/data
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - PORT=3000
+      - APP_SECRET=${APP_SECRET:-change-me-to-a-random-secret}
+      - JWT_SECRET=${JWT_SECRET:-change-me-to-another-random-secret}
+      - JWT_ACCESS_EXPIRY=${JWT_ACCESS_EXPIRY:-15m}
+      - JWT_REFRESH_EXPIRY=${JWT_REFRESH_EXPIRY:-7d}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+    restart: unless-stopped
