@@ -4,7 +4,8 @@ import { UserRepository } from '../repositories/UserRepository.js';
 const userRepo = new UserRepository();
 
 export function firstRunCheck(req: Request, res: Response, next: NextFunction): void {
-  if (req.path === '/api/auth/setup' || req.path === '/api/health') {
+  // Only gate API routes — let frontend static files and HTML through
+  if (!req.path.startsWith('/api/') || req.path === '/api/auth/setup' || req.path === '/api/health') {
     next();
     return;
   }
