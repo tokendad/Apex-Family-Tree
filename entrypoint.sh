@@ -9,17 +9,21 @@ echo "Starting Apex Family Tree..."
 echo "  UID: $PUID"
 echo "  GID: $PGID"
 
-# Create group and user if they don't exist
-if ! getent group aft > /dev/null 2>&1; then
+# Create group if the GID doesn't exist; ignore errors if GID is in use
+if ! getent group "$PGID" > /dev/null 2>&1; then
   addgroup -g "$PGID" aft
 fi
 
-if ! getent passwd aft > /dev/null 2>&1; then
-  adduser -u "$PUID" -G aft -D -H aft
+# Resolve the group name for the target GID
+GROUP_NAME=$(getent group "$PGID" | cut -d: -f1)
+
+# Create user if the UID doesn't exist; ignore errors if UID is in use
+if ! getent passwd "$PUID" > /dev/null 2>&1; then
+  adduser -u "$PUID" -G "$GROUP_NAME" -D -H aft
 fi
 
 # Ensure data directory ownership
 chown -R "$PUID:$PGID" /app/data
 
-# Run the application as the aft user
-exec su-exec aft "$@"
+# Run the application as the target UID
+exec su-exec "$PUID:$PGID" "$@"

@@ -1,7 +1,7 @@
 services:
   apex-family-tree:
     build: .
-    image: neuman1812/ApexFamily:latest
+    image: neuman1812/apexfamily:latest
     container_name: apex-family-tree
     ports:
       - "${PORT:-3000}:3000"
