@@ -264,4 +264,56 @@ export class PersonRepository extends BaseRepository {
 
     return { parents, spouses, children };
   }
+
+  getRelationshipsForDetail(personId: string): {
+    family_id: string;
+    type: 'parent_family' | 'child_family';
+    role: 'spouse1' | 'spouse2' | 'child';
+    spouse1: { id: string; given_name: string | null; surname: string | null } | null;
+    spouse2: { id: string; given_name: string | null; surname: string | null } | null;
+    children: { id: string; person_id: string; role: string; given_name: string | null; surname: string | null }[];
+  }[] {
+    const nameSummary = (pid: string | null) => {
+      if (!pid) return null;
+      const row = this.db.prepare(
+        'SELECT given_name, surname FROM names WHERE person_id = ? AND is_primary = 1 LIMIT 1'
+      ).get(pid) as { given_name: string | null; surname: string | null } | undefined;
+      return { id: pid, given_name: row?.given_name ?? null, surname: row?.surname ?? null };
+    };
+
+    const childMembers = (familyId: string) =>
+      (this.db.prepare(
+        `SELECT fm.id, fm.person_id, fm.role,
+          (SELECT given_name FROM names WHERE person_id = fm.person_id AND is_primary = 1 LIMIT 1) AS given_name,
+          (SELECT surname  FROM names WHERE person_id = fm.person_id AND is_primary = 1 LIMIT 1) AS surname
+         FROM family_members fm WHERE fm.family_id = ?`
+      ).all(familyId) as { id: string; person_id: string; role: string; given_name: string | null; surname: string | null }[]);
+
+    const asChild = this.db.prepare(
+      'SELECT f.* FROM families f INNER JOIN family_members fm ON f.id = fm.family_id WHERE fm.person_id = ?'
+    ).all(personId) as Family[];
+
+    const asSpouse = this.db.prepare(
+      'SELECT * FROM families WHERE spouse1_id = ? OR spouse2_id = ?'
+    ).all(personId, personId) as Family[];
+
+    return [
+      ...asChild.map(f => ({
+        family_id: f.id,
+        type: 'child_family' as const,
+        role: 'child' as const,
+        spouse1: nameSummary(f.spouse1_id),
+        spouse2: nameSummary(f.spouse2_id),
+        children: childMembers(f.id),
+      })),
+      ...asSpouse.map(f => ({
+        family_id: f.id,
+        type: 'parent_family' as const,
+        role: (f.spouse1_id === personId ? 'spouse1' : 'spouse2') as 'spouse1' | 'spouse2',
+        spouse1: nameSummary(f.spouse1_id),
+        spouse2: nameSummary(f.spouse2_id),
+        children: childMembers(f.id),
+      })),
+    ];
+  }
 }

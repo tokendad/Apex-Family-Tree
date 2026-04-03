@@ -160,8 +160,8 @@ peopleRouter.get('/:id/relationships', (req, res) => {
       return;
     }
 
-    const relationships = repo.getRelationships(id);
-    res.json(relationships);
+    const result = repo.getRelationshipsForDetail(id);
+    res.json(result);
   } catch (error) {
     res.status(500).json({ error: 'Failed to get relationships' });
   }
