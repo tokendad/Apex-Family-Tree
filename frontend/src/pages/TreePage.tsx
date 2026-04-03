@@ -105,7 +105,7 @@ const TreePage: React.FC = () => {
       showDetail={selectedPersonId !== null}
     >
       <CanvasToolbar onAddPerson={openCreateWizard} />
-      <TreeCanvas />
+      <TreeCanvas onAddPerson={openCreateWizard} />
       <CanvasLegend />
       <ContextMenu
         onEditPerson={openEditWizard}

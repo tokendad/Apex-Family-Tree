@@ -23,10 +23,25 @@ sourcesRouter.get('/', (req, res) => {
   }
 });
 
+// GET /sources/:id — Get source by ID
+sourcesRouter.get('/:id', (req, res) => {
+  try {
+    const repo = new SourceRepository();
+    const source = repo.findById(req.params.id as string);
+    if (!source) {
+      res.status(404).json({ error: 'Source not found' });
+      return;
+    }
+    res.json(source);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get source' });
+  }
+});
+
 // POST /sources — Create source
 sourcesRouter.post(
   '/',
-  requireRole('admin', 'editor'),
+  requireRole('admin', 'editor', 'limited_editor'),
   validate([
     { field: 'title', required: true, type: 'string', maxLength: 500 },
   ]),
@@ -85,10 +100,27 @@ sourcesRouter.delete(
   },
 );
 
+// GET /sources/:id/citations — List citations for a source
+sourcesRouter.get('/:id/citations', (req, res) => {
+  try {
+    const repo = new SourceRepository();
+    const sourceId = req.params.id as string;
+    const source = repo.findById(sourceId);
+    if (!source) {
+      res.status(404).json({ error: 'Source not found' });
+      return;
+    }
+    const citations = repo.findCitationsBySource(sourceId);
+    res.json(citations);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to list citations' });
+  }
+});
+
 // POST /sources/:id/citations — Create citation
 sourcesRouter.post(
   '/:id/citations',
-  requireRole('admin', 'editor'),
+  requireRole('admin', 'editor', 'limited_editor'),
   validate([
     { field: 'quality', type: 'string', enum: ['primary', 'secondary', 'questionable', 'unreliable'] },
   ]),

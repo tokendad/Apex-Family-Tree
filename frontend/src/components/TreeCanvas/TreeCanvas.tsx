@@ -7,7 +7,11 @@ import GenerationLabel from '@/components/GenerationLabel/GenerationLabel';
 import Button from '@/components/Button/Button';
 import styles from './TreeCanvas.module.css';
 
-const TreeCanvas: React.FC = () => {
+interface TreeCanvasProps {
+  onAddPerson?: () => void;
+}
+
+const TreeCanvas: React.FC<TreeCanvasProps> = ({ onAddPerson }) => {
   const {
     nodes,
     connectors,
@@ -110,7 +114,7 @@ const TreeCanvas: React.FC = () => {
           <p className={styles.emptyText}>
             Add your first person to start building your family tree.
           </p>
-          <Button variant="primary">Add your first person</Button>
+          <Button variant="primary" onClick={onAddPerson}>Add your first person</Button>
         </div>
       </div>
     );

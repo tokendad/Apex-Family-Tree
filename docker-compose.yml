@@ -6,7 +6,7 @@ services:
     ports:
       - "${PORT:-3000}:3000"
     volumes:
-      - ./.data:/app/data
+      - /data/DockerConfigs/AFT:/app/data
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - PORT=3000

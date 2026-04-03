@@ -216,25 +216,25 @@ export function usePersonWizard(options: UsePersonWizardOptions = {}) {
       }
 
       // 3. Create events
-      const events = [];
+      const events: Array<{ event_type: string; event_date: string | null; event_place: string | null; description?: string | null }> = [];
       if (data.birthDate || data.birthPlace) {
-        events.push({ type: 'Birth', date: data.birthDate, place: data.birthPlace });
+        events.push({ event_type: 'birth', event_date: data.birthDate || null, event_place: data.birthPlace || null });
       }
       if (data.deathDate || data.deathPlace) {
-        events.push({ type: 'Death', date: data.deathDate, place: data.deathPlace });
+        events.push({ event_type: 'death', event_date: data.deathDate || null, event_place: data.deathPlace || null });
       }
       for (const evt of data.additionalEvents) {
         if (evt.date || evt.place || evt.description) {
           events.push({
-            type: evt.type,
-            date: evt.date,
-            place: evt.place,
-            description: evt.description,
+            event_type: evt.type.toLowerCase().replace(/\s+/g, '_'),
+            event_date: evt.date || null,
+            event_place: evt.place || null,
+            description: evt.description || null,
           });
         }
       }
       for (const evt of events) {
-        await fetch(`/api/v1/people/${personId}/events`, {
+        await fetch(`/api/v1/events/people/${personId}/events`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -244,15 +244,22 @@ export function usePersonWizard(options: UsePersonWizardOptions = {}) {
 
       // 4. Create/link relationships (families)
       for (const parent of data.parents) {
-        await fetch('/api/v1/families', {
+        // Create a family with the parent as spouse1, then add the new person as a child member
+        const famRes = await fetch('/api/v1/families', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({
-            parent_id: parent.id,
-            child_id: personId,
-          }),
+          body: JSON.stringify({ spouse1_id: parent.id }),
         });
+        if (famRes.ok) {
+          const family = await famRes.json();
+          await fetch(`/api/v1/families/${family.id}/members`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ person_id: personId, role: 'child' }),
+          });
+        }
       }
 
       for (const spouse of data.spouses) {
@@ -271,15 +278,22 @@ export function usePersonWizard(options: UsePersonWizardOptions = {}) {
       // Handle pre-linked relationship
       if (preLink && personId) {
         if (preLink.type === 'parent') {
-          await fetch('/api/v1/families', {
+          // New person is a parent — create family with them as spouse1, add pre-linked person as child
+          const famRes = await fetch('/api/v1/families', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({
-              parent_id: personId,
-              child_id: preLink.personId,
-            }),
+            body: JSON.stringify({ spouse1_id: personId }),
           });
+          if (famRes.ok) {
+            const family = await famRes.json();
+            await fetch(`/api/v1/families/${family.id}/members`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ person_id: preLink.personId, role: 'child' }),
+            });
+          }
         } else if (preLink.type === 'spouse') {
           await fetch('/api/v1/families', {
             method: 'POST',
@@ -291,54 +305,87 @@ export function usePersonWizard(options: UsePersonWizardOptions = {}) {
             }),
           });
         } else if (preLink.type === 'child') {
-          await fetch('/api/v1/families', {
+          // New person is a child — create family with pre-linked person as spouse1, add new person as child
+          const famRes = await fetch('/api/v1/families', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({
-              parent_id: preLink.personId,
-              child_id: personId,
-            }),
+            body: JSON.stringify({ spouse1_id: preLink.personId }),
+          });
+          if (famRes.ok) {
+            const family = await famRes.json();
+            await fetch(`/api/v1/families/${family.id}/members`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ person_id: personId, role: 'child' }),
+            });
+          }
+        }
+      }
+
+      // 5. Upload and link media files
+      for (const file of data.mediaFiles) {
+        const formData = new FormData();
+        formData.append('file', file);
+        const uploadRes = await fetch('/api/v1/media/upload', {
+          method: 'POST',
+          credentials: 'include',
+          body: formData,
+        });
+        if (uploadRes.ok) {
+          const media = await uploadRes.json();
+          await fetch(`/api/v1/media/people/${personId}/media`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ media_id: media.id, is_primary: false }),
           });
         }
       }
 
-      // 5. Upload media
-      for (const file of data.mediaFiles) {
-        const formData = new FormData();
-        formData.append('file', file);
-        await fetch(`/api/v1/people/${personId}/media`, {
-          method: 'POST',
-          credentials: 'include',
-          body: formData,
-        });
-      }
-
-      // 6. Create photo (if uploaded)
+      // 6. Upload and link primary photo
       if (data.photoFile) {
         const formData = new FormData();
         formData.append('file', data.photoFile);
-        formData.append('is_primary', 'true');
-        await fetch(`/api/v1/people/${personId}/media`, {
+        const uploadRes = await fetch('/api/v1/media/upload', {
           method: 'POST',
           credentials: 'include',
           body: formData,
         });
-      }
-
-      // 7. Create source citations
-      for (const source of data.sources) {
-        if (source.title) {
-          await fetch(`/api/v1/people/${personId}/sources`, {
+        if (uploadRes.ok) {
+          const media = await uploadRes.json();
+          await fetch(`/api/v1/media/people/${personId}/media`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({
-              title: source.title,
-              page: source.page || null,
-              quality: source.quality,
-            }),
+            body: JSON.stringify({ media_id: media.id, is_primary: true }),
           });
+        }
+      }
+
+      // 7. Create sources and citations
+      for (const source of data.sources) {
+        if (source.title) {
+          const sourceRes = await fetch('/api/v1/sources', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ title: source.title }),
+          });
+          if (sourceRes.ok) {
+            const created = await sourceRes.json();
+            await fetch(`/api/v1/sources/${created.id}/citations`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({
+                person_id: personId,
+                page: source.page || null,
+                quality: source.quality || null,
+              }),
+            });
+          }
         }
       }
 

@@ -13,7 +13,7 @@ function paramStr(val: string | string[]): string {
 // POST /people/:personId/events — Add event to person
 eventsRouter.post(
   '/people/:personId/events',
-  requireRole('admin', 'editor'),
+  requireRole('admin', 'editor', 'limited_editor'),
   validate([
     { field: 'event_type', required: true, type: 'string', maxLength: 100 },
   ]),

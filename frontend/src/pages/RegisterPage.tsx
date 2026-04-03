@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.js';
-import styles from './SetupPage.module.css';
+import styles from './RegisterPage.module.css';
 
 export default function RegisterPage() {
   const { token } = useParams<{ token: string }>();

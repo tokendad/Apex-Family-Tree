@@ -12,6 +12,10 @@ const PeoplePage = React.lazy(() => import('./pages/PeoplePage'));
 const AdminUsersPage = React.lazy(() => import('./pages/AdminUsersPage'));
 const AdminSettingsPage = React.lazy(() => import('./pages/AdminSettingsPage'));
 const AdminPage = React.lazy(() => import('./pages/AdminPage'));
+const FamiliesPage = React.lazy(() => import('./pages/FamiliesPage'));
+const FamilyDetailPage = React.lazy(() => import('./pages/FamilyDetailPage'));
+const PersonDetailPage = React.lazy(() => import('./pages/PersonDetailPage'));
+const SourcesPage = React.lazy(() => import('./pages/SourcesPage'));
 const ImportPage = React.lazy(() => import('./pages/ImportPage'));
 const ExportPage = React.lazy(() => import('./pages/ExportPage'));
 const SetupPage = React.lazy(() => import('./pages/SetupPage'));
@@ -19,6 +23,7 @@ const LoginPage = React.lazy(() => import('./pages/LoginPage'));
 const RegisterPage = React.lazy(() => import('./pages/RegisterPage'));
 const ForgotPasswordPage = React.lazy(() => import('./pages/ForgotPasswordPage'));
 const ResetPasswordPage = React.lazy(() => import('./pages/ResetPasswordPage'));
+const MediaPage = React.lazy(() => import('./pages/MediaPage'));
 
 function LoadingFallback() {
   return (
@@ -64,11 +69,11 @@ function App() {
               <Route path="/" element={<ProtectedRoute><TreePage /></ProtectedRoute>} />
               <Route path="/tree" element={<Navigate to="/" replace />} />
               <Route path="/people" element={<ProtectedRoute><PeoplePage /></ProtectedRoute>} />
-              <Route path="/people/:id" element={<ProtectedRoute><ComingSoonPage title="Person Detail" /></ProtectedRoute>} />
-              <Route path="/families" element={<ProtectedRoute><ComingSoonPage title="Families" /></ProtectedRoute>} />
-              <Route path="/families/:id" element={<ProtectedRoute><ComingSoonPage title="Family Detail" /></ProtectedRoute>} />
-              <Route path="/sources" element={<ProtectedRoute><ComingSoonPage title="Sources" /></ProtectedRoute>} />
-              <Route path="/media" element={<ProtectedRoute><ComingSoonPage title="Media Gallery" /></ProtectedRoute>} />
+              <Route path="/people/:id" element={<ProtectedRoute><PersonDetailPage /></ProtectedRoute>} />
+              <Route path="/families" element={<ProtectedRoute><FamiliesPage /></ProtectedRoute>} />
+              <Route path="/families/:id" element={<ProtectedRoute><FamilyDetailPage /></ProtectedRoute>} />
+              <Route path="/sources" element={<ProtectedRoute><SourcesPage /></ProtectedRoute>} />
+              <Route path="/media" element={<ProtectedRoute><MediaPage /></ProtectedRoute>} />
 
               {/* Import/Export (protected) */}
               <Route path="/import" element={<ProtectedRoute><ImportPage /></ProtectedRoute>} />

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Navigate, Link } from 'react-router-dom';
+import { Navigate, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.js';
 import styles from './LoginPage.module.css';
 
@@ -9,6 +9,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   if (isLoading) return null;
   if (needsSetup) return <Navigate to="/setup" replace />;
@@ -26,6 +28,8 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await login(email.trim(), password);
+      const redirect = searchParams.get('redirect');
+      navigate(redirect && redirect.startsWith('/') ? redirect : '/', { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
     } finally {

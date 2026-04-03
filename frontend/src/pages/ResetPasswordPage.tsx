@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
-import styles from './LoginPage.module.css';
+import styles from './ResetPasswordPage.module.css';
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
