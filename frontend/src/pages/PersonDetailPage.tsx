@@ -4,8 +4,7 @@ import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
 import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
-import Input from '@/components/Form/Input';
-import Select from '@/components/Form/Select';
+import PersonEditModal from '@/components/PersonEditModal/PersonEditModal';
 import { usePermissions } from '@/hooks/usePermissions';
 import styles from './PersonDetailPage.module.css';
 
@@ -76,38 +75,6 @@ interface MediaItem {
   thumbnail_url?: string;
 }
 
-interface EditBasicForm {
-  sex: SexType;
-  is_living: '0' | '1';
-  is_private: '0' | '1';
-  notes: string;
-}
-
-interface AddNameForm {
-  name_type: NameType;
-  given_name: string;
-  surname: string;
-  prefix: string;
-  suffix: string;
-  is_primary: boolean;
-}
-
-interface EditNameForm {
-  name_type: NameType;
-  given_name: string;
-  surname: string;
-  prefix: string;
-  suffix: string;
-  is_primary: boolean;
-}
-
-interface EventForm {
-  event_type: string;
-  event_date: string;
-  event_place: string;
-  description: string;
-}
-
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SEX_LABELS: Record<SexType, string> = {
@@ -158,31 +125,6 @@ const EVENT_EARLY_ORDER: Record<string, number> = {
   birth: 0,
   baptism: 1,
   christening: 1,
-};
-
-const DEFAULT_ADD_NAME_FORM: AddNameForm = {
-  name_type: 'birth',
-  given_name: '',
-  surname: '',
-  prefix: '',
-  suffix: '',
-  is_primary: false,
-};
-
-const DEFAULT_EDIT_NAME_FORM: EditNameForm = {
-  name_type: 'birth',
-  given_name: '',
-  surname: '',
-  prefix: '',
-  suffix: '',
-  is_primary: false,
-};
-
-const DEFAULT_EVENT_FORM: EventForm = {
-  event_type: 'birth',
-  event_date: '',
-  event_place: '',
-  description: '',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -289,49 +231,15 @@ const PersonDetailPage: React.FC = () => {
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [mediaLoading, setMediaLoading] = useState(true);
 
-  // ── Edit basic info ──
-  const [editMode, setEditMode] = useState(false);
-  const [editForm, setEditForm] = useState<EditBasicForm>({
-    sex: 'U',
-    is_living: '0',
-    is_private: '0',
-    notes: '',
-  });
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-
   // ── Delete ──
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // ── Add name ──
-  const [showAddName, setShowAddName] = useState(false);
-  const [addNameForm, setAddNameForm] = useState<AddNameForm>(DEFAULT_ADD_NAME_FORM);
-  const [isAddingName, setIsAddingName] = useState(false);
-  const [addNameError, setAddNameError] = useState<string | null>(null);
-
   // ── Inline post-load error ──
   const [inlineError, setInlineError] = useState<string | null>(null);
 
-  // ── Edit name inline ──
-  const [editingNameId, setEditingNameId] = useState<string | null>(null);
-  const [editNameForm, setEditNameForm] = useState<EditNameForm>(DEFAULT_EDIT_NAME_FORM);
-  const [isSavingName, setIsSavingName] = useState(false);
-  const [editNameError, setEditNameError] = useState<string | null>(null);
-
-  // ── Event management ──
-  const [editingEventId, setEditingEventId] = useState<string | null>(null);
-  const [editEventForm, setEditEventForm] = useState<EventForm>(DEFAULT_EVENT_FORM);
-  const [isSavingEvent, setIsSavingEvent] = useState(false);
-  const [editEventError, setEditEventError] = useState<string | null>(null);
-  const [showAddEvent, setShowAddEvent] = useState(false);
-  const [addEventForm, setAddEventForm] = useState<EventForm>(DEFAULT_EVENT_FORM);
-  const [isAddingEvent, setIsAddingEvent] = useState(false);
-  const [addEventError, setAddEventError] = useState<string | null>(null);
-
-  // ── Home person ──
-  const [isSettingHome, setIsSettingHome] = useState(false);
-  const [homeSetSuccess, setHomeSetSuccess] = useState(false);
+  // ── Edit modal ──
+  const [showEditModal, setShowEditModal] = useState(false);
 
   // ─── Fetchers ──────────────────────────────────────────────────────────────
 
@@ -394,56 +302,6 @@ const PersonDetailPage: React.FC = () => {
     fetchMedia();
   }, [fetchPerson, fetchRelationships, fetchMedia]);
 
-  // ─── Edit handlers ─────────────────────────────────────────────────────────
-
-  const openEdit = () => {
-    if (!person) return;
-    setEditForm({
-      sex: person.sex,
-      is_living: String(person.is_living) as '0' | '1',
-      is_private: String(person.is_private) as '0' | '1',
-      notes: person.notes ?? '',
-    });
-    setSaveError(null);
-    setEditMode(true);
-  };
-
-  const cancelEdit = () => {
-    setEditMode(false);
-    setSaveError(null);
-  };
-
-  const handleSave = async () => {
-    if (!id || !person) return;
-    setIsSaving(true);
-    setSaveError(null);
-    try {
-      const body = {
-        sex: editForm.sex,
-        is_living: Number(editForm.is_living),
-        is_private: Number(editForm.is_private),
-        notes: editForm.notes || null,
-      };
-      const res = await fetch(`/api/v1/people/${id}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const errData: { message?: string } = await res.json().catch(() => ({}));
-        throw new Error(errData.message ?? `Failed to save (${res.status})`);
-      }
-      const updated: PersonDetail = await res.json();
-      setPerson(updated);
-      setEditMode(false);
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Failed to save changes');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   // ─── Delete handler ────────────────────────────────────────────────────────
 
   const handleDelete = async () => {
@@ -460,249 +318,6 @@ const PersonDetailPage: React.FC = () => {
       setInlineError(err instanceof Error ? err.message : 'Failed to delete person');
       setIsDeleting(false);
       setDeleteConfirm(false);
-    }
-  };
-
-  // ─── Name handlers ─────────────────────────────────────────────────────────
-
-  const handleDeleteName = async (nameId: string) => {
-    if (!id) return;
-    setInlineError(null);
-    try {
-      const res = await fetch(`/api/v1/people/${id}/names/${nameId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(`Failed to delete name (${res.status})`);
-      setPerson((prev) =>
-        prev ? { ...prev, names: prev.names.filter((n) => n.id !== nameId) } : prev,
-      );
-    } catch (err) {
-      setInlineError(err instanceof Error ? err.message : 'Failed to delete name');
-    }
-  };
-
-  const handleAddName = async () => {
-    if (!id) return;
-    setIsAddingName(true);
-    setAddNameError(null);
-    try {
-      const body = {
-        name_type: addNameForm.name_type,
-        given_name: addNameForm.given_name || null,
-        surname: addNameForm.surname || null,
-        prefix: addNameForm.prefix || null,
-        suffix: addNameForm.suffix || null,
-        is_primary: addNameForm.is_primary ? 1 : 0,
-      };
-      const res = await fetch(`/api/v1/people/${id}/names`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const errData: { message?: string } = await res.json().catch(() => ({}));
-        throw new Error(errData.message ?? `Failed to add name (${res.status})`);
-      }
-      // Refresh person data so all name fields (including new ID) come from server
-      await fetchPerson();
-      setShowAddName(false);
-      setAddNameForm(DEFAULT_ADD_NAME_FORM);
-    } catch (err) {
-      setAddNameError(err instanceof Error ? err.message : 'Failed to add name');
-    } finally {
-      setIsAddingName(false);
-    }
-  };
-
-  const cancelAddName = () => {
-    setShowAddName(false);
-    setAddNameError(null);
-    setAddNameForm(DEFAULT_ADD_NAME_FORM);
-  };
-
-  // ─── Name edit handlers ─────────────────────────────────────────────────
-
-  const openEditName = (name: PersonName) => {
-    setEditingNameId(name.id);
-    setEditNameForm({
-      name_type: name.name_type,
-      given_name: name.given_name ?? '',
-      surname: name.surname ?? '',
-      prefix: name.prefix ?? '',
-      suffix: name.suffix ?? '',
-      is_primary: name.is_primary === 1,
-    });
-    setEditNameError(null);
-  };
-
-  const cancelEditName = () => {
-    setEditingNameId(null);
-    setEditNameError(null);
-  };
-
-  const handleSaveName = async (nameId: string) => {
-    if (!id) return;
-    setIsSavingName(true);
-    setEditNameError(null);
-    try {
-      const body = {
-        name_type: editNameForm.name_type,
-        given_name: editNameForm.given_name || null,
-        surname: editNameForm.surname || null,
-        prefix: editNameForm.prefix || null,
-        suffix: editNameForm.suffix || null,
-        is_primary: editNameForm.is_primary ? 1 : 0,
-      };
-      const res = await fetch(`/api/v1/people/${id}/names/${nameId}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const errData: { message?: string } = await res.json().catch(() => ({}));
-        throw new Error(errData.message ?? `Failed to save name (${res.status})`);
-      }
-      await fetchPerson();
-      setEditingNameId(null);
-    } catch (err) {
-      setEditNameError(err instanceof Error ? err.message : 'Failed to save name');
-    } finally {
-      setIsSavingName(false);
-    }
-  };
-
-  // ─── Event handlers ─────────────────────────────────────────────────────
-
-  const openEditEvent = (event: PersonEvent) => {
-    setEditingEventId(event.id);
-    setEditEventForm({
-      event_type: event.event_type,
-      event_date: event.event_date ?? '',
-      event_place: event.event_place ?? '',
-      description: event.description ?? '',
-    });
-    setEditEventError(null);
-  };
-
-  const cancelEditEvent = () => {
-    setEditingEventId(null);
-    setEditEventError(null);
-  };
-
-  const handleSaveEvent = async (eventId: string) => {
-    setIsSavingEvent(true);
-    setEditEventError(null);
-    try {
-      const body = {
-        event_type: editEventForm.event_type,
-        event_date: editEventForm.event_date || null,
-        event_place: editEventForm.event_place || null,
-        description: editEventForm.description || null,
-      };
-      const res = await fetch(`/api/v1/events/${eventId}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const errData: { message?: string } = await res.json().catch(() => ({}));
-        throw new Error(errData.message ?? `Failed to save event (${res.status})`);
-      }
-      const updated: PersonEvent = await res.json();
-      setPerson((prev) =>
-        prev
-          ? { ...prev, events: prev.events.map((e) => (e.id === eventId ? updated : e)) }
-          : prev,
-      );
-      setEditingEventId(null);
-    } catch (err) {
-      setEditEventError(err instanceof Error ? err.message : 'Failed to save event');
-    } finally {
-      setIsSavingEvent(false);
-    }
-  };
-
-  const handleDeleteEvent = async (eventId: string) => {
-    setInlineError(null);
-    try {
-      const res = await fetch(`/api/v1/events/${eventId}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(`Failed to delete event (${res.status})`);
-      setPerson((prev) =>
-        prev ? { ...prev, events: prev.events.filter((e) => e.id !== eventId) } : prev,
-      );
-    } catch (err) {
-      setInlineError(err instanceof Error ? err.message : 'Failed to delete event');
-    }
-  };
-
-  const openAddEvent = () => {
-    setAddEventForm(DEFAULT_EVENT_FORM);
-    setAddEventError(null);
-    setShowAddEvent(true);
-  };
-
-  const cancelAddEvent = () => {
-    setShowAddEvent(false);
-    setAddEventError(null);
-  };
-
-  const handleAddEvent = async () => {
-    if (!id) return;
-    setIsAddingEvent(true);
-    setAddEventError(null);
-    try {
-      const body = {
-        event_type: addEventForm.event_type,
-        event_date: addEventForm.event_date || null,
-        event_place: addEventForm.event_place || null,
-        description: addEventForm.description || null,
-      };
-      const res = await fetch(`/api/v1/events/people/${id}/events`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const errData: { message?: string } = await res.json().catch(() => ({}));
-        throw new Error(errData.message ?? `Failed to add event (${res.status})`);
-      }
-      await fetchPerson();
-      setShowAddEvent(false);
-    } catch (err) {
-      setAddEventError(err instanceof Error ? err.message : 'Failed to add event');
-    } finally {
-      setIsAddingEvent(false);
-    }
-  };
-
-  // ─── Home person handler ────────────────────────────────────────────────
-
-  const handleSetHomePerson = async () => {
-    if (!id) return;
-    setIsSettingHome(true);
-    setHomeSetSuccess(false);
-    try {
-      const res = await fetch('/api/v1/home-person', {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ person_id: id }),
-      });
-      if (!res.ok) throw new Error(`Failed to set home person (${res.status})`);
-      setHomeSetSuccess(true);
-      setTimeout(() => setHomeSetSuccess(false), 3000);
-    } catch (err) {
-      setInlineError(err instanceof Error ? err.message : 'Failed to set home person');
-    } finally {
-      setIsSettingHome(false);
     }
   };
 
@@ -802,8 +417,8 @@ const PersonDetailPage: React.FC = () => {
           <div className={styles.headerRow}>
             <h1 className={styles.title}>{displayTitle}</h1>
             <div className={styles.headerActions}>
-              {canEdit && !editMode && !deleteConfirm && (
-                <Button variant="ghost" size="sm" onClick={openEdit}>
+              {canEdit && !deleteConfirm && (
+                <Button variant="ghost" size="sm" onClick={() => setShowEditModal(true)}>
                   Edit Info
                 </Button>
               )}
@@ -856,144 +471,43 @@ const PersonDetailPage: React.FC = () => {
                 <h2 className={styles.sectionTitle} id="basic-info-heading">
                   Basic Information
                 </h2>
-                {canEdit && !editMode && (
-                  <Button variant="ghost" size="sm" onClick={openEdit}>
-                    Edit
-                  </Button>
-                )}
               </div>
 
-              {editMode ? (
-                /* ── Edit form ── */
-                <div className={styles.editForm}>
-                  <div className={styles.editGrid}>
-                    <label className={styles.editLabel}>
-                      <span>Sex</span>
-                      <Select
-                        value={editForm.sex}
-                        onChange={(e) =>
-                          setEditForm((f) => ({ ...f, sex: e.target.value as SexType }))
-                        }
-                      >
-                        <option value="M">Male</option>
-                        <option value="F">Female</option>
-                        <option value="X">Non-binary</option>
-                        <option value="U">Unknown</option>
-                      </Select>
-                    </label>
+              {/* Read-only info grid */}
+              <div className={styles.infoGrid}>
+                <InfoRow label="Sex" value={SEX_LABELS[person.sex]} />
 
-                    <label className={styles.editLabel}>
-                      <span>Living Status</span>
-                      <Select
-                        value={editForm.is_living}
-                        onChange={(e) =>
-                          setEditForm((f) => ({
-                            ...f,
-                            is_living: e.target.value as '0' | '1',
-                          }))
-                        }
-                      >
-                        <option value="1">Living</option>
-                        <option value="0">Deceased</option>
-                      </Select>
-                    </label>
-
-                    <label className={styles.editLabel}>
-                      <span>Privacy</span>
-                      <Select
-                        value={editForm.is_private}
-                        onChange={(e) =>
-                          setEditForm((f) => ({
-                            ...f,
-                            is_private: e.target.value as '0' | '1',
-                          }))
-                        }
-                      >
-                        <option value="0">Public</option>
-                        <option value="1">Private</option>
-                      </Select>
-                    </label>
-                  </div>
-
-                  <label className={styles.editLabel}>
-                    <span>Notes</span>
-                    <textarea
-                      className={styles.notesTextarea}
-                      value={editForm.notes}
-                      onChange={(e) =>
-                        setEditForm((f) => ({ ...f, notes: e.target.value }))
-                      }
-                      placeholder="Add notes about this person…"
-                      rows={4}
-                    />
-                  </label>
-
-                  {saveError && (
-                    <div className={styles.saveError} role="alert">
-                      {saveError}
-                    </div>
-                  )}
-
-                  <div className={styles.editActions}>
-                    <Button variant="primary" size="sm" onClick={handleSave} loading={isSaving}>
-                      Save
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={cancelEdit}
-                      disabled={isSaving}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleSetHomePerson}
-                      loading={isSettingHome}
-                      disabled={isSaving}
-                    >
-                      {homeSetSuccess ? '✓ Set as home' : 'Set as Home Person'}
-                    </Button>
-                  </div>
+                <div className={styles.infoRow}>
+                  <span className={styles.infoLabel}>Status</span>
+                  <span
+                    className={`${styles.statusBadge} ${
+                      person.is_living === 1 ? styles.statusLiving : styles.statusDeceased
+                    }`}
+                  >
+                    {person.is_living === 1 ? 'Living' : 'Deceased'}
+                  </span>
                 </div>
-              ) : (
-                /* ── Read-only info grid ── */
-                <div className={styles.infoGrid}>
-                  <InfoRow label="Sex" value={SEX_LABELS[person.sex]} />
 
-                  <div className={styles.infoRow}>
-                    <span className={styles.infoLabel}>Status</span>
-                    <span
-                      className={`${styles.statusBadge} ${
-                        person.is_living === 1 ? styles.statusLiving : styles.statusDeceased
-                      }`}
-                    >
-                      {person.is_living === 1 ? 'Living' : 'Deceased'}
-                    </span>
-                  </div>
-
-                  <div className={styles.infoRow}>
-                    <span className={styles.infoLabel}>Privacy</span>
-                    {person.is_private === 1 ? (
-                      <span className={styles.privateBadge}>Private</span>
-                    ) : (
-                      <span className={styles.infoValue}>Public</span>
-                    )}
-                  </div>
-
-                  {person.created_at && (
-                    <InfoRow
-                      label="Added"
-                      value={new Date(person.created_at).toLocaleDateString(undefined, {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                      })}
-                    />
+                <div className={styles.infoRow}>
+                  <span className={styles.infoLabel}>Privacy</span>
+                  {person.is_private === 1 ? (
+                    <span className={styles.privateBadge}>Private</span>
+                  ) : (
+                    <span className={styles.infoValue}>Public</span>
                   )}
                 </div>
-              )}
+
+                {person.created_at && (
+                  <InfoRow
+                    label="Added"
+                    value={new Date(person.created_at).toLocaleDateString(undefined, {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
+                  />
+                )}
+              </div>
             </section>
 
             {/* ── Names ── */}
@@ -1005,269 +519,33 @@ const PersonDetailPage: React.FC = () => {
                     <span className={styles.countBadge}>{person.names.length}</span>
                   )}
                 </h2>
-                {canEdit && !showAddName && (
-                  <Button variant="ghost" size="sm" onClick={() => setShowAddName(true)}>
-                    + Add Name
-                  </Button>
-                )}
               </div>
 
-              {person.names.length === 0 && !showAddName && (
+              {person.names.length === 0 ? (
                 <p className={styles.noInfo}>No names recorded.</p>
-              )}
-
-              {person.names.length > 0 && (
+              ) : (
                 <ul className={styles.namesList}>
                   {person.names.map((name) => (
                     <li key={name.id} className={styles.nameItem}>
-                      {editingNameId === name.id ? (
-                        <div className={styles.nameEditForm}>
-                          <div className={styles.editGrid}>
-                            <label className={styles.editLabel}>
-                              <span>Type</span>
-                              <Select
-                                value={editNameForm.name_type}
-                                onChange={(e) =>
-                                  setEditNameForm((f) => ({
-                                    ...f,
-                                    name_type: e.target.value as NameType,
-                                  }))
-                                }
-                              >
-                                <option value="birth">Birth</option>
-                                <option value="married">Married</option>
-                                <option value="aka">AKA</option>
-                                <option value="nickname">Nickname</option>
-                                <option value="formal">Formal</option>
-                                <option value="religious">Religious</option>
-                              </Select>
-                            </label>
-                            <label className={styles.editLabel}>
-                              <span>Prefix</span>
-                              <Input
-                                value={editNameForm.prefix}
-                                onChange={(e) =>
-                                  setEditNameForm((f) => ({ ...f, prefix: e.target.value }))
-                                }
-                                placeholder="e.g. Dr."
-                              />
-                            </label>
-                            <label className={styles.editLabel}>
-                              <span>Given Name</span>
-                              <Input
-                                value={editNameForm.given_name}
-                                onChange={(e) =>
-                                  setEditNameForm((f) => ({ ...f, given_name: e.target.value }))
-                                }
-                                placeholder="First / given name"
-                              />
-                            </label>
-                            <label className={styles.editLabel}>
-                              <span>Surname</span>
-                              <Input
-                                value={editNameForm.surname}
-                                onChange={(e) =>
-                                  setEditNameForm((f) => ({ ...f, surname: e.target.value }))
-                                }
-                                placeholder="Last / family name"
-                              />
-                            </label>
-                            <label className={styles.editLabel}>
-                              <span>Suffix</span>
-                              <Input
-                                value={editNameForm.suffix}
-                                onChange={(e) =>
-                                  setEditNameForm((f) => ({ ...f, suffix: e.target.value }))
-                                }
-                                placeholder="e.g. Jr."
-                              />
-                            </label>
-                            <label className={`${styles.editLabel} ${styles.checkboxLabel}`}>
-                              <input
-                                type="checkbox"
-                                checked={editNameForm.is_primary}
-                                onChange={(e) =>
-                                  setEditNameForm((f) => ({
-                                    ...f,
-                                    is_primary: e.target.checked,
-                                  }))
-                                }
-                              />
-                              <span>Set as primary name</span>
-                            </label>
-                          </div>
-                          {editNameError && (
-                            <div className={styles.saveError} role="alert">
-                              {editNameError}
-                            </div>
-                          )}
-                          <div className={styles.editActions}>
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              onClick={() => handleSaveName(name.id)}
-                              loading={isSavingName}
-                            >
-                              Save
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={cancelEditName}
-                              disabled={isSavingName}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className={styles.nameItemMain}>
-                            <span className={styles.nameText}>{fullName(name)}</span>
-                            <span
-                              className={`${styles.nameTypeBadge} ${NAME_TYPE_CSS[name.name_type]}`}
-                            >
-                              {NAME_TYPE_LABELS[name.name_type]}
-                            </span>
-                            {name.is_primary === 1 && (
-                              <span className={styles.primaryBadge}>Primary</span>
-                            )}
-                          </div>
-                          {canEdit && (
-                            <div className={styles.nameItemActions}>
-                              <button
-                                className={styles.editBtn}
-                                onClick={() => openEditName(name)}
-                                aria-label={`Edit name: ${fullName(name)}`}
-                              >
-                                Edit
-                              </button>
-                              <button
-                                className={styles.removeBtn}
-                                onClick={() => handleDeleteName(name.id)}
-                                aria-label={`Delete name: ${fullName(name)}`}
-                              >
-                                Remove
-                              </button>
-                            </div>
-                          )}
-                        </>
-                      )}
+                      <div className={styles.nameItemMain}>
+                        <span className={styles.nameText}>{fullName(name)}</span>
+                        <span
+                          className={`${styles.nameTypeBadge} ${NAME_TYPE_CSS[name.name_type]}`}
+                        >
+                          {NAME_TYPE_LABELS[name.name_type]}
+                        </span>
+                        {name.is_primary === 1 && (
+                          <span className={styles.primaryBadge}>Primary</span>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>
               )}
-
-              {/* ── Add name form ── */}
-              {showAddName && (
-                <div className={styles.addNameForm}>
-                  <div className={styles.editGrid}>
-                    <label className={styles.editLabel}>
-                      <span>Type</span>
-                      <Select
-                        value={addNameForm.name_type}
-                        onChange={(e) =>
-                          setAddNameForm((f) => ({
-                            ...f,
-                            name_type: e.target.value as NameType,
-                          }))
-                        }
-                      >
-                        <option value="birth">Birth</option>
-                        <option value="married">Married</option>
-                        <option value="aka">AKA</option>
-                        <option value="nickname">Nickname</option>
-                        <option value="formal">Formal</option>
-                        <option value="religious">Religious</option>
-                      </Select>
-                    </label>
-
-                    <label className={styles.editLabel}>
-                      <span>Prefix</span>
-                      <Input
-                        value={addNameForm.prefix}
-                        onChange={(e) =>
-                          setAddNameForm((f) => ({ ...f, prefix: e.target.value }))
-                        }
-                        placeholder="e.g. Dr."
-                      />
-                    </label>
-
-                    <label className={styles.editLabel}>
-                      <span>Given Name</span>
-                      <Input
-                        value={addNameForm.given_name}
-                        onChange={(e) =>
-                          setAddNameForm((f) => ({ ...f, given_name: e.target.value }))
-                        }
-                        placeholder="First / given name"
-                      />
-                    </label>
-
-                    <label className={styles.editLabel}>
-                      <span>Surname</span>
-                      <Input
-                        value={addNameForm.surname}
-                        onChange={(e) =>
-                          setAddNameForm((f) => ({ ...f, surname: e.target.value }))
-                        }
-                        placeholder="Last / family name"
-                      />
-                    </label>
-
-                    <label className={styles.editLabel}>
-                      <span>Suffix</span>
-                      <Input
-                        value={addNameForm.suffix}
-                        onChange={(e) =>
-                          setAddNameForm((f) => ({ ...f, suffix: e.target.value }))
-                        }
-                        placeholder="e.g. Jr."
-                      />
-                    </label>
-
-                    <label className={`${styles.editLabel} ${styles.checkboxLabel}`}>
-                      <input
-                        type="checkbox"
-                        checked={addNameForm.is_primary}
-                        onChange={(e) =>
-                          setAddNameForm((f) => ({ ...f, is_primary: e.target.checked }))
-                        }
-                      />
-                      <span>Set as primary name</span>
-                    </label>
-                  </div>
-
-                  {addNameError && (
-                    <div className={styles.saveError} role="alert">
-                      {addNameError}
-                    </div>
-                  )}
-
-                  <div className={styles.editActions}>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={handleAddName}
-                      loading={isAddingName}
-                    >
-                      Add Name
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={cancelAddName}
-                      disabled={isAddingName}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
             </section>
 
-            {/* ── Notes (read-only; shown outside edit mode when content exists) ── */}
-            {!editMode && person.notes && (
+            {/* ── Notes (read-only; shown when content exists) ── */}
+            {person.notes && (
               <section className={styles.section} aria-labelledby="notes-heading">
                 <h2 className={styles.sectionTitle} id="notes-heading">
                   Notes
@@ -1289,226 +567,36 @@ const PersonDetailPage: React.FC = () => {
                     <span className={styles.countBadge}>{sortedEventsList.length}</span>
                   )}
                 </h2>
-                {canEdit && !showAddEvent && (
-                  <Button variant="ghost" size="sm" onClick={openAddEvent}>
-                    + Add Event
-                  </Button>
-                )}
               </div>
 
-              {sortedEventsList.length === 0 && !showAddEvent ? (
+              {sortedEventsList.length === 0 ? (
                 <p className={styles.noInfo}>No events recorded.</p>
               ) : (
                 <ol className={styles.eventsList} aria-label="Life events timeline">
                   {sortedEventsList.map((event) => (
                     <li key={event.id} className={styles.eventItem}>
                       <div className={styles.eventDot} aria-hidden="true" />
-                      {editingEventId === event.id ? (
-                        <div className={styles.eventEditForm}>
-                          <div className={styles.editGrid}>
-                            <label className={styles.editLabel}>
-                              <span>Type</span>
-                              <Select
-                                value={editEventForm.event_type}
-                                onChange={(e) =>
-                                  setEditEventForm((f) => ({
-                                    ...f,
-                                    event_type: e.target.value,
-                                  }))
-                                }
-                              >
-                                {Object.entries(EVENT_TYPE_LABELS).map(([val, label]) => (
-                                  <option key={val} value={val}>
-                                    {label}
-                                  </option>
-                                ))}
-                              </Select>
-                            </label>
-                            <label className={styles.editLabel}>
-                              <span>Date</span>
-                              <Input
-                                value={editEventForm.event_date}
-                                onChange={(e) =>
-                                  setEditEventForm((f) => ({
-                                    ...f,
-                                    event_date: e.target.value,
-                                  }))
-                                }
-                                placeholder="e.g. 1 JAN 1900"
-                              />
-                            </label>
-                            <label className={styles.editLabel}>
-                              <span>Place</span>
-                              <Input
-                                value={editEventForm.event_place}
-                                onChange={(e) =>
-                                  setEditEventForm((f) => ({
-                                    ...f,
-                                    event_place: e.target.value,
-                                  }))
-                                }
-                                placeholder="City, State, Country"
-                              />
-                            </label>
-                            <label className={`${styles.editLabel} ${styles.fullWidth}`}>
-                              <span>Description</span>
-                              <textarea
-                                className={styles.notesTextarea}
-                                value={editEventForm.description}
-                                onChange={(e) =>
-                                  setEditEventForm((f) => ({
-                                    ...f,
-                                    description: e.target.value,
-                                  }))
-                                }
-                                placeholder="Additional details…"
-                                rows={2}
-                              />
-                            </label>
-                          </div>
-                          {editEventError && (
-                            <div className={styles.saveError} role="alert">
-                              {editEventError}
-                            </div>
-                          )}
-                          <div className={styles.editActions}>
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              onClick={() => handleSaveEvent(event.id)}
-                              loading={isSavingEvent}
-                            >
-                              Save
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={cancelEditEvent}
-                              disabled={isSavingEvent}
-                            >
-                              Cancel
-                            </Button>
+                      <div className={styles.eventContent}>
+                        <div className={styles.eventHeader}>
+                          <span className={styles.eventType}>
+                            {formatEventType(event.event_type)}
+                          </span>
+                          <div className={styles.eventHeaderRight}>
+                            {event.event_date && (
+                              <span className={styles.eventDate}>{event.event_date}</span>
+                            )}
                           </div>
                         </div>
-                      ) : (
-                        <div className={styles.eventContent}>
-                          <div className={styles.eventHeader}>
-                            <span className={styles.eventType}>
-                              {formatEventType(event.event_type)}
-                            </span>
-                            <div className={styles.eventHeaderRight}>
-                              {event.event_date && (
-                                <span className={styles.eventDate}>{event.event_date}</span>
-                              )}
-                              {canEdit && (
-                                <div className={styles.eventActions}>
-                                  <button
-                                    className={styles.editBtn}
-                                    onClick={() => openEditEvent(event)}
-                                    aria-label={`Edit ${event.event_type} event`}
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    className={styles.removeBtn}
-                                    onClick={() => handleDeleteEvent(event.id)}
-                                    aria-label={`Delete ${event.event_type} event`}
-                                  >
-                                    Delete
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          {event.event_place && (
-                            <div className={styles.eventPlace}>📍 {event.event_place}</div>
-                          )}
-                          {event.description && (
-                            <div className={styles.eventDesc}>{event.description}</div>
-                          )}
-                        </div>
-                      )}
+                        {event.event_place && (
+                          <div className={styles.eventPlace}>📍 {event.event_place}</div>
+                        )}
+                        {event.description && (
+                          <div className={styles.eventDesc}>{event.description}</div>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ol>
-              )}
-
-              {/* ── Add event form ── */}
-              {showAddEvent && (
-                <div className={styles.addNameForm}>
-                  <div className={styles.editGrid}>
-                    <label className={styles.editLabel}>
-                      <span>Type</span>
-                      <Select
-                        value={addEventForm.event_type}
-                        onChange={(e) =>
-                          setAddEventForm((f) => ({ ...f, event_type: e.target.value }))
-                        }
-                      >
-                        {Object.entries(EVENT_TYPE_LABELS).map(([val, label]) => (
-                          <option key={val} value={val}>
-                            {label}
-                          </option>
-                        ))}
-                      </Select>
-                    </label>
-                    <label className={styles.editLabel}>
-                      <span>Date</span>
-                      <Input
-                        value={addEventForm.event_date}
-                        onChange={(e) =>
-                          setAddEventForm((f) => ({ ...f, event_date: e.target.value }))
-                        }
-                        placeholder="e.g. 1 JAN 1900"
-                      />
-                    </label>
-                    <label className={styles.editLabel}>
-                      <span>Place</span>
-                      <Input
-                        value={addEventForm.event_place}
-                        onChange={(e) =>
-                          setAddEventForm((f) => ({ ...f, event_place: e.target.value }))
-                        }
-                        placeholder="City, State, Country"
-                      />
-                    </label>
-                    <label className={`${styles.editLabel} ${styles.fullWidth}`}>
-                      <span>Description</span>
-                      <textarea
-                        className={styles.notesTextarea}
-                        value={addEventForm.description}
-                        onChange={(e) =>
-                          setAddEventForm((f) => ({ ...f, description: e.target.value }))
-                        }
-                        placeholder="Additional details…"
-                        rows={2}
-                      />
-                    </label>
-                  </div>
-                  {addEventError && (
-                    <div className={styles.saveError} role="alert">
-                      {addEventError}
-                    </div>
-                  )}
-                  <div className={styles.editActions}>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={handleAddEvent}
-                      loading={isAddingEvent}
-                    >
-                      Add Event
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={cancelAddEvent}
-                      disabled={isAddingEvent}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
               )}
             </section>
 
@@ -1671,6 +759,19 @@ const PersonDetailPage: React.FC = () => {
         {/* end contentGrid */}
 
       </div>
+
+      {/* ── Edit modal ── */}
+      <PersonEditModal
+        open={showEditModal}
+        personId={id ?? null}
+        displayName={displayTitle}
+        onClose={() => setShowEditModal(false)}
+        onSaved={() => {
+          fetchPerson();
+          fetchRelationships();
+          fetchMedia();
+        }}
+      />
     </AppShell>
   );
 };
