@@ -1,0 +1,455 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: var(--space-6);
+  gap: var(--space-6);
+  overflow-y: auto;
+}
+
+/* ── Page header ── */
+.pageHeader {
+  flex-shrink: 0;
+}
+
+.backBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family);
+  cursor: pointer;
+  margin-bottom: var(--space-3);
+  transition: color var(--transition-fast);
+}
+
+.backBtn:hover {
+  color: var(--color-primary-600);
+}
+
+.headerRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.headerActions {
+  flex-shrink: 0;
+}
+
+.confirmDelete {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.confirmText {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+/* ── Error banner ── */
+.errorBanner {
+  padding: var(--space-3) var(--space-4);
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+  flex-shrink: 0;
+}
+
+/* ── Sections ── */
+.section {
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.sectionTitle {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.childCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 var(--space-2);
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-700);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* ── Spouses ── */
+.spousesRow {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-3);
+}
+
+.spouseCard {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.spouseCardLink:hover {
+  border-color: var(--color-primary-400);
+  box-shadow: var(--shadow-sm);
+}
+
+.spouseCardEmpty {
+  background-color: var(--color-bg-secondary);
+}
+
+.spouseLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.spouseName {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.noSpouse {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  font-style: italic;
+}
+
+.spouseArrow {
+  font-size: var(--font-size-sm);
+  color: var(--color-primary-500);
+  margin-top: auto;
+}
+
+.spouseConnector {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  color: var(--color-primary-400);
+}
+
+.spouseConnector svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ── Info grid (read-only) ── */
+.infoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-3) var(--space-6);
+}
+
+.infoRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.infoLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.infoValue {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+}
+
+.infoValueEmpty {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+}
+
+.noInfo {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  font-style: italic;
+  margin: 0;
+}
+
+/* ── Edit form ── */
+.editForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.editGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-3) var(--space-4);
+}
+
+.editLabel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.saveError {
+  padding: var(--space-2) var(--space-3);
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+}
+
+.editActions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* ── Children list ── */
+.childrenList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.childItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg-secondary);
+}
+
+.childName {
+  flex: 1;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-primary-700);
+  text-decoration: none;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.childName:hover {
+  text-decoration: underline;
+}
+
+/* Role badges */
+.roleBadge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.roleChild {
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-800);
+}
+
+.roleAdopted {
+  background-color: #ede9fe;
+  color: #5b21b6;
+}
+
+.roleFoster {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.roleStep {
+  background-color: var(--color-gray-100);
+  color: var(--color-gray-700);
+}
+
+.removeBtn {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-error);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-family);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background-color var(--transition-fast);
+}
+
+.removeBtn:hover {
+  background-color: #fef2f2;
+}
+
+/* ── Loading skeleton ── */
+.loadingState {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding-top: var(--space-2);
+}
+
+.skeletonHeading {
+  height: 36px;
+  width: 60%;
+  border-radius: var(--radius-md);
+  background: linear-gradient(
+    90deg,
+    var(--color-gray-100) 25%,
+    var(--color-gray-200) 50%,
+    var(--color-gray-100) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+
+.skeletonCard {
+  flex: 1;
+  height: 100px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(
+    90deg,
+    var(--color-gray-100) 25%,
+    var(--color-gray-200) 50%,
+    var(--color-gray-100) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+
+.skeletonSection {
+  height: 140px;
+  border-radius: var(--radius-xl);
+  background: linear-gradient(
+    90deg,
+    var(--color-gray-100) 25%,
+    var(--color-gray-200) 50%,
+    var(--color-gray-100) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* ── Centered full-page states (404, error) ── */
+.centeredState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: var(--space-4);
+  padding: var(--space-12);
+  text-align: center;
+}
+
+.centeredIcon {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background-color: var(--color-bg-tertiary);
+  color: var(--color-text-tertiary);
+}
+
+.centeredIcon svg {
+  width: 28px;
+  height: 28px;
+}
+
+.centeredTitle {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.centeredDesc {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin: 0;
+  max-width: 360px;
+}
+
+@media (max-width: 600px) {
+  .spousesRow {
+    flex-direction: column;
+  }
+
+  .spouseConnector {
+    transform: rotate(90deg);
+    width: 100%;
+    height: 24px;
+  }
+}

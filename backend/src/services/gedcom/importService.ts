@@ -265,7 +265,7 @@ export function processImport(jobId: string, content: string, userId: string): I
         // Create new person (default or 'merge' falls through to create)
         const created = personRepo.create({
           sex: person.sex,
-          is_living: 1,
+          is_living: person.events.some(e => e.eventType === 'death') ? 0 : 1,
           gedcom_id: person.xref,
           created_by: userId,
         });

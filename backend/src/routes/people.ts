@@ -22,8 +22,17 @@ peopleRouter.get('/', (req, res) => {
     const living = req.query.living !== undefined
       ? req.query.living === 'true'
       : undefined;
+    const sortParam = req.query.sort as string | undefined;
+    const filterParam = req.query.filter as string | undefined;
 
-    const result = repo.findAll({ limit, cursor, search, isLiving: living });
+    const result = repo.findAll({
+      limit,
+      cursor,
+      search,
+      isLiving: living,
+      sort: sortParam === 'surname' ? 'surname' : undefined,
+      filter: filterParam === 'unconnected' ? 'unconnected' : undefined,
+    });
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: 'Failed to list persons' });
@@ -33,7 +42,7 @@ peopleRouter.get('/', (req, res) => {
 // POST /people — Create person (with names)
 peopleRouter.post(
   '/',
-  requireRole('admin', 'editor'),
+  requireRole('admin', 'editor', 'limited_editor'),
   validate([
     { field: 'sex', type: 'string', enum: ['M', 'F', 'X', 'U'] },
   ]),
@@ -161,7 +170,7 @@ peopleRouter.get('/:id/relationships', (req, res) => {
 // POST /people/:id/relationships — Add relationship
 peopleRouter.post(
   '/:id/relationships',
-  requireRole('admin', 'editor'),
+  requireRole('admin', 'editor', 'limited_editor'),
   validate([
     { field: 'type', required: true, type: 'string', enum: ['spouse', 'child'] },
     { field: 'person_id', required: true, type: 'string' },
@@ -205,6 +214,91 @@ peopleRouter.post(
       }
     } catch (error) {
       res.status(500).json({ error: 'Failed to add relationship' });
+    }
+  },
+);
+
+// POST /people/:id/names — Add a name to a person
+peopleRouter.post(
+  '/:id/names',
+  requireRole('admin', 'editor', 'limited_editor'),
+  (req, res) => {
+    try {
+      const repo = new PersonRepository();
+      const personId = paramStr(req.params.id);
+
+      const person = repo.findById(personId);
+      if (!person) {
+        res.status(404).json({ error: 'Person not found' });
+        return;
+      }
+
+      const { name_type, given_name, surname, prefix, suffix, is_primary } = req.body;
+      const name = repo.addName(personId, { name_type, given_name, surname, prefix, suffix, is_primary });
+      res.status(201).json(name);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to add name' });
+    }
+  },
+);
+
+// PUT /people/:id/names/:nameId — Update a name
+peopleRouter.put(
+  '/:id/names/:nameId',
+  requireRole('admin', 'editor'),
+  (req, res) => {
+    try {
+      const repo = new PersonRepository();
+      const personId = paramStr(req.params.id);
+      const nameId = paramStr(req.params.nameId);
+
+      const person = repo.findById(personId);
+      if (!person) {
+        res.status(404).json({ error: 'Person not found' });
+        return;
+      }
+
+      const existingName = repo.findNameById(nameId);
+      if (!existingName || existingName.person_id !== personId) {
+        res.status(404).json({ error: 'Name not found' });
+        return;
+      }
+
+      const { name_type, given_name, surname, prefix, suffix, is_primary } = req.body;
+      const updated = repo.updateName(nameId, { name_type, given_name, surname, prefix, suffix, is_primary });
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to update name' });
+    }
+  },
+);
+
+// DELETE /people/:id/names/:nameId — Delete a name
+peopleRouter.delete(
+  '/:id/names/:nameId',
+  requireRole('admin', 'editor'),
+  (req, res) => {
+    try {
+      const repo = new PersonRepository();
+      const personId = paramStr(req.params.id);
+      const nameId = paramStr(req.params.nameId);
+
+      const person = repo.findById(personId);
+      if (!person) {
+        res.status(404).json({ error: 'Person not found' });
+        return;
+      }
+
+      const existingName = repo.findNameById(nameId);
+      if (!existingName || existingName.person_id !== personId) {
+        res.status(404).json({ error: 'Name not found' });
+        return;
+      }
+
+      repo.deleteName(nameId);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to delete name' });
     }
   },
 );

@@ -69,11 +69,11 @@
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: var(--space-4);
-  flex: 1;
   overflow-y: auto;
   align-content: start;
+  flex: 1;
 }
 
 .card {
@@ -95,11 +95,34 @@
   box-shadow: var(--shadow-md);
 }
 
-.cardInfo {
-  min-width: 0;
+.card:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 2px;
 }
 
-.cardName {
+.familyIcon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-700);
+}
+
+.familyIcon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.cardInfo {
+  min-width: 0;
+  flex: 1;
+}
+
+.cardTitle {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
@@ -108,16 +131,10 @@
   text-overflow: ellipsis;
 }
 
-.cardDates {
+.cardMeta {
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
-}
-
-.loadMore {
-  display: flex;
-  justify-content: center;
-  padding: var(--space-4);
-  flex-shrink: 0;
+  margin-top: var(--space-1);
 }
 
 /* Skeleton shimmer */
@@ -148,4 +165,11 @@
   padding: var(--space-8);
   color: var(--color-text-tertiary);
   font-size: var(--font-size-sm);
+}
+
+.loadMore {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-4);
+  flex-shrink: 0;
 }

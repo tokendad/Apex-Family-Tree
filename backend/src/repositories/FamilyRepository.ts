@@ -6,17 +6,95 @@ export class FamilyRepository extends BaseRepository {
     return this.db.prepare('SELECT * FROM families WHERE id = ?').get(id) as Family | undefined;
   }
 
-  findAll(options?: { limit?: number; cursor?: string }): { data: Family[]; next_cursor: string | null } {
+  findAll(options?: {
+    limit?: number;
+    cursor?: string;
+    search?: string;
+    sort?: 'surname';
+    filter?: 'unlinked';
+  }): { data: Family[]; next_cursor: string | null } {
     const limit = options?.limit || 50;
-    const params: unknown[] = [];
-    let query = 'SELECT * FROM families';
+    const useSurnameSort = options?.sort === 'surname';
+    const useUnlinkedFilter = options?.filter === 'unlinked';
 
-    if (options?.cursor) {
-      query += ' WHERE id > ?';
-      params.push(options.cursor);
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (options?.search) {
+      const term = `%${options.search}%`;
+      conditions.push(
+        '(EXISTS (SELECT 1 FROM names WHERE person_id = f.spouse1_id AND surname LIKE ?) OR ' +
+        'EXISTS (SELECT 1 FROM names WHERE person_id = f.spouse2_id AND surname LIKE ?))'
+      );
+      params.push(term, term);
     }
 
-    query += ' ORDER BY id ASC LIMIT ?';
+    if (useUnlinkedFilter) {
+      // A family is unlinked if none of its members (spouse1, spouse2, any child)
+      // appear in any other family (as spouse or child).
+      conditions.push(`NOT EXISTS (
+        SELECT 1 FROM families other_f
+        WHERE other_f.id != f.id AND (
+          (f.spouse1_id IS NOT NULL AND (
+            other_f.spouse1_id = f.spouse1_id OR
+            other_f.spouse2_id = f.spouse1_id OR
+            EXISTS (SELECT 1 FROM family_members om1 WHERE om1.family_id = other_f.id AND om1.person_id = f.spouse1_id)
+          )) OR
+          (f.spouse2_id IS NOT NULL AND (
+            other_f.spouse1_id = f.spouse2_id OR
+            other_f.spouse2_id = f.spouse2_id OR
+            EXISTS (SELECT 1 FROM family_members om2 WHERE om2.family_id = other_f.id AND om2.person_id = f.spouse2_id)
+          )) OR
+          EXISTS (
+            SELECT 1 FROM family_members fm
+            WHERE fm.family_id = f.id AND (
+              other_f.spouse1_id = fm.person_id OR
+              other_f.spouse2_id = fm.person_id OR
+              EXISTS (SELECT 1 FROM family_members om3 WHERE om3.family_id = other_f.id AND om3.person_id = fm.person_id)
+            )
+          )
+        )
+      )`);
+    }
+
+    if (options?.cursor) {
+      if (useSurnameSort) {
+        const cursorRow = this.db.prepare(
+          `SELECT
+             (SELECT COALESCE(surname, '') FROM names WHERE person_id = f.spouse1_id AND is_primary = 1 LIMIT 1) AS sn1,
+             (SELECT COALESCE(surname, '') FROM names WHERE person_id = f.spouse2_id AND is_primary = 1 LIMIT 1) AS sn2
+           FROM families f WHERE f.id = ?`
+        ).get(options.cursor) as { sn1: string; sn2: string } | undefined;
+        const sn1 = cursorRow?.sn1 ?? '';
+        const sn2 = cursorRow?.sn2 ?? '';
+        conditions.push(`(
+          (SELECT COALESCE(surname, '') FROM names WHERE person_id = f.spouse1_id AND is_primary = 1 LIMIT 1) > ? OR
+          ((SELECT COALESCE(surname, '') FROM names WHERE person_id = f.spouse1_id AND is_primary = 1 LIMIT 1) = ? AND
+           (SELECT COALESCE(surname, '') FROM names WHERE person_id = f.spouse2_id AND is_primary = 1 LIMIT 1) > ?) OR
+          ((SELECT COALESCE(surname, '') FROM names WHERE person_id = f.spouse1_id AND is_primary = 1 LIMIT 1) = ? AND
+           (SELECT COALESCE(surname, '') FROM names WHERE person_id = f.spouse2_id AND is_primary = 1 LIMIT 1) = ? AND
+           f.id > ?)
+        )`);
+        params.push(sn1, sn1, sn2, sn1, sn2, options.cursor);
+      } else {
+        conditions.push('f.id > ?');
+        params.push(options.cursor);
+      }
+    }
+
+    let query = 'SELECT f.* FROM families f';
+    if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
+
+    if (useSurnameSort) {
+      query += ` ORDER BY
+        (SELECT COALESCE(surname, '') FROM names WHERE person_id = f.spouse1_id AND is_primary = 1 LIMIT 1) ASC,
+        (SELECT COALESCE(surname, '') FROM names WHERE person_id = f.spouse2_id AND is_primary = 1 LIMIT 1) ASC,
+        f.id ASC`;
+    } else {
+      query += ' ORDER BY f.id ASC';
+    }
+
+    query += ' LIMIT ?';
     params.push(limit + 1);
 
     const rows = this.db.prepare(query).all(...params) as Family[];

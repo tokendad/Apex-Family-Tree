@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import Button from '@/components/Button/Button';
 import { useCanvasStore } from '@/stores/canvasStore';
 import styles from './CanvasToolbar.module.css';
@@ -8,6 +9,7 @@ interface CanvasToolbarProps {
 }
 
 const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ onAddPerson }) => {
+  const navigate = useNavigate();
   const { zoom, zoomIn, zoomOut, resetView } = useCanvasStore();
 
   return (
@@ -15,7 +17,7 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ onAddPerson }) => {
       <Button variant="primary" size="sm" onClick={onAddPerson}>
         Add Person
       </Button>
-      <Button variant="ghost" size="sm">
+      <Button variant="ghost" size="sm" onClick={() => navigate('/import')}>
         Import GEDCOM
       </Button>
 

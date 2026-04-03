@@ -3,43 +3,46 @@ import { useNavigate } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
 import Sidebar from '@/components/Sidebar/Sidebar';
-import Avatar from '@/components/Avatar/Avatar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import { usePermissions } from '@/hooks/usePermissions';
-import styles from './PeoplePage.module.css';
+import styles from './FamiliesPage.module.css';
 
-interface PersonListItem {
+interface SpouseSummary {
   id: string;
   given_name: string | null;
   surname: string | null;
-  birth_date: string | null;
-  death_date: string | null;
-  photo_url: string | null;
 }
 
-type FilterValue = '' | 'unconnected';
+interface FamilyListItem {
+  id: string;
+  spouse1_id: string | null;
+  spouse2_id: string | null;
+  marriage_date: string | null;
+  spouse1: SpouseSummary | null;
+  spouse2: SpouseSummary | null;
+}
 
-function displayName(p: PersonListItem): string {
+type FilterValue = '' | 'unlinked';
+
+function personName(p: SpouseSummary | null): string {
+  if (!p) return 'Unknown';
   const parts = [p.given_name, p.surname].filter(Boolean);
   return parts.length > 0 ? parts.join(' ') : 'Unknown';
 }
 
-function displayDates(p: PersonListItem): string {
-  const parts: string[] = [];
-  if (p.birth_date) parts.push(`b. ${p.birth_date}`);
-  if (p.death_date) parts.push(`d. ${p.death_date}`);
-  return parts.join(' — ');
+function familyTitle(family: FamilyListItem): string {
+  return `${personName(family.spouse1)} & ${personName(family.spouse2)}`;
 }
 
-const LIMIT = 50;
-const SKELETON_COUNT = 12;
+const LIMIT = 20;
+const SKELETON_COUNT = 8;
 
-const PeoplePage: React.FC = () => {
+const FamiliesPage: React.FC = () => {
   const navigate = useNavigate();
   const { canCreate } = usePermissions();
 
-  const [people, setPeople] = useState<PersonListItem[]>([]);
+  const [families, setFamilies] = useState<FamilyListItem[]>([]);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterValue>('');
   const [cursor, setCursor] = useState<string | null>(null);
@@ -48,7 +51,7 @@ const PeoplePage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
-  const fetchPeople = useCallback(
+  const fetchFamilies = useCallback(
     async (
       searchQuery: string,
       filterParam: FilterValue,
@@ -63,26 +66,26 @@ const PeoplePage: React.FC = () => {
         if (filterParam) params.set('filter', filterParam);
         if (cursorParam) params.set('cursor', cursorParam);
 
-        const res = await fetch(`/api/v1/people?${params.toString()}`, {
+        const res = await fetch(`/api/v1/families?${params.toString()}`, {
           credentials: 'include',
         });
 
         if (!res.ok) {
-          throw new Error(`Failed to load people (${res.status})`);
+          throw new Error(`Failed to load families (${res.status})`);
         }
 
         const data: {
-          people?: PersonListItem[];
-          data?: PersonListItem[];
+          families?: FamilyListItem[];
+          data?: FamilyListItem[];
           next_cursor?: string;
         } = await res.json();
-        const items: PersonListItem[] = data.people ?? data.data ?? [];
-        setPeople((prev) => (append ? [...prev, ...items] : items));
+        const items: FamilyListItem[] = data.families ?? data.data ?? [];
+        setFamilies((prev) => (append ? [...prev, ...items] : items));
         setCursor(data.next_cursor ?? null);
         setHasMore(!!data.next_cursor);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load people');
-        if (!append) setPeople([]);
+        setError(err instanceof Error ? err.message : 'Failed to load families');
+        if (!append) setFamilies([]);
       } finally {
         setIsLoading(false);
       }
@@ -90,56 +93,50 @@ const PeoplePage: React.FC = () => {
     [],
   );
 
-  // Initial load + debounced search/filter
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      fetchPeople(query, filter, null, false);
+      fetchFamilies(query, filter, null, false);
     }, 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query, filter, fetchPeople]);
+  }, [query, filter, fetchFamilies]);
 
   const loadMore = () => {
     if (cursor && !isLoading) {
-      fetchPeople(query, filter, cursor, true);
+      fetchFamilies(query, filter, cursor, true);
     }
   };
 
-  const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setFilter(e.target.value as FilterValue);
-    setCursor(null);
-  };
-
-  const showSkeleton = isLoading && people.length === 0;
-  const showEmpty = !isLoading && !error && people.length === 0;
+  const showSkeleton = isLoading && families.length === 0;
+  const showEmpty = !isLoading && !error && families.length === 0;
 
   return (
     <AppShell navbar={<Navbar />} sidebar={<Sidebar />}>
       <div className={styles.page}>
         <div className={styles.header}>
-          <h1 className={styles.title}>People</h1>
+          <h1 className={styles.title}>Families</h1>
           <div className={styles.controls}>
             <Input
               className={styles.searchBar}
-              placeholder="Search people…"
+              placeholder="Search families…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              aria-label="Search people"
+              aria-label="Search families"
             />
             <select
               className={styles.filterSelect}
               value={filter}
-              onChange={handleFilterChange}
-              aria-label="Filter people"
+              onChange={(e) => setFilter(e.target.value as FilterValue)}
+              aria-label="Filter families"
             >
-              <option value="">All people</option>
-              <option value="unconnected">Unconnected only</option>
+              <option value="">All families</option>
+              <option value="unlinked">Unlinked only</option>
             </select>
             {canCreate && (
-              <Button variant="primary" size="sm" onClick={() => navigate('/people/new')}>
-                + Add Person
+              <Button variant="primary" size="sm" onClick={() => navigate('/families/new')}>
+                + Add Family
               </Button>
             )}
           </div>
@@ -151,7 +148,7 @@ const PeoplePage: React.FC = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => fetchPeople(query, filter, null, false)}
+              onClick={() => fetchFamilies(query, filter, null, false)}
             >
               Retry
             </Button>
@@ -166,36 +163,42 @@ const PeoplePage: React.FC = () => {
           </div>
         ) : showEmpty ? (
           <div className={styles.empty}>
-            {filter === 'unconnected'
-              ? 'No unconnected persons found.'
-              : query
-                ? 'No people match your search.'
-                : 'No people yet. Add someone to get started!'}
+            {query || filter
+              ? 'No families match your search.'
+              : 'No families yet. Add one to get started!'}
           </div>
         ) : (
           <div className={styles.grid}>
-            {people.map((person) => (
+            {families.map((family) => (
               <div
-                key={person.id}
+                key={family.id}
                 className={styles.card}
-                onClick={() => navigate(`/people/${person.id}`)}
+                onClick={() => navigate(`/families/${family.id}`)}
                 role="button"
                 tabIndex={0}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    navigate(`/people/${person.id}`);
+                    navigate(`/families/${family.id}`);
                   }
                 }}
               >
-                <Avatar
-                  name={displayName(person)}
-                  src={person.photo_url ?? undefined}
-                  size="sm"
-                />
+                <div className={styles.familyIcon} aria-hidden="true">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    aria-hidden="true"
+                  >
+                    <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </div>
                 <div className={styles.cardInfo}>
-                  <div className={styles.cardName}>{displayName(person)}</div>
-                  <div className={styles.cardDates}>{displayDates(person)}</div>
+                  <div className={styles.cardTitle}>{familyTitle(family)}</div>
+                  {family.marriage_date && (
+                    <div className={styles.cardMeta}>m. {family.marriage_date}</div>
+                  )}
                 </div>
               </div>
             ))}
@@ -214,4 +217,4 @@ const PeoplePage: React.FC = () => {
   );
 };
 
-export default PeoplePage;
+export default FamiliesPage;

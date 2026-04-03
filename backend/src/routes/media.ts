@@ -52,7 +52,7 @@ const upload = multer({
 // POST /media/upload — Upload media file
 mediaRouter.post(
   '/upload',
-  requireRole('admin', 'editor'),
+  requireRole('admin', 'editor', 'limited_editor'),
   (req, res, next) => {
     upload.single('file')(req, res, (err) => {
       if (err instanceof multer.MulterError) {
@@ -98,6 +98,20 @@ mediaRouter.post(
     }
   },
 );
+
+// GET /media — List all media (gallery)
+mediaRouter.get('/', (req, res) => {
+  try {
+    const repo = new MediaRepository();
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 200);
+    const cursor = req.query.cursor as string | undefined;
+
+    const result = repo.findAll({ limit, cursor });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to list media' });
+  }
+});
 
 // GET /media/:id — Serve media file
 mediaRouter.get('/:id', (req, res) => {
@@ -174,7 +188,7 @@ mediaRouter.get('/people/:id/media', (req, res) => {
 // POST /people/:id/media — Link media to person
 mediaRouter.post(
   '/people/:id/media',
-  requireRole('admin', 'editor'),
+  requireRole('admin', 'editor', 'limited_editor'),
   (req, res) => {
     try {
       const personRepo = new PersonRepository();

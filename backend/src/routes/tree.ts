@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getDatabase } from '../db/connection.js';
 import { PersonRepository } from '../repositories/PersonRepository.js';
 import { FamilyRepository } from '../repositories/FamilyRepository.js';
+import { UserRepository } from '../repositories/UserRepository.js';
 import type { PersonWithNames, Family } from '../types/db.js';
 
 export const treeRouter = Router();
@@ -129,6 +130,143 @@ function buildDescendantTree(
 
   return node;
 }
+
+// Build a flat { persons, families } list for the canvas, starting from rootPersonId
+function buildFlatTree(
+  rootPersonId: string,
+  generations: number,
+  personRepo: PersonRepository,
+): { persons: object[]; families: object[] } {
+  const db = getDatabase();
+  const visitedPersons = new Set<string>();
+  const visitedFamilies = new Set<string>();
+  const persons: object[] = [];
+  const families: object[] = [];
+
+  const queue: Array<{ id: string; gen: number }> = [{ id: rootPersonId, gen: 0 }];
+
+  while (queue.length > 0) {
+    const item = queue.shift()!;
+    if (visitedPersons.has(item.id)) continue;
+    visitedPersons.add(item.id);
+
+    const person = personRepo.findById(item.id);
+    if (!person) continue;
+
+    const birthEvent = db.prepare(
+      "SELECT event_date FROM events WHERE person_id = ? AND event_type = 'birth' LIMIT 1",
+    ).get(item.id) as { event_date: string | null } | undefined;
+
+    const deathEvent = db.prepare(
+      "SELECT event_date FROM events WHERE person_id = ? AND event_type = 'death' LIMIT 1",
+    ).get(item.id) as { event_date: string | null } | undefined;
+
+    const primaryPhoto = db.prepare(
+      'SELECT mi.id FROM media_items mi INNER JOIN person_media pm ON mi.id = pm.media_id WHERE pm.person_id = ? AND pm.is_primary = 1 LIMIT 1',
+    ).get(item.id) as { id: string } | undefined;
+
+    persons.push({
+      id: person.id,
+      given_name: person.primary_name?.given_name ?? null,
+      surname: person.primary_name?.surname ?? null,
+      sex: person.sex,
+      birth_date: birthEvent?.event_date ?? null,
+      death_date: deathEvent?.event_date ?? null,
+      is_living: person.is_living === 1,
+      is_private: person.is_private === 1,
+      photo_url: primaryPhoto ? `/api/v1/media/${primaryPhoto.id}` : null,
+    });
+
+    if (item.gen >= generations) continue;
+
+    // Spouse/child families
+    const spouseFamilies = db.prepare(
+      'SELECT * FROM families WHERE spouse1_id = ? OR spouse2_id = ?',
+    ).all(item.id, item.id) as Family[];
+
+    for (const fam of spouseFamilies) {
+      const spouseId = fam.spouse1_id === item.id ? fam.spouse2_id : fam.spouse1_id;
+      if (spouseId && !visitedPersons.has(spouseId)) {
+        queue.push({ id: spouseId, gen: item.gen });
+      }
+
+      if (!visitedFamilies.has(fam.id)) {
+        visitedFamilies.add(fam.id);
+        const childRows = db.prepare(
+          'SELECT person_id FROM family_members WHERE family_id = ?',
+        ).all(fam.id) as Array<{ person_id: string }>;
+
+        families.push({
+          id: fam.id,
+          spouse1_id: fam.spouse1_id,
+          spouse2_id: fam.spouse2_id,
+          children_ids: childRows.map(r => r.person_id),
+          marriage_date: fam.marriage_date,
+        });
+
+        for (const child of childRows) {
+          if (!visitedPersons.has(child.person_id)) {
+            queue.push({ id: child.person_id, gen: item.gen + 1 });
+          }
+        }
+      }
+    }
+
+    // Parent families (ancestors)
+    const parentFamilies = db.prepare(
+      'SELECT f.* FROM families f INNER JOIN family_members fm ON f.id = fm.family_id WHERE fm.person_id = ?',
+    ).all(item.id) as Family[];
+
+    for (const fam of parentFamilies) {
+      if (!visitedFamilies.has(fam.id)) {
+        visitedFamilies.add(fam.id);
+        const childRows = db.prepare(
+          'SELECT person_id FROM family_members WHERE family_id = ?',
+        ).all(fam.id) as Array<{ person_id: string }>;
+
+        families.push({
+          id: fam.id,
+          spouse1_id: fam.spouse1_id,
+          spouse2_id: fam.spouse2_id,
+          children_ids: childRows.map(r => r.person_id),
+          marriage_date: fam.marriage_date,
+        });
+      }
+
+      if (fam.spouse1_id && !visitedPersons.has(fam.spouse1_id)) {
+        queue.push({ id: fam.spouse1_id, gen: item.gen + 1 });
+      }
+      if (fam.spouse2_id && !visitedPersons.has(fam.spouse2_id)) {
+        queue.push({ id: fam.spouse2_id, gen: item.gen + 1 });
+      }
+    }
+  }
+
+  return { persons, families };
+}
+
+// GET /tree — Root endpoint: uses caller's home_person_id
+treeRouter.get('/', (req, res) => {
+  try {
+    const userRepo = new UserRepository();
+    const personRepo = new PersonRepository();
+
+    const user = userRepo.findById(req.user!.userId);
+    const homePersonId = user?.home_person_id ?? null;
+
+    if (!homePersonId) {
+      res.json({ persons: [], families: [], home_person_id: null });
+      return;
+    }
+
+    const generations = clampGenerations(req.query.generations as string);
+    const { persons, families } = buildFlatTree(homePersonId, generations, personRepo);
+
+    res.json({ persons, families, home_person_id: homePersonId });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get tree' });
+  }
+});
 
 // GET /tree/:personId/ancestors — Ancestors only
 treeRouter.get('/:personId/ancestors', (req, res) => {
