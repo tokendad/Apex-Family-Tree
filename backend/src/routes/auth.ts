@@ -18,7 +18,10 @@ const userRepo = new UserRepository();
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
+  // Secure flag must be explicitly enabled via COOKIE_SECURE=true.
+  // Defaults to false so the app works over plain HTTP (typical for self-hosted LAN installs).
+  // Set COOKIE_SECURE=true only when serving over HTTPS.
+  secure: process.env.COOKIE_SECURE === 'true',
   sameSite: 'strict' as const,
   path: '/',
 };

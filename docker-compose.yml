@@ -16,6 +16,7 @@ services:
       - JWT_REFRESH_EXPIRY=${JWT_REFRESH_EXPIRY:-7d}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - LOG_FORMAT=${LOG_FORMAT:-json}
+      - COOKIE_SECURE=${COOKIE_SECURE:-false}
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
     restart: unless-stopped
