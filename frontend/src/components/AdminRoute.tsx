@@ -1,9 +1,10 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.js';
 import type { ReactNode } from 'react';
 
 export function AdminRoute({ children }: { children: ReactNode }) {
   const { user, isAuthenticated, isLoading, needsSetup } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -18,7 +19,7 @@ export function AdminRoute({ children }: { children: ReactNode }) {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname)}`} replace />;
   }
 
   if (user?.role !== 'admin') {
