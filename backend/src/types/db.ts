@@ -302,6 +302,20 @@ export type SafeUser = Omit<User, 'password_hash'>;
 export interface PersonWithNames extends Person {
   names: Name[];
   primary_name?: Name;
+  /** Flat convenience fields populated on list responses (from primary_name) */
+  given_name?: string | null;
+  surname?: string | null;
+}
+
+export interface SpouseNameSummary {
+  id: string;
+  given_name: string | null;
+  surname: string | null;
+}
+
+export interface FamilyWithSpouseNames extends Family {
+  spouse1: SpouseNameSummary | null;
+  spouse2: SpouseNameSummary | null;
 }
 
 export interface PersonWithRelations extends PersonWithNames {

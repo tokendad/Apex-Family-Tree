@@ -1,5 +1,5 @@
 import { BaseRepository } from './base.js';
-import type { Family, FamilyMember } from '../types/db.js';
+import type { Family, FamilyMember, FamilyWithSpouseNames, SpouseNameSummary } from '../types/db.js';
 
 export class FamilyRepository extends BaseRepository {
   findById(id: string): Family | undefined {
@@ -12,7 +12,7 @@ export class FamilyRepository extends BaseRepository {
     search?: string;
     sort?: 'surname';
     filter?: 'unlinked';
-  }): { data: Family[]; next_cursor: string | null } {
+  }): { data: FamilyWithSpouseNames[]; next_cursor: string | null } {
     const limit = options?.limit || 50;
     const useSurnameSort = options?.sort === 'surname';
     const useUnlinkedFilter = options?.filter === 'unlinked';
@@ -101,7 +101,31 @@ export class FamilyRepository extends BaseRepository {
     const hasMore = rows.length > limit;
     if (hasMore) rows.pop();
 
-    return { data: rows, next_cursor: hasMore ? rows[rows.length - 1]?.id ?? null : null };
+    /** Look up the primary name for a spouse, falling back to any name. */
+    const getSpouseSummary = (spouseId: string | null): SpouseNameSummary | null => {
+      if (!spouseId) return null;
+      const row = (
+        this.db.prepare(
+          'SELECT given_name, surname FROM names WHERE person_id = ? AND is_primary = 1 LIMIT 1'
+        ).get(spouseId) ??
+        this.db.prepare(
+          'SELECT given_name, surname FROM names WHERE person_id = ? ORDER BY sort_order ASC LIMIT 1'
+        ).get(spouseId)
+      ) as { given_name: string | null; surname: string | null } | undefined;
+      return {
+        id: spouseId,
+        given_name: row?.given_name ?? null,
+        surname: row?.surname ?? null,
+      };
+    };
+
+    const data: FamilyWithSpouseNames[] = rows.map(row => ({
+      ...row,
+      spouse1: getSpouseSummary(row.spouse1_id),
+      spouse2: getSpouseSummary(row.spouse2_id),
+    }));
+
+    return { data, next_cursor: hasMore ? rows[rows.length - 1]?.id ?? null : null };
   }
 
   create(data: {
