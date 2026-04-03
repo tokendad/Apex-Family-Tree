@@ -96,7 +96,15 @@ export class PersonRepository extends BaseRepository {
       const names = this.db.prepare(
         'SELECT * FROM names WHERE person_id = ? ORDER BY is_primary DESC, sort_order ASC'
       ).all(person.id) as Name[];
-      return { ...person, names, primary_name: names.find(n => n.is_primary) || names[0] };
+      const primaryName = names.find(n => n.is_primary) || names[0];
+      return {
+        ...person,
+        names,
+        primary_name: primaryName,
+        // Flat convenience fields expected by the People list UI
+        given_name: primaryName?.given_name ?? null,
+        surname: primaryName?.surname ?? null,
+      };
     });
 
     return { data, next_cursor: hasMore ? rows[rows.length - 1]?.id ?? null : null };
