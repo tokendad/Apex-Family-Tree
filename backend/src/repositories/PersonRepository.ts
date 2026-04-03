@@ -29,13 +29,16 @@ export class PersonRepository extends BaseRepository {
     const params: unknown[] = [];
 
     if (options?.search) {
-      joins.push('INNER JOIN persons_fts fts ON p.id = fts.person_id');
-      let searchTerm = options.search.trim();
-      if (searchTerm && !searchTerm.endsWith('*') && !searchTerm.includes('"')) {
-        searchTerm += '*';
-      }
-      conditions.push('persons_fts MATCH ?');
-      params.push(searchTerm);
+      // Use LIKE-based search on the names table.
+      // The persons_fts FTS5 virtual table uses content='' (contentless), which means
+      // SQLite never stores column values — fts.person_id always returns an empty string,
+      // so an INNER JOIN on p.id = fts.person_id can never produce matches.
+      // LIKE on the names table is fast for the dataset size and always correct.
+      const likeTerm = `%${options.search.trim()}%`;
+      conditions.push(
+        'EXISTS (SELECT 1 FROM names _sn WHERE _sn.person_id = p.id AND (_sn.given_name LIKE ? OR _sn.surname LIKE ?))'
+      );
+      params.push(likeTerm, likeTerm);
     }
 
     if (useUnconnectedFilter) {
