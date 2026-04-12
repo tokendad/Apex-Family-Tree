@@ -7,6 +7,7 @@ services:
       - "${PORT:-3000}:3000"
     volumes:
       - /data/DockerConfigs/AFT:/app/data
+      - /media/Personal/PersonalImages/Ancestry:/media/ancestry
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - PORT=3000
@@ -16,6 +17,7 @@ services:
       - JWT_REFRESH_EXPIRY=${JWT_REFRESH_EXPIRY:-7d}
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - LOG_FORMAT=${LOG_FORMAT:-json}
+      - MEDIA_PATH=${MEDIA_PATH:-/media/ancestry}
       - COOKIE_SECURE=${COOKIE_SECURE:-false}
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}

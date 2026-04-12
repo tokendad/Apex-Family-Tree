@@ -7,6 +7,27 @@ export class EventRepository extends BaseRepository {
     return this.db.prepare('SELECT * FROM events WHERE id = ?').get(id) as Event | undefined;
   }
 
+  findAll(options?: { limit?: number; cursor?: string }): { data: Event[]; next_cursor: string | null } {
+    const limit = options?.limit || 500;
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (options?.cursor) {
+      conditions.push('id > ?');
+      params.push(options.cursor);
+    }
+
+    const where = conditions.length ? ' WHERE ' + conditions.join(' AND ') : '';
+    const query = `SELECT * FROM events${where} ORDER BY id ASC LIMIT ?`;
+    params.push(limit + 1);
+
+    const rows = this.db.prepare(query).all(...params) as Event[];
+    const hasMore = rows.length > limit;
+    if (hasMore) rows.pop();
+
+    return { data: rows, next_cursor: hasMore ? rows[rows.length - 1]?.id ?? null : null };
+  }
+
   findByPerson(personId: string): Event[] {
     return this.db.prepare(
       'SELECT * FROM events WHERE person_id = ? ORDER BY event_date_sort_key ASC NULLS LAST'

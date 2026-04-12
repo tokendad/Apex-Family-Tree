@@ -2,7 +2,8 @@ import fs from 'fs/promises';
 import path from 'path';
 import type { StorageProvider } from './StorageProvider.js';
 
-const MEDIA_ROOT = process.env.MEDIA_PATH || '/app/data/media';
+const DATA_DIR = process.env.DATA_DIR || '/app/data';
+const MEDIA_ROOT = process.env.MEDIA_PATH || `${DATA_DIR}/media`;
 
 export class LocalStorageProvider implements StorageProvider {
   async upload(filePath: string, destination: string): Promise<string> {

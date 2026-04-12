@@ -22,6 +22,9 @@ Environment variables are set in your `.env` file or directly in the `environmen
 |---|---|---|---|---|
 | `APP_SECRET` | String | — | **Yes** | Encryption key used to encrypt sensitive data stored in the database (e.g., SMTP passwords). Must be at least 32 characters. If not set, features requiring encryption (like SMTP) are disabled with a warning. |
 | `JWT_SECRET` | String | — | **Yes** | Secret key used to sign JWT authentication tokens. Must be at least 32 characters. Changing this will invalidate all existing user sessions. |
+| `JWT_ACCESS_EXPIRY` | String | `15m` | No | How long an access token is valid. Uses shorthand notation: `15m` = 15 minutes, `1h` = 1 hour. Shorter values are more secure but require more frequent token refreshes. |
+| `JWT_REFRESH_EXPIRY` | String | `7d` | No | How long a refresh token is valid. Uses shorthand notation: `7d` = 7 days, `30d` = 30 days. This controls how long a user stays logged in without re-authenticating. |
+| `COOKIE_SECURE` | Boolean | `false` | No | When `true`, JWT cookies are sent only over HTTPS. Set to `true` in production when using a reverse proxy with TLS. Leave `false` for local/HTTP-only setups. |
 
 Generate secure random values with:
 
@@ -59,6 +62,24 @@ id $USER
 
 > **Tip:** For most users, the defaults are fine. If you're troubleshooting an issue, temporarily set `LOG_LEVEL=DEBUG` and `LOG_FORMAT=text`, then restart the container.
 
+### Media Storage
+
+| Variable | Type | Default | Required | Description |
+|---|---|---|---|---|
+| `MEDIA_PATH` | String | `/app/data/media` | No | Filesystem path (inside the container) where media files are stored. Defaults to the `media/` subdirectory inside the data volume. Set this to use a separate volume or mount point for photos and documents. |
+
+By default, media files live alongside the database inside `/app/data/media`. To store media on a separate host directory (e.g., an existing photo library), add a second volume mount and point `MEDIA_PATH` to it:
+
+```yaml
+volumes:
+  - .data/:/app/data
+  - /path/to/your/photos:/media/photos
+environment:
+  - MEDIA_PATH=/media/photos
+```
+
+The application automatically creates `photos/` and `documents/` subdirectories inside the configured `MEDIA_PATH` on startup.
+
 ---
 
 ## Complete .env Example
@@ -79,6 +100,14 @@ JWT_SECRET=change-me-to-another-random-32-char-string
 PORT=3000
 NODE_ENV=production
 
+# --- JWT Token Expiry ---
+JWT_ACCESS_EXPIRY=15m
+JWT_REFRESH_EXPIRY=7d
+
+# --- Cookie Security ---
+# Set to true when behind a TLS reverse proxy
+COOKIE_SECURE=false
+
 # --- Timezone ---
 TZ=UTC
 
@@ -92,6 +121,10 @@ LOG_LEVEL=INFO
 LOG_FORMAT=json
 LOG_MAX_BYTES=10485760
 LOG_BACKUP_COUNT=5
+
+# --- Media Storage (optional) ---
+# Uncomment to use a custom media directory inside the container
+# MEDIA_PATH=/media/photos
 ```
 
 ---
@@ -346,6 +379,11 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       # Server config
       - NODE_ENV=${NODE_ENV:-production}
+      # JWT token expiry
+      - JWT_ACCESS_EXPIRY=${JWT_ACCESS_EXPIRY:-15m}
+      - JWT_REFRESH_EXPIRY=${JWT_REFRESH_EXPIRY:-7d}
+      # Cookie security (set true behind TLS)
+      - COOKIE_SECURE=${COOKIE_SECURE:-false}
       # File permissions
       - PUID=${PUID:-1000}
       - PGID=${PGID:-1000}
@@ -358,8 +396,12 @@ services:
       - LOG_FORMAT=${LOG_FORMAT:-json}
       - LOG_MAX_BYTES=${LOG_MAX_BYTES:-10485760}
       - LOG_BACKUP_COUNT=${LOG_BACKUP_COUNT:-5}
+      # Media storage (optional — defaults to /app/data/media)
+      # - MEDIA_PATH=/media/photos
     volumes:
       - .data/:/app/data
+      # Optional: mount a separate host directory for media
+      # - /path/to/your/photos:/media/photos
     restart: unless-stopped
 ```
 

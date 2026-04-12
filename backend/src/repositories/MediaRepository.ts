@@ -1,12 +1,29 @@
+import fs from 'fs';
+import path from 'path';
 import { BaseRepository } from './base.js';
-import type { MediaItem, PersonMedia } from '../types/db.js';
+import type { MediaItem, PersonMedia, FamilyMedia, EventMedia } from '../types/db.js';
+
+const SCANNABLE_EXTENSIONS = new Set([
+  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf',
+]);
+
+function mimeFromExt(ext: string): string {
+  switch (ext.toLowerCase()) {
+    case '.jpg': case '.jpeg': return 'image/jpeg';
+    case '.png': return 'image/png';
+    case '.gif': return 'image/gif';
+    case '.webp': return 'image/webp';
+    case '.pdf': return 'application/pdf';
+    default: return 'application/octet-stream';
+  }
+}
 
 export class MediaRepository extends BaseRepository {
   findById(id: string): MediaItem | undefined {
     return this.db.prepare('SELECT * FROM media_items WHERE id = ?').get(id) as MediaItem | undefined;
   }
 
-  findAll(options?: { limit?: number; cursor?: string; search?: string }): { data: MediaItem[]; next_cursor: string | null; total_count: number } {
+  findAll(options?: { limit?: number; cursor?: string; search?: string; filter?: string }): { data: MediaItem[]; next_cursor: string | null; total_count: number } {
     const limit = options?.limit || 50;
     const conditions: string[] = [];
     const params: unknown[] = [];
@@ -15,6 +32,12 @@ export class MediaRepository extends BaseRepository {
       const term = `%${options.search.trim()}%`;
       conditions.push('(title LIKE ? OR original_filename LIKE ? OR description LIKE ?)');
       params.push(term, term, term);
+    }
+
+    if (options?.filter === 'unlinked') {
+      conditions.push(`NOT EXISTS (SELECT 1 FROM person_media pm WHERE pm.media_id = media_items.id)
+        AND NOT EXISTS (SELECT 1 FROM family_media fm WHERE fm.media_id = media_items.id)
+        AND NOT EXISTS (SELECT 1 FROM event_media em WHERE em.media_id = media_items.id)`);
     }
 
     const whereClause = conditions.length ? ' WHERE ' + conditions.join(' AND ') : '';
@@ -58,16 +81,17 @@ export class MediaRepository extends BaseRepository {
     description?: string;
     date_taken?: string;
     uploaded_by?: string;
+    is_external?: number;
   }): MediaItem {
     const id = this.generateId();
     const now = this.now();
     this.db.prepare(
-      `INSERT INTO media_items (id, filename, original_filename, mime_type, file_size, file_path, thumbnail_path, title, description, date_taken, uploaded_by, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO media_items (id, filename, original_filename, mime_type, file_size, file_path, thumbnail_path, title, description, date_taken, uploaded_by, is_external, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       id, data.filename, data.original_filename, data.mime_type, data.file_size, data.file_path,
       data.thumbnail_path || null, data.title || null, data.description || null,
-      data.date_taken || null, data.uploaded_by || null, now, now,
+      data.date_taken || null, data.uploaded_by || null, data.is_external ?? 0, now, now,
     );
     return this.findById(id)!;
   }
@@ -93,9 +117,104 @@ export class MediaRepository extends BaseRepository {
     return this.findById(id);
   }
 
-  delete(id: string): boolean {
-    return this.db.prepare('DELETE FROM media_items WHERE id = ?').run(id).changes > 0;
+  delete(id: string): { deleted: boolean; fileDeleted: boolean } {
+    const item = this.findById(id);
+    if (!item) return { deleted: false, fileDeleted: false };
+
+    this.db.prepare('DELETE FROM media_items WHERE id = ?').run(id);
+
+    // Only delete files from disk for app-managed uploads, not external/scanned files
+    let fileDeleted = false;
+    if (!item.is_external) {
+      try {
+        if (fs.existsSync(item.file_path)) {
+          fs.unlinkSync(item.file_path);
+          fileDeleted = true;
+        }
+        if (item.thumbnail_path && fs.existsSync(item.thumbnail_path)) {
+          fs.unlinkSync(item.thumbnail_path);
+        }
+      } catch {
+        // Ignore file deletion errors
+      }
+    }
+
+    return { deleted: true, fileDeleted };
   }
+
+  // ─── Scan pre-existing files ──────────────────────────────────────────────
+
+  scanDirectory(mediaPath: string): { added: number; skipped: number } {
+    const files = this.walkDir(mediaPath);
+    let added = 0;
+    let skipped = 0;
+
+    const insertStmt = this.db.prepare(
+      `INSERT OR IGNORE INTO media_items (id, filename, original_filename, mime_type, file_size, file_path, thumbnail_path, title, description, date_taken, uploaded_by, is_external, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, 1, ?, ?)`
+    );
+
+    const checkStmt = this.db.prepare('SELECT 1 FROM media_items WHERE file_path = ?');
+
+    const runScan = this.db.transaction(() => {
+      for (const filePath of files) {
+        if (checkStmt.get(filePath)) {
+          skipped++;
+          continue;
+        }
+
+        const ext = path.extname(filePath);
+        const filename = path.basename(filePath);
+        let fileSize = 0;
+        try {
+          const stat = fs.statSync(filePath);
+          fileSize = stat.size;
+        } catch {
+          skipped++;
+          continue;
+        }
+
+        const id = this.generateId();
+        const now = this.now();
+        const result = insertStmt.run(
+          id, filename, filename, mimeFromExt(ext), fileSize, filePath, now, now,
+        );
+        if (result.changes > 0) {
+          added++;
+        } else {
+          skipped++;
+        }
+      }
+    });
+
+    runScan();
+    return { added, skipped };
+  }
+
+  private walkDir(dir: string): string[] {
+    const results: string[] = [];
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return results;
+    }
+
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        results.push(...this.walkDir(fullPath));
+      } else if (entry.isFile()) {
+        const ext = path.extname(entry.name).toLowerCase();
+        if (SCANNABLE_EXTENSIONS.has(ext)) {
+          results.push(fullPath);
+        }
+      }
+    }
+    return results;
+  }
+
+  // ─── Person links ─────────────────────────────────────────────────────────
 
   linkToPerson(mediaId: string, personId: string, isPrimary = false): PersonMedia {
     if (isPrimary) {
@@ -107,7 +226,7 @@ export class MediaRepository extends BaseRepository {
     ).get(personId) as { next: number };
 
     this.db.prepare(
-      'INSERT INTO person_media (person_id, media_id, is_primary, sort_order, created_at) VALUES (?, ?, ?, ?, ?)'
+      'INSERT OR IGNORE INTO person_media (person_id, media_id, is_primary, sort_order, created_at) VALUES (?, ?, ?, ?, ?)'
     ).run(personId, mediaId, isPrimary ? 1 : 0, maxOrder.next, this.now());
 
     return this.db.prepare(
@@ -119,5 +238,49 @@ export class MediaRepository extends BaseRepository {
     return this.db.prepare(
       'DELETE FROM person_media WHERE person_id = ? AND media_id = ?'
     ).run(personId, mediaId).changes > 0;
+  }
+
+  // ─── Family links ─────────────────────────────────────────────────────────
+
+  linkToFamily(mediaId: string, familyId: string): FamilyMedia {
+    const maxOrder = this.db.prepare(
+      'SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM family_media WHERE family_id = ?'
+    ).get(familyId) as { next: number };
+
+    this.db.prepare(
+      'INSERT OR IGNORE INTO family_media (family_id, media_id, sort_order, created_at) VALUES (?, ?, ?, ?)'
+    ).run(familyId, mediaId, maxOrder.next, this.now());
+
+    return this.db.prepare(
+      'SELECT * FROM family_media WHERE family_id = ? AND media_id = ?'
+    ).get(familyId, mediaId) as FamilyMedia;
+  }
+
+  unlinkFromFamily(mediaId: string, familyId: string): boolean {
+    return this.db.prepare(
+      'DELETE FROM family_media WHERE family_id = ? AND media_id = ?'
+    ).run(familyId, mediaId).changes > 0;
+  }
+
+  // ─── Event links ──────────────────────────────────────────────────────────
+
+  linkToEvent(mediaId: string, eventId: string): EventMedia {
+    const maxOrder = this.db.prepare(
+      'SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM event_media WHERE event_id = ?'
+    ).get(eventId) as { next: number };
+
+    this.db.prepare(
+      'INSERT OR IGNORE INTO event_media (event_id, media_id, sort_order, created_at) VALUES (?, ?, ?, ?)'
+    ).run(eventId, mediaId, maxOrder.next, this.now());
+
+    return this.db.prepare(
+      'SELECT * FROM event_media WHERE event_id = ? AND media_id = ?'
+    ).get(eventId, mediaId) as EventMedia;
+  }
+
+  unlinkFromEvent(mediaId: string, eventId: string): boolean {
+    return this.db.prepare(
+      'DELETE FROM event_media WHERE event_id = ? AND media_id = ?'
+    ).run(eventId, mediaId).changes > 0;
   }
 }

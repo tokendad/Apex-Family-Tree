@@ -6,7 +6,7 @@ import crypto from 'crypto';
 import { requireRole } from '../middleware/auth.js';
 import { MediaRepository } from '../repositories/MediaRepository.js';
 import { PersonRepository } from '../repositories/PersonRepository.js';
-import { getDataPath } from '../services/init.js';
+import { getMediaPath } from '../services/init.js';
 
 export const mediaRouter = Router();
 
@@ -24,7 +24,7 @@ const ALLOWED_MIME_TYPES = [
 
 const storage = multer.diskStorage({
   destination(_req, _file, cb) {
-    const uploadDir = getDataPath('media', 'photos');
+    const uploadDir = getMediaPath('photos');
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
@@ -49,7 +49,7 @@ const upload = multer({
   },
 });
 
-// POST /media/upload — Upload media file
+// POST /media/upload — Upload media file (with optional entity linking)
 mediaRouter.post(
   '/upload',
   requireRole('admin', 'editor', 'limited_editor'),
@@ -78,7 +78,7 @@ mediaRouter.post(
       }
 
       const repo = new MediaRepository();
-      const { title, description, date_taken } = req.body;
+      const { title, description, date_taken, person_id, family_id, event_id } = req.body;
 
       const media = repo.create({
         filename: req.file.filename,
@@ -92,9 +92,30 @@ mediaRouter.post(
         uploaded_by: req.user!.userId,
       });
 
+      // Atomically link to entities if provided
+      if (person_id) repo.linkToPerson(media.id, person_id);
+      if (family_id) repo.linkToFamily(media.id, family_id);
+      if (event_id) repo.linkToEvent(media.id, event_id);
+
       res.status(201).json(media);
     } catch (error) {
       res.status(500).json({ error: 'Failed to upload media' });
+    }
+  },
+);
+
+// POST /media/scan — Scan MEDIA_PATH for pre-existing files
+mediaRouter.post(
+  '/scan',
+  requireRole('admin', 'editor'),
+  (_req, res) => {
+    try {
+      const repo = new MediaRepository();
+      const mediaPath = process.env.MEDIA_PATH || getMediaPath();
+      const result = repo.scanDirectory(mediaPath);
+      res.json({ message: `Scan complete: ${result.added} added, ${result.skipped} skipped`, ...result });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to scan media directory' });
     }
   },
 );
@@ -106,13 +127,36 @@ mediaRouter.get('/', (req, res) => {
     const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 200);
     const cursor = req.query.cursor as string | undefined;
     const search = req.query.q as string | undefined;
+    const filter = req.query.filter as string | undefined;
 
-    const result = repo.findAll({ limit, cursor, search });
+    const result = repo.findAll({ limit, cursor, search, filter });
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: 'Failed to list media' });
   }
 });
+
+// PUT /media/:id — Update media metadata
+mediaRouter.put(
+  '/:id',
+  requireRole('admin', 'editor', 'limited_editor'),
+  (req, res) => {
+    try {
+      const repo = new MediaRepository();
+      const media = repo.findById(paramStr(req.params.id));
+      if (!media) {
+        res.status(404).json({ error: 'Media not found' });
+        return;
+      }
+
+      const { title, description, date_taken } = req.body;
+      const updated = repo.update(paramStr(req.params.id), { title, description, date_taken });
+      res.json(updated);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to update media' });
+    }
+  },
+);
 
 // GET /media/:id — Serve media file
 mediaRouter.get('/:id', (req, res) => {
@@ -137,31 +181,103 @@ mediaRouter.get('/:id', (req, res) => {
   }
 });
 
-// DELETE /media/:id — Delete media
+// DELETE /media/:id — Delete media (protects external/scanned files)
 mediaRouter.delete(
   '/:id',
   requireRole('admin', 'editor'),
   (req, res) => {
     try {
       const repo = new MediaRepository();
-      const media = repo.findById(paramStr(req.params.id));
+      const id = paramStr(req.params.id);
+      const result = repo.delete(id);
+      if (!result.deleted) {
+        res.status(404).json({ error: 'Media not found' });
+        return;
+      }
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to delete media' });
+    }
+  },
+);
+
+// ─── Entity link routes ────────────────────────────────────────────────────
+
+// POST /media/:id/links/:type/:targetId — Link media to an entity
+mediaRouter.post(
+  '/:id/links/:type/:targetId',
+  requireRole('admin', 'editor', 'limited_editor'),
+  (req, res) => {
+    try {
+      const repo = new MediaRepository();
+      const mediaId = paramStr(req.params.id);
+      const linkType = paramStr(req.params.type);
+      const targetId = paramStr(req.params.targetId);
+
+      const media = repo.findById(mediaId);
       if (!media) {
         res.status(404).json({ error: 'Media not found' });
         return;
       }
 
-      // Remove file from disk
-      if (fs.existsSync(media.file_path)) {
-        fs.unlinkSync(media.file_path);
-      }
-      if (media.thumbnail_path && fs.existsSync(media.thumbnail_path)) {
-        fs.unlinkSync(media.thumbnail_path);
+      let link;
+      switch (linkType) {
+        case 'person':
+          link = repo.linkToPerson(mediaId, targetId, req.body?.is_primary ?? false);
+          break;
+        case 'family':
+          link = repo.linkToFamily(mediaId, targetId);
+          break;
+        case 'event':
+          link = repo.linkToEvent(mediaId, targetId);
+          break;
+        default:
+          res.status(400).json({ error: 'Invalid link type. Must be person, family, or event' });
+          return;
       }
 
-      repo.delete(paramStr(req.params.id));
+      res.status(201).json(link);
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to link media' });
+    }
+  },
+);
+
+// DELETE /media/:id/links/:type/:targetId — Unlink media from an entity
+mediaRouter.delete(
+  '/:id/links/:type/:targetId',
+  requireRole('admin', 'editor'),
+  (req, res) => {
+    try {
+      const repo = new MediaRepository();
+      const mediaId = paramStr(req.params.id);
+      const linkType = paramStr(req.params.type);
+      const targetId = paramStr(req.params.targetId);
+
+      let removed = false;
+      switch (linkType) {
+        case 'person':
+          removed = repo.unlinkFromPerson(mediaId, targetId);
+          break;
+        case 'family':
+          removed = repo.unlinkFromFamily(mediaId, targetId);
+          break;
+        case 'event':
+          removed = repo.unlinkFromEvent(mediaId, targetId);
+          break;
+        default:
+          res.status(400).json({ error: 'Invalid link type. Must be person, family, or event' });
+          return;
+      }
+
+      if (!removed) {
+        res.status(404).json({ error: 'Link not found' });
+        return;
+      }
+
       res.status(204).send();
     } catch (error) {
-      res.status(500).json({ error: 'Failed to delete media' });
+      res.status(500).json({ error: 'Failed to unlink media' });
     }
   },
 );

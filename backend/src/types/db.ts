@@ -159,6 +159,7 @@ export interface MediaItem {
   description: string | null;
   date_taken: string | null;
   uploaded_by: string | null;
+  is_external: number;
   created_at: string;
   updated_at: string;
 }

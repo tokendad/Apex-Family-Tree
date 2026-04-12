@@ -29,10 +29,17 @@ interface MediaItem {
   description: string | null;
   date_taken: string | null;
   uploaded_by: string;
+  is_external: number;
   created_at: string;
 }
 
+interface LinkOption {
+  id: string;
+  label: string;
+}
+
 type EditableField = 'title' | 'description' | 'date_taken';
+type MediaFilter = 'all' | 'unlinked';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants & helpers
@@ -340,6 +347,19 @@ const MediaPage: React.FC = () => {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
+  // ── Upload entity linking state ───────────────────────────────────────────
+  const [uploadPersonId, setUploadPersonId] = useState('');
+  const [uploadFamilyId, setUploadFamilyId] = useState('');
+  const [uploadEventId, setUploadEventId] = useState('');
+  const [personOptions, setPersonOptions] = useState<LinkOption[]>([]);
+  const [familyOptions, setFamilyOptions] = useState<LinkOption[]>([]);
+  const [eventOptions, setEventOptions] = useState<LinkOption[]>([]);
+
+  // ── Gallery filter & scan state ───────────────────────────────────────────
+  const [mediaFilter, setMediaFilter] = useState<MediaFilter>('all');
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<string | null>(null);
+
   // ── Detail panel state ────────────────────────────────────────────────────
   const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -356,13 +376,14 @@ const MediaPage: React.FC = () => {
 
   // ── Fetch media ────────────────────────────────────────────────────────────
 
-  const fetchMedia = useCallback(async (searchQuery: string, cursorParam: string | null, append: boolean) => {
+  const fetchMedia = useCallback(async (searchQuery: string, cursorParam: string | null, append: boolean, filter: MediaFilter = 'all') => {
     setIsLoading(true);
     if (!append) setError(null);
     try {
       const params = new URLSearchParams({ limit: String(LIMIT) });
       if (searchQuery) params.set('q', searchQuery);
       if (cursorParam) params.set('cursor', cursorParam);
+      if (filter === 'unlinked') params.set('filter', 'unlinked');
 
       const res = await fetch(`/api/v1/media?${params.toString()}`, {
         credentials: 'include',
@@ -393,16 +414,16 @@ const MediaPage: React.FC = () => {
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      fetchMedia(globalQuery, null, false);
+      fetchMedia(globalQuery, null, false, mediaFilter);
     }, 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [globalQuery, fetchMedia]);
+  }, [globalQuery, mediaFilter, fetchMedia]);
 
   const loadMore = () => {
     if (cursor && !isLoading) {
-      fetchMedia(globalQuery, cursor, true);
+      fetchMedia(globalQuery, cursor, true, mediaFilter);
     }
   };
 
@@ -413,9 +434,77 @@ const MediaPage: React.FC = () => {
     setUploadTitle('');
     setUploadDescription('');
     setUploadDateTaken('');
+    setUploadPersonId('');
+    setUploadFamilyId('');
+    setUploadEventId('');
     setUploadError(null);
     setUploadProgress(0);
     setShowUpload(true);
+    fetchLinkOptions();
+  };
+
+  const fetchLinkOptions = async () => {
+    try {
+      const [peopleRes, familiesRes, eventsRes] = await Promise.all([
+        fetch('/api/v1/people?limit=500', { credentials: 'include' }),
+        fetch('/api/v1/families?limit=500', { credentials: 'include' }),
+        fetch('/api/v1/events?limit=500', { credentials: 'include' }),
+      ]);
+
+      if (peopleRes.ok) {
+        const data = await peopleRes.json();
+        const items = data.data ?? data.people ?? [];
+        setPersonOptions(
+          items.map((p: Record<string, unknown>) => ({
+            id: p.id as string,
+            label: `${(p as Record<string, unknown>).given_name ?? ''} ${(p as Record<string, unknown>).surname ?? ''}`.trim() || (p.id as string),
+          })),
+        );
+      }
+
+      if (familiesRes.ok) {
+        const data = await familiesRes.json();
+        const items = data.data ?? data.families ?? [];
+        setFamilyOptions(
+          items.map((f: Record<string, unknown>) => ({
+            id: f.id as string,
+            label: (f as Record<string, unknown>).display_name as string ?? (f.id as string),
+          })),
+        );
+      }
+
+      if (eventsRes.ok) {
+        const data = await eventsRes.json();
+        const items = data.data ?? data.events ?? [];
+        setEventOptions(
+          items.map((e: Record<string, unknown>) => ({
+            id: e.id as string,
+            label: `${(e as Record<string, unknown>).event_type ?? 'Event'} - ${(e as Record<string, unknown>).event_date ?? ''}`.trim(),
+          })),
+        );
+      }
+    } catch {
+      // Options are non-critical — fail silently
+    }
+  };
+
+  const handleScan = async () => {
+    setIsScanning(true);
+    setScanResult(null);
+    try {
+      const res = await fetch('/api/v1/media/scan', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error(`Scan failed (${res.status})`);
+      const data = await res.json() as { added: number; skipped: number; message: string };
+      setScanResult(data.message);
+      await fetchMedia(globalQuery, null, false, mediaFilter);
+    } catch (err) {
+      setScanResult(err instanceof Error ? err.message : 'Scan failed');
+    } finally {
+      setIsScanning(false);
+    }
   };
 
   const closeUpload = () => {
@@ -471,6 +560,9 @@ const MediaPage: React.FC = () => {
       if (uploadTitle.trim()) formData.append('title', uploadTitle.trim());
       if (uploadDescription.trim()) formData.append('description', uploadDescription.trim());
       if (uploadDateTaken) formData.append('date_taken', uploadDateTaken);
+      if (uploadPersonId) formData.append('person_id', uploadPersonId);
+      if (uploadFamilyId) formData.append('family_id', uploadFamilyId);
+      if (uploadEventId) formData.append('event_id', uploadEventId);
 
       // Use XHR for upload progress tracking
       await new Promise<void>((resolve, reject) => {
@@ -499,7 +591,7 @@ const MediaPage: React.FC = () => {
       });
 
       setShowUpload(false);
-      await fetchMedia(globalQuery, null, false);
+      await fetchMedia(globalQuery, null, false, mediaFilter);
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
@@ -610,18 +702,47 @@ const MediaPage: React.FC = () => {
         {/* ── Page header ── */}
         <div className={styles.header}>
           <h1 className={styles.title}>Media Gallery</h1>
-          {canCreate && (
-            <Button variant="primary" size="sm" onClick={openUpload}>
-              Upload Media
-            </Button>
-          )}
+          <div className={styles.headerActions}>
+            <select
+              className={styles.filterSelect}
+              value={mediaFilter}
+              onChange={(e) => setMediaFilter(e.target.value as MediaFilter)}
+              aria-label="Filter media"
+            >
+              <option value="all">All Media</option>
+              <option value="unlinked">Unconnected</option>
+            </select>
+            {canEdit && (
+              <Button variant="ghost" size="sm" onClick={handleScan} loading={isScanning}>
+                {isScanning ? 'Scanning…' : 'Scan for Media'}
+              </Button>
+            )}
+            {canCreate && (
+              <Button variant="primary" size="sm" onClick={openUpload}>
+                Upload Media
+              </Button>
+            )}
+          </div>
         </div>
+        {scanResult && (
+          <div className={styles.scanBanner} role="status">
+            <span>{scanResult}</span>
+            <button
+              type="button"
+              className={styles.scanBannerClose}
+              onClick={() => setScanResult(null)}
+              aria-label="Dismiss"
+            >
+              <CloseIcon size={14} />
+            </button>
+          </div>
+        )}
 
         {/* ── Error banner ── */}
         {error && (
           <div className={styles.errorBanner} role="alert">
             <span>{error}</span>
-            <Button variant="ghost" size="sm" onClick={() => fetchMedia(globalQuery, null, false)}>
+            <Button variant="ghost" size="sm" onClick={() => fetchMedia(globalQuery, null, false, mediaFilter)}>
               Retry
             </Button>
           </div>
@@ -784,6 +905,78 @@ const MediaPage: React.FC = () => {
                   disabled={isUploading}
                 />
               </div>
+
+              {/* Link to Person */}
+              {personOptions.length > 0 && (
+                <div className={styles.formField}>
+                  <label className={styles.formLabel} htmlFor="upload-person">
+                    Link to Person{' '}
+                    <span className={styles.formLabelOptional}>(optional)</span>
+                  </label>
+                  <select
+                    id="upload-person"
+                    className={styles.formSelect}
+                    value={uploadPersonId}
+                    onChange={(e) => setUploadPersonId(e.target.value)}
+                    disabled={isUploading}
+                  >
+                    <option value="">— None —</option>
+                    {personOptions.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Link to Family */}
+              {familyOptions.length > 0 && (
+                <div className={styles.formField}>
+                  <label className={styles.formLabel} htmlFor="upload-family">
+                    Link to Family{' '}
+                    <span className={styles.formLabelOptional}>(optional)</span>
+                  </label>
+                  <select
+                    id="upload-family"
+                    className={styles.formSelect}
+                    value={uploadFamilyId}
+                    onChange={(e) => setUploadFamilyId(e.target.value)}
+                    disabled={isUploading}
+                  >
+                    <option value="">— None —</option>
+                    {familyOptions.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Link to Event */}
+              {eventOptions.length > 0 && (
+                <div className={styles.formField}>
+                  <label className={styles.formLabel} htmlFor="upload-event">
+                    Link to Event{' '}
+                    <span className={styles.formLabelOptional}>(optional)</span>
+                  </label>
+                  <select
+                    id="upload-event"
+                    className={styles.formSelect}
+                    value={uploadEventId}
+                    onChange={(e) => setUploadEventId(e.target.value)}
+                    disabled={isUploading}
+                  >
+                    <option value="">— None —</option>
+                    {eventOptions.map((ev) => (
+                      <option key={ev.id} value={ev.id}>
+                        {ev.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Upload progress */}
               {isUploading && (

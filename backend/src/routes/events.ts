@@ -10,6 +10,19 @@ function paramStr(val: string | string[]): string {
   return Array.isArray(val) ? val[0] : val;
 }
 
+// GET /events — List all events
+eventsRouter.get('/', (req, res) => {
+  try {
+    const repo = new EventRepository();
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 500, 1), 1000);
+    const cursor = req.query.cursor as string | undefined;
+    const result = repo.findAll({ limit, cursor });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to list events' });
+  }
+});
+
 // POST /people/:personId/events — Add event to person
 eventsRouter.post(
   '/people/:personId/events',
