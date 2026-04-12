@@ -1030,3 +1030,108 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Entity Link Chips & Add-Link Controls
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.linkChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.linkChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.linkChipPerson {
+  background: var(--color-info-bg, #e0f0ff);
+  color: var(--color-info-text, #1a5276);
+}
+
+.linkChipFamily {
+  background: var(--color-success-bg, #e0ffe0);
+  color: var(--color-success-text, #1a6e2e);
+}
+
+.linkChipEvent {
+  background: var(--color-warning-bg, #fff4e0);
+  color: var(--color-warning-text, #7d5a00);
+}
+
+.linkChipRemove {
+  all: unset;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+.linkChipRemove:hover {
+  opacity: 1;
+}
+
+.linkChipRemove:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
+}
+
+.emptyLinks {
+  font-size: 12px;
+  color: var(--color-text-muted, #888);
+  font-style: italic;
+}
+
+.addLinkRow {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  align-items: center;
+}
+
+.addLinkRow .formSelect {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding: 4px 6px;
+}
+
+.addLinkBtn {
+  all: unset;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-primary, #4a90d9);
+  background: var(--color-primary-bg, #e8f0fe);
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.addLinkBtn:hover:not(:disabled) {
+  background: var(--color-primary-hover-bg, #d0e0f6);
+}
+
+.addLinkBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}

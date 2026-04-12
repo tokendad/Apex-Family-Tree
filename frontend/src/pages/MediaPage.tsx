@@ -38,6 +38,12 @@ interface LinkOption {
   label: string;
 }
 
+interface MediaLinks {
+  persons: { person_id: string; name: string; is_primary: number }[];
+  families: { family_id: string; label: string }[];
+  events: { event_id: string; label: string }[];
+}
+
 type EditableField = 'title' | 'description' | 'date_taken';
 type MediaFilter = 'all' | 'unlinked';
 
@@ -370,6 +376,13 @@ const MediaPage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // ── Detail entity links state ─────────────────────────────────────────────
+  const [detailLinks, setDetailLinks] = useState<MediaLinks>({ persons: [], families: [], events: [] });
+  const [addLinkType, setAddLinkType] = useState<'person' | 'family' | 'event'>('person');
+  const [addLinkId, setAddLinkId] = useState('');
+  const [isLinking, setIsLinking] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const globalQuery = useSearchStore((s) => s.globalQuery);
@@ -601,16 +614,33 @@ const MediaPage: React.FC = () => {
 
   // ── Detail panel handlers ──────────────────────────────────────────────────
 
+  const fetchDetailLinks = async (mediaId: string) => {
+    try {
+      const res = await fetch(`/api/v1/media/${mediaId}/links`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json() as MediaLinks;
+        setDetailLinks(data);
+      }
+    } catch {
+      // Non-critical — fail silently
+    }
+  };
+
   const openDetail = (item: MediaItem) => {
     setSelectedItem(item);
     setDeleteConfirm(false);
     setDeleteError(null);
     setEditingField(null);
     setSaveError(null);
+    setDetailLinks({ persons: [], families: [], events: [] });
+    setAddLinkId('');
+    setLinkError(null);
+    fetchDetailLinks(item.id);
+    fetchLinkOptions();
   };
 
   const closeDetail = () => {
-    if (isDeleting || isSaving) return;
+    if (isDeleting || isSaving || isLinking) return;
     setSelectedItem(null);
     setDeleteConfirm(false);
     setEditingField(null);
@@ -675,6 +705,43 @@ const MediaPage: React.FC = () => {
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete');
       setIsDeleting(false);
       setDeleteConfirm(false);
+    }
+  };
+
+  const handleAddLink = async () => {
+    if (!selectedItem || !addLinkId) return;
+    setIsLinking(true);
+    setLinkError(null);
+    try {
+      const res = await fetch(
+        `/api/v1/media/${selectedItem.id}/links/${addLinkType}/${addLinkId}`,
+        { method: 'POST', credentials: 'include' },
+      );
+      if (!res.ok) throw new Error(`Failed to add link (${res.status})`);
+      setAddLinkId('');
+      await fetchDetailLinks(selectedItem.id);
+    } catch (err) {
+      setLinkError(err instanceof Error ? err.message : 'Failed to add link');
+    } finally {
+      setIsLinking(false);
+    }
+  };
+
+  const handleRemoveLink = async (type: 'person' | 'family' | 'event', targetId: string) => {
+    if (!selectedItem) return;
+    setIsLinking(true);
+    setLinkError(null);
+    try {
+      const res = await fetch(
+        `/api/v1/media/${selectedItem.id}/links/${type}/${targetId}`,
+        { method: 'DELETE', credentials: 'include' },
+      );
+      if (!res.ok) throw new Error(`Failed to remove link (${res.status})`);
+      await fetchDetailLinks(selectedItem.id);
+    } catch (err) {
+      setLinkError(err instanceof Error ? err.message : 'Failed to remove link');
+    } finally {
+      setIsLinking(false);
     }
   };
 
@@ -1148,6 +1215,122 @@ const MediaPage: React.FC = () => {
                     {saveError}
                   </div>
                 )}
+
+                <div className={styles.divider} />
+
+                {/* ── Connections section ──────────────────────────── */}
+                <div className={styles.detailField}>
+                  <span className={styles.detailFieldLabel}>Connections</span>
+
+                  {/* Existing links */}
+                  <div className={styles.linkChips}>
+                    {detailLinks.persons.map((p) => (
+                      <span key={p.person_id} className={`${styles.linkChip} ${styles.linkChipPerson}`}>
+                        {p.name.trim() || p.person_id}
+                        {canEdit && (
+                          <button
+                            type="button"
+                            className={styles.linkChipRemove}
+                            onClick={() => handleRemoveLink('person', p.person_id)}
+                            disabled={isLinking}
+                            aria-label={`Remove link to ${p.name.trim()}`}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                    {detailLinks.families.map((f) => (
+                      <span key={f.family_id} className={`${styles.linkChip} ${styles.linkChipFamily}`}>
+                        {f.label.trim() || f.family_id}
+                        {canEdit && (
+                          <button
+                            type="button"
+                            className={styles.linkChipRemove}
+                            onClick={() => handleRemoveLink('family', f.family_id)}
+                            disabled={isLinking}
+                            aria-label={`Remove link to family ${f.label.trim()}`}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                    {detailLinks.events.map((ev) => (
+                      <span key={ev.event_id} className={`${styles.linkChip} ${styles.linkChipEvent}`}>
+                        {ev.label.trim() || ev.event_id}
+                        {canEdit && (
+                          <button
+                            type="button"
+                            className={styles.linkChipRemove}
+                            onClick={() => handleRemoveLink('event', ev.event_id)}
+                            disabled={isLinking}
+                            aria-label={`Remove link to event ${ev.label.trim()}`}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                    {detailLinks.persons.length === 0 &&
+                     detailLinks.families.length === 0 &&
+                     detailLinks.events.length === 0 && (
+                      <span className={styles.emptyLinks}>No connections</span>
+                    )}
+                  </div>
+
+                  {/* Add link controls */}
+                  {canEdit && (
+                    <div className={styles.addLinkRow}>
+                      <select
+                        className={styles.formSelect}
+                        value={addLinkType}
+                        onChange={(e) => {
+                          setAddLinkType(e.target.value as 'person' | 'family' | 'event');
+                          setAddLinkId('');
+                        }}
+                        aria-label="Link type"
+                      >
+                        <option value="person">Person</option>
+                        <option value="family">Family</option>
+                        <option value="event">Event</option>
+                      </select>
+                      <select
+                        className={styles.formSelect}
+                        value={addLinkId}
+                        onChange={(e) => setAddLinkId(e.target.value)}
+                        aria-label="Select entity to link"
+                      >
+                        <option value="">Select…</option>
+                        {addLinkType === 'person' &&
+                          personOptions.map((o) => (
+                            <option key={o.id} value={o.id}>{o.label}</option>
+                          ))}
+                        {addLinkType === 'family' &&
+                          familyOptions.map((o) => (
+                            <option key={o.id} value={o.id}>{o.label}</option>
+                          ))}
+                        {addLinkType === 'event' &&
+                          eventOptions.map((o) => (
+                            <option key={o.id} value={o.id}>{o.label}</option>
+                          ))}
+                      </select>
+                      <button
+                        type="button"
+                        className={styles.addLinkBtn}
+                        onClick={handleAddLink}
+                        disabled={!addLinkId || isLinking}
+                      >
+                        {isLinking ? '…' : '+'}
+                      </button>
+                    </div>
+                  )}
+                  {linkError && (
+                    <div className={styles.saveError} role="alert">
+                      {linkError}
+                    </div>
+                  )}
+                </div>
 
                 <div className={styles.divider} />
 

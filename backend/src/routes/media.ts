@@ -158,6 +158,22 @@ mediaRouter.put(
   },
 );
 
+// GET /media/:id/links — Get all entity links for a media item
+mediaRouter.get('/:id/links', (req, res) => {
+  try {
+    const repo = new MediaRepository();
+    const media = repo.findById(paramStr(req.params.id));
+    if (!media) {
+      res.status(404).json({ error: 'Media not found' });
+      return;
+    }
+    const links = repo.findLinks(paramStr(req.params.id));
+    res.json(links);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch media links' });
+  }
+});
+
 // GET /media/:id — Serve media file
 mediaRouter.get('/:id', (req, res) => {
   try {

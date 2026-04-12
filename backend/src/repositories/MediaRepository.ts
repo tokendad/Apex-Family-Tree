@@ -70,6 +70,44 @@ export class MediaRepository extends BaseRepository {
     ).all(personId) as MediaItem[];
   }
 
+  findLinks(mediaId: string): {
+    persons: { person_id: string; name: string; is_primary: number }[];
+    families: { family_id: string; label: string }[];
+    events: { event_id: string; label: string }[];
+  } {
+    const persons = this.db.prepare(
+      `SELECT pm.person_id, pm.is_primary,
+              COALESCE(n.given_name, '') || ' ' || COALESCE(n.surname, '') AS name
+       FROM person_media pm
+       LEFT JOIN names n ON n.person_id = pm.person_id AND n.is_primary = 1
+       WHERE pm.media_id = ?
+       ORDER BY pm.sort_order ASC`
+    ).all(mediaId) as { person_id: string; name: string; is_primary: number }[];
+
+    const families = this.db.prepare(
+      `SELECT fm.family_id,
+              COALESCE(n1.given_name, '') || ' ' || COALESCE(n1.surname, '') || ' & ' ||
+              COALESCE(n2.given_name, '') || ' ' || COALESCE(n2.surname, '') AS label
+       FROM family_media fm
+       INNER JOIN families f ON f.id = fm.family_id
+       LEFT JOIN names n1 ON n1.person_id = f.spouse1_id AND n1.is_primary = 1
+       LEFT JOIN names n2 ON n2.person_id = f.spouse2_id AND n2.is_primary = 1
+       WHERE fm.media_id = ?
+       ORDER BY fm.sort_order ASC`
+    ).all(mediaId) as { family_id: string; label: string }[];
+
+    const events = this.db.prepare(
+      `SELECT em.event_id,
+              e.event_type || COALESCE(' - ' || e.event_date, '') AS label
+       FROM event_media em
+       INNER JOIN events e ON e.id = em.event_id
+       WHERE em.media_id = ?
+       ORDER BY em.sort_order ASC`
+    ).all(mediaId) as { event_id: string; label: string }[];
+
+    return { persons, families, events };
+  }
+
   create(data: {
     filename: string;
     original_filename: string;
