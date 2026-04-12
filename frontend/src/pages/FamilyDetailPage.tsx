@@ -252,7 +252,7 @@ const FamilyDetailPage: React.FC = () => {
   // --- Loading state ---
   if (isLoading) {
     return (
-      <AppShell navbar={<Navbar />} sidebar={<Sidebar />}>
+      <AppShell navbar={<Navbar />} sidebar={<Sidebar context="families" />}>
         <div className={styles.page}>
           <div className={styles.loadingState} aria-busy="true" aria-label="Loading family…">
             <div className={styles.skeletonHeading} />
@@ -271,7 +271,7 @@ const FamilyDetailPage: React.FC = () => {
   // --- 404 state ---
   if (notFound) {
     return (
-      <AppShell navbar={<Navbar />} sidebar={<Sidebar />}>
+      <AppShell navbar={<Navbar />} sidebar={<Sidebar context="families" />}>
         <div className={styles.page}>
           <div className={styles.centeredState}>
             <div className={styles.centeredIcon} aria-hidden="true">
@@ -295,7 +295,7 @@ const FamilyDetailPage: React.FC = () => {
   // --- Error state (initial load failure) ---
   if (error && !family) {
     return (
-      <AppShell navbar={<Navbar />} sidebar={<Sidebar />}>
+      <AppShell navbar={<Navbar />} sidebar={<Sidebar context="families" />}>
         <div className={styles.page}>
           <div className={styles.centeredState}>
             <div className={styles.centeredIcon} aria-hidden="true">
@@ -323,7 +323,7 @@ const FamilyDetailPage: React.FC = () => {
     family.divorce_place;
 
   return (
-    <AppShell navbar={<Navbar />} sidebar={<Sidebar />}>
+    <AppShell navbar={<Navbar />} sidebar={<Sidebar context="families" />}>
       <div className={styles.page}>
         {/* ── Page header ── */}
         <div className={styles.pageHeader}>

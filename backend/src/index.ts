@@ -52,6 +52,11 @@ async function start() {
     const db = initializeDatabase(logger);
     const migrationsDir = path.join(__dirname, 'migrations');
     runMigrations(db, migrationsDir, logger);
+
+    // Data backfills (idempotent — only process rows missing computed values)
+    const { backfillMarriageSortKeys } = await import('./db/backfill.js');
+    backfillMarriageSortKeys(db, logger);
+
     pruneExpiredTokens(logger);
 
     logger.info(`Starting AFT server on port ${PORT}`);

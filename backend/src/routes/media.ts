@@ -105,8 +105,9 @@ mediaRouter.get('/', (req, res) => {
     const repo = new MediaRepository();
     const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 200);
     const cursor = req.query.cursor as string | undefined;
+    const search = req.query.q as string | undefined;
 
-    const result = repo.findAll({ limit, cursor });
+    const result = repo.findAll({ limit, cursor, search });
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: 'Failed to list media' });

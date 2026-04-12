@@ -5,8 +5,8 @@ import Navbar from '@/components/Navbar/Navbar';
 import Sidebar from '@/components/Sidebar/Sidebar';
 import Avatar from '@/components/Avatar/Avatar';
 import Button from '@/components/Button/Button';
-import Input from '@/components/Form/Input';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useSearchStore, hasActiveFilters, filtersToParams } from '@/stores/searchStore';
 import styles from './PeoplePage.module.css';
 
 interface PersonListItem {
@@ -38,9 +38,11 @@ const SKELETON_COUNT = 12;
 const PeoplePage: React.FC = () => {
   const navigate = useNavigate();
   const { canCreate } = usePermissions();
+  const searchFilters = useSearchStore();
+  const setTotalCount = useSearchStore((s) => s.setTotalCount);
+  const filtersActive = hasActiveFilters(searchFilters, 'people');
 
   const [people, setPeople] = useState<PersonListItem[]>([]);
-  const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterValue>('');
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -50,7 +52,6 @@ const PeoplePage: React.FC = () => {
 
   const fetchPeople = useCallback(
     async (
-      searchQuery: string,
       filterParam: FilterValue,
       cursorParam: string | null,
       append: boolean,
@@ -58,8 +59,9 @@ const PeoplePage: React.FC = () => {
       setIsLoading(true);
       if (!append) setError(null);
       try {
-        const params = new URLSearchParams({ limit: String(LIMIT), sort: 'surname' });
-        if (searchQuery) params.set('q', searchQuery);
+        const params = filtersToParams(useSearchStore.getState());
+        params.set('limit', String(LIMIT));
+        params.set('sort', 'surname');
         if (filterParam) params.set('filter', filterParam);
         if (cursorParam) params.set('cursor', cursorParam);
 
@@ -75,11 +77,15 @@ const PeoplePage: React.FC = () => {
           people?: PersonListItem[];
           data?: PersonListItem[];
           next_cursor?: string;
+          total_count?: number;
         } = await res.json();
         const items: PersonListItem[] = data.people ?? data.data ?? [];
         setPeople((prev) => (append ? [...prev, ...items] : items));
         setCursor(data.next_cursor ?? null);
         setHasMore(!!data.next_cursor);
+        if (data.total_count !== undefined) {
+          setTotalCount(data.total_count);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load people');
         if (!append) setPeople([]);
@@ -87,23 +93,34 @@ const PeoplePage: React.FC = () => {
         setIsLoading(false);
       }
     },
-    [],
+    [setTotalCount],
   );
 
-  // Initial load + debounced search/filter
+  // Reset pagination when filters change and debounce the fetch
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      fetchPeople(query, filter, null, false);
+      setCursor(null);
+      fetchPeople(filter, null, false);
     }, 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query, filter, fetchPeople]);
+  }, [
+    searchFilters.globalQuery, searchFilters.firstName, searchFilters.lastName,
+    searchFilters.nameMatchType, searchFilters.initial, searchFilters.sex,
+    searchFilters.dateMode, searchFilters.dateYear, searchFilters.dateYearTo,
+    searchFilters.dateApplyToBirth, searchFilters.dateApplyToDeath, searchFilters.dateApplyToMarriage,
+    searchFilters.dateQualifier,
+    searchFilters.placeCountry, searchFilters.placeState, searchFilters.placeCity,
+    searchFilters.hasPhoto, searchFilters.hasSources,
+    searchFilters.hasMissingData, searchFilters.isLiving, searchFilters.relationshipType,
+    filter, fetchPeople,
+  ]);
 
   const loadMore = () => {
     if (cursor && !isLoading) {
-      fetchPeople(query, filter, cursor, true);
+      fetchPeople(filter, cursor, true);
     }
   };
 
@@ -116,18 +133,11 @@ const PeoplePage: React.FC = () => {
   const showEmpty = !isLoading && !error && people.length === 0;
 
   return (
-    <AppShell navbar={<Navbar />} sidebar={<Sidebar />}>
+    <AppShell navbar={<Navbar />} sidebar={<Sidebar context="people" />} context="people">
       <div className={styles.page}>
         <div className={styles.header}>
           <h1 className={styles.title}>People</h1>
           <div className={styles.controls}>
-            <Input
-              className={styles.searchBar}
-              placeholder="Search people…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              aria-label="Search people"
-            />
             <select
               className={styles.filterSelect}
               value={filter}
@@ -151,7 +161,7 @@ const PeoplePage: React.FC = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => fetchPeople(query, filter, null, false)}
+              onClick={() => fetchPeople(filter, null, false)}
             >
               Retry
             </Button>
@@ -168,7 +178,7 @@ const PeoplePage: React.FC = () => {
           <div className={styles.empty}>
             {filter === 'unconnected'
               ? 'No unconnected persons found.'
-              : query
+              : filtersActive
                 ? 'No people match your search.'
                 : 'No people yet. Add someone to get started!'}
           </div>

@@ -50,8 +50,9 @@
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   color: var(--color-text-secondary);
-  min-width: 40px;
+  min-width: 48px;
   text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .resetBtn {

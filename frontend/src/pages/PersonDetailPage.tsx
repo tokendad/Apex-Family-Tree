@@ -325,7 +325,7 @@ const PersonDetailPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <AppShell navbar={<Navbar />} sidebar={<Sidebar />}>
+      <AppShell navbar={<Navbar />} sidebar={<Sidebar context="people" />}>
         <div className={styles.page}>
           <div className={styles.loadingState} aria-busy="true" aria-label="Loading person…">
             <div className={styles.skeletonHeading} />
@@ -347,7 +347,7 @@ const PersonDetailPage: React.FC = () => {
 
   if (notFound) {
     return (
-      <AppShell navbar={<Navbar />} sidebar={<Sidebar />}>
+      <AppShell navbar={<Navbar />} sidebar={<Sidebar context="people" />}>
         <div className={styles.page}>
           <div className={styles.centeredState}>
             <div className={styles.centeredIcon} aria-hidden="true">
@@ -370,7 +370,7 @@ const PersonDetailPage: React.FC = () => {
 
   if (error && !person) {
     return (
-      <AppShell navbar={<Navbar />} sidebar={<Sidebar />}>
+      <AppShell navbar={<Navbar />} sidebar={<Sidebar context="people" />}>
         <div className={styles.page}>
           <div className={styles.centeredState}>
             <div className={styles.centeredIcon} aria-hidden="true">
@@ -406,7 +406,7 @@ const PersonDetailPage: React.FC = () => {
   // ─── Full render ───────────────────────────────────────────────────────────
 
   return (
-    <AppShell navbar={<Navbar />} sidebar={<Sidebar />}>
+    <AppShell navbar={<Navbar />} sidebar={<Sidebar context="people" />}>
       <div className={styles.page}>
 
         {/* ── Page header ── */}

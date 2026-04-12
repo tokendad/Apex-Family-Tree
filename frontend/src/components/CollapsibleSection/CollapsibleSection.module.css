@@ -15,7 +15,8 @@
   border: none;
   width: 100%;
   text-align: left;
-  font-family: inherit;
+  font: inherit;
+  color: inherit;
 }
 
 .header:hover {

@@ -65,6 +65,13 @@ export function useTreeData(options: UseTreeDataOptions = {}) {
 
       setNodes(nodes);
       setConnectors(connectors);
+
+      // Center the camera on the home person
+      const store = useCanvasStore.getState();
+      if (effectiveRoot) {
+        store.setHomePersonId(effectiveRoot);
+        store.centerOnPerson(effectiveRoot);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
       setError(message);

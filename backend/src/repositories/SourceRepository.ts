@@ -8,16 +8,28 @@ export class SourceRepository extends BaseRepository {
     return this.db.prepare('SELECT * FROM sources WHERE id = ?').get(id) as Source | undefined;
   }
 
-  findAll(options?: { limit?: number; cursor?: string }): { data: Source[]; next_cursor: string | null } {
+  findAll(options?: { limit?: number; cursor?: string; search?: string }): { data: Source[]; next_cursor: string | null; total_count: number } {
     const limit = options?.limit || 50;
+    const conditions: string[] = [];
     const params: unknown[] = [];
-    let query = 'SELECT * FROM sources';
+
+    if (options?.search) {
+      const term = `%${options.search.trim()}%`;
+      conditions.push('(title LIKE ? OR author LIKE ? OR publisher LIKE ? OR notes LIKE ?)');
+      params.push(term, term, term, term);
+    }
+
+    const whereClause = conditions.length ? ' WHERE ' + conditions.join(' AND ') : '';
+    const countParams = [...params];
+    const countRow = this.db.prepare(`SELECT COUNT(*) as cnt FROM sources${whereClause}`).get(...countParams) as { cnt: number };
 
     if (options?.cursor) {
-      query += ' WHERE id > ?';
+      conditions.push('id > ?');
       params.push(options.cursor);
     }
 
+    const fullWhere = conditions.length ? ' WHERE ' + conditions.join(' AND ') : '';
+    let query = `SELECT * FROM sources${fullWhere}`;
     query += ' ORDER BY id ASC LIMIT ?';
     params.push(limit + 1);
 
@@ -25,7 +37,7 @@ export class SourceRepository extends BaseRepository {
     const hasMore = rows.length > limit;
     if (hasMore) rows.pop();
 
-    return { data: rows, next_cursor: hasMore ? rows[rows.length - 1]?.id ?? null : null };
+    return { data: rows, next_cursor: hasMore ? rows[rows.length - 1]?.id ?? null : null, total_count: countRow.cnt };
   }
 
   create(data: {

@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, useEffect } from 'react';
+import React, { useRef, useCallback, useEffect, useState } from 'react';
 import { useCanvasStore } from '@/stores/canvasStore';
 import PersonCard from '@/components/PersonCard/PersonCard';
 import ConnectorLines from '@/components/ConnectorLines/ConnectorLines';
@@ -16,28 +16,45 @@ const TreeCanvas: React.FC<TreeCanvasProps> = ({ onAddPerson }) => {
     nodes,
     connectors,
     zoom,
-    panX,
-    panY,
+    cameraX,
+    cameraY,
+    homePersonId,
     isLoading,
     setZoom,
-    setPan,
+    setCamera,
     setSelectedPerson,
     setContextMenu,
   } = useCanvasStore();
 
   const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const isPanning = useRef(false);
   const panStart = useRef({ x: 0, y: 0 });
   const panOrigin = useRef({ x: 0, y: 0 });
+  const [viewportSize, setViewportSize] = useState({ w: 1200, h: 700 });
+
+  // Track viewport size with ResizeObserver
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (width > 0 && height > 0) {
+        setViewportSize({ w: width, h: height });
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (e.button !== 0) return;
       isPanning.current = true;
       panStart.current = { x: e.clientX, y: e.clientY };
-      panOrigin.current = { x: panX, y: panY };
+      panOrigin.current = { x: cameraX, y: cameraY };
     },
-    [panX, panY],
+    [cameraX, cameraY],
   );
 
   const handleMouseMove = useCallback(
@@ -45,23 +62,50 @@ const TreeCanvas: React.FC<TreeCanvasProps> = ({ onAddPerson }) => {
       if (!isPanning.current) return;
       const dx = e.clientX - panStart.current.x;
       const dy = e.clientY - panStart.current.y;
-      setPan(panOrigin.current.x + dx, panOrigin.current.y + dy);
+      // Convert screen pixels to SVG units (drag right → camera moves left)
+      setCamera(
+        panOrigin.current.x - dx / zoom,
+        panOrigin.current.y - dy / zoom,
+      );
     },
-    [setPan],
+    [zoom, setCamera],
   );
 
   const handleMouseUp = useCallback(() => {
     isPanning.current = false;
   }, []);
 
+  // Zoom toward cursor
   const handleWheel = useCallback(
     (e: WheelEvent) => {
       e.preventDefault();
-      const delta = e.deltaY > 0 ? -0.05 : 0.05;
-      const newZoom = Math.max(0.5, Math.min(2, zoom + delta));
+      const svg = svgRef.current;
+      if (!svg) return;
+
+      const rect = svg.getBoundingClientRect();
+      const fx = (e.clientX - rect.left) / rect.width;
+      const fy = (e.clientY - rect.top) / rect.height;
+
+      const oldZoom = zoom;
+      const zoomFactor = e.deltaY > 0 ? 0.92 : 1.08;
+      const newZoom = Math.max(0.3, Math.min(4, oldZoom * zoomFactor));
+
+      // Point in SVG coords under cursor before zoom
+      const oldVbW = rect.width / oldZoom;
+      const oldVbH = rect.height / oldZoom;
+      const svgX = (cameraX - oldVbW / 2) + fx * oldVbW;
+      const svgY = (cameraY - oldVbH / 2) + fy * oldVbH;
+
+      // Adjust camera so that point stays under cursor after zoom
+      const newVbW = rect.width / newZoom;
+      const newVbH = rect.height / newZoom;
+      const newCameraX = svgX - fx * newVbW + newVbW / 2;
+      const newCameraY = svgY - fy * newVbH + newVbH / 2;
+
       setZoom(newZoom);
+      setCamera(newCameraX, newCameraY);
     },
-    [zoom, setZoom],
+    [zoom, cameraX, cameraY, setZoom, setCamera],
   );
 
   useEffect(() => {
@@ -97,7 +141,7 @@ const TreeCanvas: React.FC<TreeCanvasProps> = ({ onAddPerson }) => {
 
   if (isLoading) {
     return (
-      <div className={styles.canvasWrap}>
+      <div className={styles.canvasWrap} ref={containerRef}>
         <div className={styles.loading}>Loading tree…</div>
       </div>
     );
@@ -105,7 +149,7 @@ const TreeCanvas: React.FC<TreeCanvasProps> = ({ onAddPerson }) => {
 
   if (nodes.length === 0) {
     return (
-      <div className={styles.canvasWrap}>
+      <div className={styles.canvasWrap} ref={containerRef}>
         <div className={styles.emptyState}>
           <svg className={styles.emptyIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M12 4.5v15m7.5-7.5h-15" />
@@ -120,22 +164,18 @@ const TreeCanvas: React.FC<TreeCanvasProps> = ({ onAddPerson }) => {
     );
   }
 
-  // Compute viewBox to fit all nodes with padding
-  const allX = nodes.map((n) => n.x);
-  const allY = nodes.map((n) => n.y);
-  const minX = Math.min(...allX) - 200;
-  const minY = Math.min(...allY) - 80;
-  const maxX = Math.max(...allX) + 400;
-  const maxY = Math.max(...allY) + 200;
-  const vbWidth = maxX - minX;
-  const vbHeight = maxY - minY;
+  // Camera-based viewBox: viewport size / zoom gives SVG units visible
+  const vbWidth = viewportSize.w / zoom;
+  const vbHeight = viewportSize.h / zoom;
+  const vbX = cameraX - vbWidth / 2;
+  const vbY = cameraY - vbHeight / 2;
 
   return (
-    <div className={styles.canvasWrap}>
+    <div className={styles.canvasWrap} ref={containerRef}>
       <svg
         ref={svgRef}
         className={styles.svg}
-        viewBox={`${minX} ${minY} ${vbWidth} ${vbHeight}`}
+        viewBox={`${vbX} ${vbY} ${vbWidth} ${vbHeight}`}
         role="img"
         aria-label="Family tree diagram"
         onMouseDown={handleMouseDown}
@@ -144,35 +184,35 @@ const TreeCanvas: React.FC<TreeCanvasProps> = ({ onAddPerson }) => {
         onMouseLeave={handleMouseUp}
         onClick={handleCanvasClick}
       >
-        <g
-          transform={`translate(${panX}, ${panY}) scale(${zoom})`}
-        >
-          <ConnectorLines />
+        <ConnectorLines />
 
-          {spouseConnectors.map((c) => (
-            <MarriageNode
-              key={`marriage-${c.id}`}
-              cx={c.midPoint!.x}
-              cy={c.midPoint!.y}
+        {spouseConnectors.map((c) => (
+          <MarriageNode
+            key={`marriage-${c.id}`}
+            cx={c.midPoint!.x}
+            cy={c.midPoint!.y}
+          />
+        ))}
+
+        {generationRows.map((gen) => {
+          const rowY = gen * 200;
+          return (
+            <GenerationLabel
+              key={`gen-${gen}`}
+              generation={gen + 1}
+              x={leftEdge}
+              y={rowY + 60}
             />
-          ))}
+          );
+        })}
 
-          {generationRows.map((gen) => {
-            const rowY = gen * 180;
-            return (
-              <GenerationLabel
-                key={`gen-${gen}`}
-                generation={gen + 1}
-                x={leftEdge}
-                y={rowY + 50}
-              />
-            );
-          })}
-
-          {nodes.map((node) => (
-            <PersonCard key={node.person.id} node={node} />
-          ))}
-        </g>
+        {nodes.map((node) => (
+          <PersonCard
+            key={node.person.id}
+            node={node}
+            isHome={node.person.id === homePersonId}
+          />
+        ))}
       </svg>
     </div>
   );

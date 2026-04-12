@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import type { Logger } from '../services/logger.js';
 import { getDataPath } from '../services/init.js';
+import { soundex } from '../utils/soundex.js';
 
 let db: Database.Database | null = null;
 
@@ -9,6 +10,14 @@ export function getDatabase(): Database.Database {
     throw new Error('Database not initialized. Call initializeDatabase() first.');
   }
   return db;
+}
+
+/** Register application-defined SQL functions on a database instance. */
+export function registerCustomFunctions(database: Database.Database): void {
+  database.function('soundex_code', { deterministic: true }, (val: unknown) => {
+    if (typeof val !== 'string' || val.length === 0) return null;
+    return soundex(val);
+  });
 }
 
 export function initializeDatabase(logger: Logger): Database.Database {
@@ -33,6 +42,9 @@ export function initializeDatabase(logger: Logger): Database.Database {
   } else {
     logger.info('SQLite WAL mode enabled');
   }
+
+  // Register custom SQL functions (soundex, etc.)
+  registerCustomFunctions(db);
 
   logger.info('Database initialized successfully');
   return db;

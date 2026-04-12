@@ -30,40 +30,41 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
 
   return (
     <div className={cls}>
-      <div
+      <button
+        type="button"
         className={styles.header}
-        role="button"
-        tabIndex={0}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setOpen((v) => !v);
-          }
-        }}
       >
         <div className={styles.headerLeft}>
           <span className={styles.title}>{title}</span>
         </div>
         <div className={styles.headerRight}>
           {actionLabel && (
-            <button
-              type="button"
+            <span
+              role="button"
+              tabIndex={0}
               className={styles.actionLink}
               onClick={(e) => {
                 e.stopPropagation();
                 onAction?.();
               }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  onAction?.();
+                }
+              }}
             >
               {actionLabel}
-            </button>
+            </span>
           )}
           <span className={chevronCls} aria-hidden="true">
             ▾
           </span>
         </div>
-      </div>
+      </button>
       <div className={bodyWrapperCls}>
         <div className={styles.body}>
           <div className={styles.bodyInner}>{children}</div>

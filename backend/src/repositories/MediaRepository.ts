@@ -6,16 +6,28 @@ export class MediaRepository extends BaseRepository {
     return this.db.prepare('SELECT * FROM media_items WHERE id = ?').get(id) as MediaItem | undefined;
   }
 
-  findAll(options?: { limit?: number; cursor?: string }): { data: MediaItem[]; next_cursor: string | null } {
+  findAll(options?: { limit?: number; cursor?: string; search?: string }): { data: MediaItem[]; next_cursor: string | null; total_count: number } {
     const limit = options?.limit || 50;
+    const conditions: string[] = [];
     const params: unknown[] = [];
-    let query = 'SELECT * FROM media_items';
+
+    if (options?.search) {
+      const term = `%${options.search.trim()}%`;
+      conditions.push('(title LIKE ? OR original_filename LIKE ? OR description LIKE ?)');
+      params.push(term, term, term);
+    }
+
+    const whereClause = conditions.length ? ' WHERE ' + conditions.join(' AND ') : '';
+    const countParams = [...params];
+    const countRow = this.db.prepare(`SELECT COUNT(*) as cnt FROM media_items${whereClause}`).get(...countParams) as { cnt: number };
 
     if (options?.cursor) {
-      query += ' WHERE id > ?';
+      conditions.push('id > ?');
       params.push(options.cursor);
     }
 
+    const fullWhere = conditions.length ? ' WHERE ' + conditions.join(' AND ') : '';
+    let query = `SELECT * FROM media_items${fullWhere}`;
     query += ' ORDER BY id ASC LIMIT ?';
     params.push(limit + 1);
 
@@ -23,7 +35,7 @@ export class MediaRepository extends BaseRepository {
     const hasMore = rows.length > limit;
     if (hasMore) rows.pop();
 
-    return { data: rows, next_cursor: hasMore ? rows[rows.length - 1]?.id ?? null : null };
+    return { data: rows, next_cursor: hasMore ? rows[rows.length - 1]?.id ?? null : null, total_count: countRow.cnt };
   }
 
   findByPerson(personId: string): MediaItem[] {

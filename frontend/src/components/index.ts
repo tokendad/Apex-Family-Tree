@@ -25,3 +25,5 @@ export { default as BottomDrawer } from './BottomDrawer/BottomDrawer';
 export { default as ErrorBoundary } from './ErrorBoundary/ErrorBoundary';
 export { default as EmptyState } from './EmptyState/EmptyState';
 export { default as OfflineBanner } from './OfflineBanner/OfflineBanner';
+export { default as SearchSidebar } from './SearchSidebar/SearchSidebar';
+export { default as StatusBar } from './StatusBar/StatusBar';

@@ -4,8 +4,8 @@ import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
 import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
-import Input from '@/components/Form/Input';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useSearchStore } from '@/stores/searchStore';
 import styles from './FamiliesPage.module.css';
 
 interface SpouseSummary {
@@ -43,7 +43,7 @@ const FamiliesPage: React.FC = () => {
   const { canCreate } = usePermissions();
 
   const [families, setFamilies] = useState<FamilyListItem[]>([]);
-  const [query, setQuery] = useState('');
+  const globalQuery = useSearchStore((s) => s.globalQuery);
   const [filter, setFilter] = useState<FilterValue>('');
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -96,16 +96,16 @@ const FamiliesPage: React.FC = () => {
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      fetchFamilies(query, filter, null, false);
+      fetchFamilies(globalQuery, filter, null, false);
     }, 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query, filter, fetchFamilies]);
+  }, [globalQuery, filter, fetchFamilies]);
 
   const loadMore = () => {
     if (cursor && !isLoading) {
-      fetchFamilies(query, filter, cursor, true);
+      fetchFamilies(globalQuery, filter, cursor, true);
     }
   };
 
@@ -113,18 +113,11 @@ const FamiliesPage: React.FC = () => {
   const showEmpty = !isLoading && !error && families.length === 0;
 
   return (
-    <AppShell navbar={<Navbar />} sidebar={<Sidebar />}>
+    <AppShell navbar={<Navbar />} sidebar={<Sidebar context="families" />} context="families">
       <div className={styles.page}>
         <div className={styles.header}>
           <h1 className={styles.title}>Families</h1>
           <div className={styles.controls}>
-            <Input
-              className={styles.searchBar}
-              placeholder="Search families…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              aria-label="Search families"
-            />
             <select
               className={styles.filterSelect}
               value={filter}
@@ -148,7 +141,7 @@ const FamiliesPage: React.FC = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => fetchFamilies(query, filter, null, false)}
+              onClick={() => fetchFamilies(globalQuery, filter, null, false)}
             >
               Retry
             </Button>
@@ -163,7 +156,7 @@ const FamiliesPage: React.FC = () => {
           </div>
         ) : showEmpty ? (
           <div className={styles.empty}>
-            {query || filter
+            {globalQuery || filter
               ? 'No families match your search.'
               : 'No families yet. Add one to get started!'}
           </div>

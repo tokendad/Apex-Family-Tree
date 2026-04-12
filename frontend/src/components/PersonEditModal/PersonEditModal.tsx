@@ -781,6 +781,7 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
       if (!res.ok) throw new Error(`Failed to set home person (${res.status})`);
       setHomeSetSuccess(true);
       setTimeout(() => setHomeSetSuccess(false), 3000);
+      onSaved();
     } catch (err) {
       console.error('Set home person error:', err);
     } finally {

@@ -12,8 +12,8 @@ function paramStr(val: string | string[]): string {
 
 export const peopleRouter = Router();
 
-// GET /people — List all persons (paginated, searchable)
-peopleRouter.get('/', (req, res) => {
+// GET /people — List all persons (paginated, searchable, filterable)
+peopleRouter.get('/', async (req, res) => {
   try {
     const repo = new PersonRepository();
     const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 200);
@@ -25,6 +25,49 @@ peopleRouter.get('/', (req, res) => {
     const sortParam = req.query.sort as string | undefined;
     const filterParam = req.query.filter as string | undefined;
 
+    // Advanced search filters
+    const firstName = req.query.firstName as string | undefined;
+    const lastName = req.query.lastName as string | undefined;
+    const nameMatch = req.query.nameMatch as string | undefined;
+    const initial = req.query.initial as string | undefined;
+    const sex = req.query.sex as string | undefined;
+    const birthFrom = req.query.birthFrom ? parseInt(req.query.birthFrom as string) : undefined;
+    const birthTo = req.query.birthTo ? parseInt(req.query.birthTo as string) : undefined;
+    const deathFrom = req.query.deathFrom ? parseInt(req.query.deathFrom as string) : undefined;
+    const deathTo = req.query.deathTo ? parseInt(req.query.deathTo as string) : undefined;
+    const marriageFrom = req.query.marriageFrom ? parseInt(req.query.marriageFrom as string) : undefined;
+    const marriageTo = req.query.marriageTo ? parseInt(req.query.marriageTo as string) : undefined;
+    const missingBirth = req.query.missingBirth === 'true' ? true : undefined;
+    const missingDeath = req.query.missingDeath === 'true' ? true : undefined;
+    const missingMarriage = req.query.missingMarriage === 'true' ? true : undefined;
+    const dateQualifierParam = req.query.dateQualifier as string | undefined;
+    const place = req.query.place as string | undefined;
+    const placeCountry = req.query.placeCountry as string | undefined;
+    const placeState = req.query.placeState as string | undefined;
+    const placeCity = req.query.placeCity as string | undefined;
+    const hasPhoto = req.query.hasPhoto === 'true' ? true : undefined;
+    const hasSources = req.query.hasSources === 'true' ? true : undefined;
+    const hasMissingData = req.query.hasMissingData === 'true' ? true : undefined;
+    const relationship = req.query.relationship as string | undefined;
+
+    const validNameMatch = nameMatch === 'startsWith' || nameMatch === 'exact' || nameMatch === 'soundex' ? nameMatch : 'contains';
+    const validSex = sex && ['M', 'F', 'X', 'U'].includes(sex) ? sex : undefined;
+    const validRelationship = relationship && ['ancestor', 'descendant', 'sibling', 'spouse'].includes(relationship)
+      ? relationship as 'ancestor' | 'descendant' | 'sibling' | 'spouse'
+      : undefined;
+    const validDateQualifier = dateQualifierParam && ['exact', 'approximate', 'before', 'after'].includes(dateQualifierParam)
+      ? dateQualifierParam as 'exact' | 'approximate' | 'before' | 'after'
+      : undefined;
+
+    // Read home person from authenticated user for relationship filter
+    let homePersonId: string | undefined;
+    if (validRelationship && req.user) {
+      const { UserRepository } = await import('../repositories/UserRepository.js');
+      const userRepo = new UserRepository();
+      const user = userRepo.findById(req.user.userId);
+      homePersonId = user?.home_person_id ?? undefined;
+    }
+
     const result = repo.findAll({
       limit,
       cursor,
@@ -32,6 +75,30 @@ peopleRouter.get('/', (req, res) => {
       isLiving: living,
       sort: sortParam === 'surname' ? 'surname' : undefined,
       filter: filterParam === 'unconnected' ? 'unconnected' : undefined,
+      firstName: firstName || undefined,
+      lastName: lastName || undefined,
+      nameMatchType: validNameMatch as 'contains' | 'startsWith' | 'exact' | 'soundex',
+      initial: initial || undefined,
+      sex: validSex,
+      birthYearFrom: birthFrom && !isNaN(birthFrom) ? birthFrom : undefined,
+      birthYearTo: birthTo && !isNaN(birthTo) ? birthTo : undefined,
+      deathYearFrom: deathFrom && !isNaN(deathFrom) ? deathFrom : undefined,
+      deathYearTo: deathTo && !isNaN(deathTo) ? deathTo : undefined,
+      marriageYearFrom: marriageFrom && !isNaN(marriageFrom) ? marriageFrom : undefined,
+      marriageYearTo: marriageTo && !isNaN(marriageTo) ? marriageTo : undefined,
+      missingBirthDate: missingBirth,
+      missingDeathDate: missingDeath,
+      missingMarriageDate: missingMarriage,
+      dateQualifier: validDateQualifier,
+      place: place || undefined,
+      placeCountry: placeCountry || undefined,
+      placeState: placeState || undefined,
+      placeCity: placeCity || undefined,
+      hasPhoto,
+      hasSources,
+      hasMissingData,
+      relationshipType: validRelationship,
+      homePersonId,
     });
     res.json(result);
   } catch (error) {

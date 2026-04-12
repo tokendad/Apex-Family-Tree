@@ -310,11 +310,10 @@ treeRouter.get('/:personId/descendants', (req, res) => {
   }
 });
 
-// GET /tree/:personId — Combined tree (ancestors + descendants)
+// GET /tree/:personId — Flat tree centered on a specific person
 treeRouter.get('/:personId', (req, res) => {
   try {
     const personRepo = new PersonRepository();
-    const familyRepo = new FamilyRepository();
     const generations = clampGenerations(req.query.generations as string);
     const personId = paramStr(req.params.personId);
 
@@ -324,19 +323,9 @@ treeRouter.get('/:personId', (req, res) => {
       return;
     }
 
-    const ancestorTree = buildAncestorTree(personId, 0, generations, personRepo, familyRepo, new Set());
-    const descendantTree = buildDescendantTree(personId, 0, generations, personRepo, familyRepo, new Set());
+    const { persons, families } = buildFlatTree(personId, generations, personRepo);
 
-    // Merge: root node gets ancestors' parents and descendants' children
-    const combined: TreeNode = {
-      person,
-      generation: 0,
-      parents: ancestorTree?.parents ?? [],
-      spouses: ancestorTree?.spouses ?? descendantTree?.spouses ?? [],
-      children: descendantTree?.children ?? [],
-    };
-
-    res.json(combined);
+    res.json({ persons, families, home_person_id: personId });
   } catch (error) {
     res.status(500).json({ error: 'Failed to build tree' });
   }

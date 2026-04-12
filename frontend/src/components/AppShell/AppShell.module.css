@@ -20,6 +20,13 @@
   overflow: hidden;
 }
 
+.mainWrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .detailPanel {
   width: 320px;
   flex-shrink: 0;

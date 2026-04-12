@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
 import Sidebar from '@/components/Sidebar/Sidebar';
@@ -16,11 +16,67 @@ import MediaNotesStep from '@/components/WizardSteps/MediaNotesStep';
 import { useCanvasStore } from '@/stores/canvasStore';
 import { useTreeData } from '@/hooks/useTreeData';
 import { usePersonWizard } from '@/hooks/usePersonWizard';
+import { useSearchStore, hasActiveFilters, filtersToParams } from '@/stores/searchStore';
 import type { PreLinkedRelationship } from '@/hooks/usePersonWizard';
 
 const TreePage: React.FC = () => {
   const { refetch } = useTreeData();
-  const { selectedPersonId } = useCanvasStore();
+  const { selectedPersonId, setHighlightedPersonIds } = useCanvasStore();
+  const searchFilters = useSearchStore();
+  const setTotalCount = useSearchStore((s) => s.setTotalCount);
+  const filtersActive = hasActiveFilters(searchFilters);
+  const highlightDebounce = useRef<ReturnType<typeof setTimeout>>();
+
+  // Highlight matching tree nodes when search is active
+  useEffect(() => {
+    if (highlightDebounce.current) clearTimeout(highlightDebounce.current);
+
+    if (!filtersActive) {
+      setHighlightedPersonIds(new Set());
+      setTotalCount(null);
+      return;
+    }
+
+    highlightDebounce.current = setTimeout(async () => {
+      try {
+        const params = filtersToParams(useSearchStore.getState());
+        params.set('limit', '200');
+        const res = await fetch(`/api/v1/people?${params.toString()}`, {
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const items = data.data ?? data.people ?? [];
+          const ids = new Set<string>(items.map((p: { id: string }) => p.id));
+          setHighlightedPersonIds(ids);
+          if (data.total_count !== undefined) {
+            setTotalCount(data.total_count);
+          }
+        }
+      } catch {
+        // Silently fail — highlighting is non-critical
+      }
+    }, 400);
+
+    return () => {
+      if (highlightDebounce.current) clearTimeout(highlightDebounce.current);
+    };
+  }, [
+    searchFilters.globalQuery, searchFilters.firstName, searchFilters.lastName,
+    searchFilters.nameMatchType, searchFilters.initial, searchFilters.sex,
+    searchFilters.dateMode, searchFilters.dateYear, searchFilters.dateYearTo,
+    searchFilters.dateApplyToBirth, searchFilters.dateApplyToDeath, searchFilters.dateApplyToMarriage,
+    searchFilters.dateQualifier,
+    searchFilters.placeCountry, searchFilters.placeState, searchFilters.placeCity,
+    searchFilters.hasPhoto, searchFilters.hasSources,
+    searchFilters.hasMissingData, searchFilters.isLiving, searchFilters.relationshipType,
+    filtersActive, setHighlightedPersonIds, setTotalCount,
+  ]);
+
+  // Clear highlights when leaving tree page
+  useEffect(() => {
+    return () => setHighlightedPersonIds(new Set());
+  }, [setHighlightedPersonIds]);
 
   const [wizardOpen, setWizardOpen] = useState(false);
   const [editPersonId, setEditPersonId] = useState<string | null>(null);
@@ -100,9 +156,10 @@ const TreePage: React.FC = () => {
   return (
     <AppShell
       navbar={<Navbar />}
-      sidebar={<Sidebar />}
+      sidebar={<Sidebar context="tree" />}
       detail={<DetailPanel />}
       showDetail={selectedPersonId !== null}
+      context="tree"
     >
       <CanvasToolbar onAddPerson={openCreateWizard} />
       <TreeCanvas onAddPerson={openCreateWizard} />

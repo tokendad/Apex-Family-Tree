@@ -23,10 +23,10 @@ export class FamilyRepository extends BaseRepository {
     if (options?.search) {
       const term = `%${options.search}%`;
       conditions.push(
-        '(EXISTS (SELECT 1 FROM names WHERE person_id = f.spouse1_id AND surname LIKE ?) OR ' +
-        'EXISTS (SELECT 1 FROM names WHERE person_id = f.spouse2_id AND surname LIKE ?))'
+        '(EXISTS (SELECT 1 FROM names WHERE person_id = f.spouse1_id AND (surname LIKE ? OR given_name LIKE ?)) OR ' +
+        'EXISTS (SELECT 1 FROM names WHERE person_id = f.spouse2_id AND (surname LIKE ? OR given_name LIKE ?)))'
       );
-      params.push(term, term);
+      params.push(term, term, term, term);
     }
 
     if (useUnlinkedFilter) {

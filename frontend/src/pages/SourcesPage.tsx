@@ -6,6 +6,7 @@ import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useSearchStore } from '@/stores/searchStore';
 import styles from './SourcesPage.module.css';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -214,7 +215,7 @@ const SourcesPage: React.FC = () => {
 
   // ── List state ─────────────────────────────────────────────────────────────
   const [sources, setSources] = useState<Source[]>([]);
-  const [query, setQuery] = useState('');
+  const globalQuery = useSearchStore((s) => s.globalQuery);
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -277,17 +278,8 @@ const SourcesPage: React.FC = () => {
         } = await res.json();
 
         const items: Source[] = data.sources ?? data.data ?? [];
-        // Graceful fallback: if backend doesn't support q=, filter client-side
-        const filtered =
-          searchQuery && items.length > 0
-            ? items.filter(
-                (s) =>
-                  s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                  (s.author ?? '').toLowerCase().includes(searchQuery.toLowerCase()),
-              )
-            : items;
 
-        setSources((prev) => (append ? [...prev, ...filtered] : filtered));
+        setSources((prev) => (append ? [...prev, ...items] : items));
         setCursor(data.next_cursor ?? null);
         setHasMore(!!data.next_cursor);
       } catch (err) {
@@ -303,16 +295,16 @@ const SourcesPage: React.FC = () => {
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      fetchSources(query, null, false);
+      fetchSources(globalQuery, null, false);
     }, 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query, fetchSources]);
+  }, [globalQuery, fetchSources]);
 
   const loadMore = () => {
     if (cursor && !isLoading) {
-      fetchSources(query, cursor, true);
+      fetchSources(globalQuery, cursor, true);
     }
   };
 
@@ -533,7 +525,7 @@ const SourcesPage: React.FC = () => {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <AppShell navbar={<Navbar />} sidebar={<Sidebar />}>
+    <AppShell navbar={<Navbar />} sidebar={<Sidebar context="sources" />} context="sources">
       <div className={styles.page}>
         <div className={styles.layout}>
 
@@ -542,13 +534,6 @@ const SourcesPage: React.FC = () => {
             <div className={styles.listHeader}>
               <h1 className={styles.listTitle}>Sources</h1>
               <div className={styles.listControls}>
-                <Input
-                  className={styles.searchBar}
-                  placeholder="Search sources…"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  aria-label="Search sources"
-                />
                 {canCreate && (
                   <Button variant="primary" size="sm" onClick={openAddForm}>
                     + Add
@@ -563,7 +548,7 @@ const SourcesPage: React.FC = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => fetchSources(query, null, false)}
+                  onClick={() => fetchSources(globalQuery, null, false)}
                 >
                   Retry
                 </Button>
@@ -582,7 +567,7 @@ const SourcesPage: React.FC = () => {
                 ))
               ) : showEmpty ? (
                 <div className={styles.empty}>
-                  {query
+                  {globalQuery
                     ? 'No sources match your search.'
                     : 'No sources yet. Add one to get started!'}
                 </div>

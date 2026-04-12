@@ -12,6 +12,7 @@ import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useSearchStore } from '@/stores/searchStore';
 import styles from './MediaPage.module.css';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -350,14 +351,17 @@ const MediaPage: React.FC = () => {
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const globalQuery = useSearchStore((s) => s.globalQuery);
 
   // ── Fetch media ────────────────────────────────────────────────────────────
 
-  const fetchMedia = useCallback(async (cursorParam: string | null, append: boolean) => {
+  const fetchMedia = useCallback(async (searchQuery: string, cursorParam: string | null, append: boolean) => {
     setIsLoading(true);
     if (!append) setError(null);
     try {
       const params = new URLSearchParams({ limit: String(LIMIT) });
+      if (searchQuery) params.set('q', searchQuery);
       if (cursorParam) params.set('cursor', cursorParam);
 
       const res = await fetch(`/api/v1/media?${params.toString()}`, {
@@ -387,12 +391,18 @@ const MediaPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    fetchMedia(null, false);
-  }, [fetchMedia]);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetchMedia(globalQuery, null, false);
+    }, 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [globalQuery, fetchMedia]);
 
   const loadMore = () => {
     if (cursor && !isLoading) {
-      fetchMedia(cursor, true);
+      fetchMedia(globalQuery, cursor, true);
     }
   };
 
@@ -489,7 +499,7 @@ const MediaPage: React.FC = () => {
       });
 
       setShowUpload(false);
-      await fetchMedia(null, false);
+      await fetchMedia(globalQuery, null, false);
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
@@ -595,7 +605,7 @@ const MediaPage: React.FC = () => {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <AppShell navbar={<Navbar />} sidebar={<Sidebar />}>
+    <AppShell navbar={<Navbar />} sidebar={<Sidebar context="media" />} context="media">
       <div className={styles.page}>
         {/* ── Page header ── */}
         <div className={styles.header}>
@@ -611,7 +621,7 @@ const MediaPage: React.FC = () => {
         {error && (
           <div className={styles.errorBanner} role="alert">
             <span>{error}</span>
-            <Button variant="ghost" size="sm" onClick={() => fetchMedia(null, false)}>
+            <Button variant="ghost" size="sm" onClick={() => fetchMedia(globalQuery, null, false)}>
               Retry
             </Button>
           </div>

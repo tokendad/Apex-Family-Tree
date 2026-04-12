@@ -1,9 +1,9 @@
 import type { TreePerson, TreeFamily, TreeNode, ConnectorLine } from '@/stores/canvasStore';
 
-const CARD_WIDTH = 200;
-const CARD_HEIGHT = 120;
-const H_GAP = 40;
-const V_GAP = 180;
+const CARD_WIDTH = 240;
+const CARD_HEIGHT = 140;
+const H_GAP = 50;
+const V_GAP = 200;
 
 interface LayoutInput {
   persons: TreePerson[];

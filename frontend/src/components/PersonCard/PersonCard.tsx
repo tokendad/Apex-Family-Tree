@@ -44,8 +44,8 @@ function sexColor(sex: string): string {
   }
 }
 
-const CARD_WIDTH = 200;
-const CARD_HEIGHT = 120;
+const CARD_WIDTH = 240;
+const CARD_HEIGHT = 140;
 
 const PersonCard: React.FC<PersonCardProps> = ({ node, isHome = false }) => {
   const { person, x, y } = node;
@@ -59,6 +59,9 @@ const PersonCard: React.FC<PersonCardProps> = ({ node, isHome = false }) => {
 
   const isSelected = selectedPersonId === person.id;
   const isHovered = hoveredPersonId === person.id;
+  const highlightedIds = useCanvasStore((s) => s.highlightedPersonIds);
+  const isHighlighted = highlightedIds.size > 0 && highlightedIds.has(person.id);
+  const isDimmed = highlightedIds.size > 0 && !highlightedIds.has(person.id);
   const name = formatName(person.given_name, person.surname);
   const initials = getInitials(person.given_name, person.surname);
 
@@ -84,6 +87,8 @@ const PersonCard: React.FC<PersonCardProps> = ({ node, isHome = false }) => {
     sexClass(person.sex),
     isSelected ? styles.selected : '',
     isHovered ? styles.hovered : '',
+    isHighlighted ? styles.highlighted : '',
+    isDimmed ? styles.dimmed : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -105,8 +110,8 @@ const PersonCard: React.FC<PersonCardProps> = ({ node, isHome = false }) => {
             src={person.photo_url}
             alt={name}
             style={{
-              width: 36,
-              height: 36,
+              width: 44,
+              height: 44,
               borderRadius: '50%',
               objectFit: 'cover',
             }}
@@ -115,15 +120,15 @@ const PersonCard: React.FC<PersonCardProps> = ({ node, isHome = false }) => {
           <div
             className={styles.avatar}
             style={{
-              width: 36,
-              height: 36,
+              width: 44,
+              height: 44,
               borderRadius: '50%',
               backgroundColor: sexColor(person.sex),
               color: '#fff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '0.75rem',
+              fontSize: '0.875rem',
               fontWeight: 600,
             }}
           >
