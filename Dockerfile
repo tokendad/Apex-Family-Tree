@@ -1,6 +1,8 @@
 # ---- Build Stage ----
 FROM node:20-alpine AS builder
 
+ARG VERSION=0.0.0
+
 WORKDIR /build
 
 # Copy package files first for layer caching
@@ -25,6 +27,8 @@ LABEL maintainer="tokendad"
 LABEL org.opencontainers.image.title="Apex Family Tree"
 LABEL org.opencontainers.image.description="Self-hosted family genealogy web application"
 LABEL org.opencontainers.image.source="https://github.com/tokendad/Apex-Family-Tree"
+
+ENV APP_VERSION=${VERSION}
 
 WORKDIR /app
 

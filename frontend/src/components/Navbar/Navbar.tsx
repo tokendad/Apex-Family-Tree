@@ -41,6 +41,7 @@ const Navbar: React.FC = () => {
         </svg>
         Apex Family Tree
       </Link>
+      <span className={styles.version}>v{__APP_VERSION__}</span>
 
       <div className={styles.nav}>
         {NAV_ITEMS.map((item) => (

@@ -58,6 +58,22 @@
   background-color: var(--color-primary-50);
 }
 
+.version {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary, var(--color-gray-400));
+  font-weight: var(--font-weight-normal);
+  margin-left: var(--space-2);
+  flex-shrink: 0;
+  align-self: flex-end;
+  padding-bottom: 2px;
+}
+
+@media (max-width: 480px) {
+  .version {
+    display: none;
+  }
+}
+
 .spacer {
   flex: 1;
 }
