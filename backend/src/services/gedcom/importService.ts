@@ -366,12 +366,12 @@ export function processImport(jobId: string, content: string, userId: string, mo
             }
 
             // Place field resolutions via event upsert
-            const existingEvents = eventRepo.findByPerson(candidateId);
+            const existingEventsForResolution = eventRepo.findByPerson(candidateId);
 
             if (fieldResolutions.birthPlace === 'new') {
               const incomingBirth = person.events.find((e) => e.eventType === 'birth');
               if (incomingBirth?.place) {
-                const existingBirth = existingEvents.find((e) => e.event_type === 'birth');
+                const existingBirth = existingEventsForResolution.find((e) => e.event_type === 'birth');
                 if (existingBirth) {
                   eventRepo.update(existingBirth.id, { event_place: incomingBirth.place });
                 } else {
@@ -389,7 +389,7 @@ export function processImport(jobId: string, content: string, userId: string, mo
             if (fieldResolutions.deathPlace === 'new') {
               const incomingDeath = person.events.find((e) => e.eventType === 'death');
               if (incomingDeath?.place) {
-                const existingDeath = existingEvents.find((e) => e.event_type === 'death');
+                const existingDeath = existingEventsForResolution.find((e) => e.event_type === 'death');
                 if (existingDeath) {
                   eventRepo.update(existingDeath.id, { event_place: incomingDeath.place });
                 } else {
@@ -403,6 +403,11 @@ export function processImport(jobId: string, content: string, userId: string, mo
                 }
               }
             }
+
+            // Re-read events AFTER field-resolution block to get an up-to-date snapshot,
+            // so that events created above are visible to the add-incoming-events loop and
+            // are not duplicated.
+            const existingEvents = eventRepo.findByPerson(candidateId);
 
             // Add incoming events not already present (match by event_type + event_date)
             for (const incomingEvent of person.events) {

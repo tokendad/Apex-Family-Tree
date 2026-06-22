@@ -188,7 +188,26 @@ function seedMargaret(database: Database.Database): string {
   return personId;
 }
 
-// ─── Test GEDCOM ─────────────────────────────────────────────────────────────
+// Seed a person with matching name but NO events at all.
+// This is the critical case for the stale-snapshot bug:
+// when birthPlace='new' is resolved and the candidate has no birth event,
+// the resolution block CREATES a birth event; the stale snapshot misses it,
+// so the add-events loop would insert a second copy.
+function seedMargaretNoEvents(database: Database.Database): string {
+  const personId = 'test-margaret-002';
+  database.prepare(
+    `INSERT INTO persons (id, sex, is_living, created_at, updated_at)
+     VALUES (?, 'F', 0, datetime('now'), datetime('now'))`
+  ).run(personId);
+  database.prepare(
+    `INSERT INTO names (id, person_id, name_type, given_name, surname, is_primary, sort_order, created_at, updated_at)
+     VALUES ('test-name-002', ?, 'birth', 'Margaret', 'Smith', 1, 0, datetime('now'), datetime('now'))`
+  ).run(personId);
+  // Intentionally NO events seeded — the incoming GEDCOM will supply them
+  return personId;
+}
+
+// ─── Test GEDCOMs ─────────────────────────────────────────────────────────────
 
 const GED = `0 HEAD
 0 @I1@ INDI
@@ -197,6 +216,26 @@ const GED = `0 HEAD
 2 DATE 12 APR 1842
 1 DEAT
 2 DATE 3 FEB 1911
+0 TRLR
+`;
+
+// Incoming GEDCOM: Margaret Smith with a birth place included
+const GED_WITH_BIRTH_PLACE = `0 HEAD
+0 @I1@ INDI
+1 NAME Margaret /Smith/
+1 BIRT
+2 DATE 12 APR 1842
+2 PLAC Springfield, IL
+1 DEAT
+2 DATE 3 FEB 1911
+0 TRLR
+`;
+
+// GEDCOM with a single source, no persons
+const GED_WITH_SOURCE = (title: string, author: string) => `0 HEAD
+0 @S1@ SOUR
+1 TITL ${title}
+1 AUTH ${author}
 0 TRLR
 `;
 
@@ -265,5 +304,66 @@ describe('merge processing', () => {
     expect(analysis.counts.partial).toBe(0);
     expect(analysis.counts.none).toBe(0);
     expect(analysis.persons[0].candidate?.id).toBe('test-margaret-001');
+  });
+
+  it('field-resolution birthPlace=new does not create a duplicate birth event when candidate has no prior birth event', () => {
+    // Seed a person with NO events. With the stale-snapshot bug, the resolution block
+    // creates a birth event, but the add-events loop (reading the stale snapshot) would
+    // insert a second birth event — resulting in 2 rows. The fix re-reads events AFTER
+    // resolution so the loop sees the already-created event and skips it.
+    const candidateId = seedMargaretNoEvents(db);
+
+    const importRepo = new ImportRepository();
+    const ged = GED_WITH_BIRTH_PLACE;
+    const job = importRepo.createJob({ user_id: 'u1', filename: 'place.ged', file_size: ged.length });
+
+    // Save a 'same' decision linking incoming @I1@ to candidateId,
+    // with birthPlace='new' — triggers the CREATE branch in the resolution block.
+    importRepo.saveMergeDecision({
+      import_job_id: job.id,
+      xref: '@I1@',
+      decision: 'same',
+      candidate_person_id: candidateId,
+      field_resolutions: JSON.stringify({ birthPlace: 'new' }),
+    });
+
+    const birthEventsBefore = (
+      db.prepare(`SELECT COUNT(*) c FROM events WHERE person_id = ? AND event_type = 'birth'`)
+        .get(candidateId) as { c: number }
+    ).c;
+    expect(birthEventsBefore).toBe(0); // sanity: no existing birth event
+
+    processImport(job.id, ged, 'u1', 'merge');
+
+    // After merge: exactly ONE birth event (not two), with the incoming place
+    const birthEvents = db
+      .prepare(`SELECT * FROM events WHERE person_id = ? AND event_type = 'birth'`)
+      .all(candidateId) as Array<{ id: string; event_place: string | null }>;
+
+    expect(birthEvents).toHaveLength(1);
+    expect(birthEvents[0].event_place).toBe('Springfield, IL');
+  });
+
+  it('source dedupe: importing a source with the same title+author does not insert a second source row', () => {
+    const TITLE = 'Census Records 1880';
+    const AUTHOR = 'National Archive';
+
+    // Seed an existing source
+    db.prepare(
+      `INSERT INTO sources (id, title, author, created_at, updated_at)
+       VALUES ('existing-source-001', ?, ?, datetime('now'), datetime('now'))`
+    ).run(TITLE, AUTHOR);
+
+    const countBefore = (db.prepare('SELECT COUNT(*) c FROM sources').get() as { c: number }).c;
+    expect(countBefore).toBe(1);
+
+    const ged = GED_WITH_SOURCE(TITLE, AUTHOR);
+    const importRepo = new ImportRepository();
+    const job = importRepo.createJob({ user_id: 'u1', filename: 'sources.ged', file_size: ged.length });
+
+    processImport(job.id, ged, 'u1', 'merge');
+
+    const countAfter = (db.prepare('SELECT COUNT(*) c FROM sources').get() as { c: number }).c;
+    expect(countAfter).toBe(countBefore); // deduped — no new row
   });
 });
