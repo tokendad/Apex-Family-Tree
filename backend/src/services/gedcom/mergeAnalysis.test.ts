@@ -22,7 +22,7 @@ const existing: MatchPersonInput[] = [
   { id: 'p1', givenName: 'Margaret', surname: 'Smith', birthDate: '1842-04-12', deathDate: '1911-02-03' },
 ];
 const existingFields = (id: string) => {
-  if (id === 'p1') return { givenName: 'Margaret', surname: 'Smith', sex: 'F', birthPlace: 'London', deathPlace: '' };
+  if (id === 'p1') return { givenName: 'Margaret', surname: 'Smith', sex: 'F', birthPlace: 'London', deathPlace: '', occupation: 'Seamstress' };
   return {};
 };
 
@@ -34,5 +34,11 @@ describe('buildMergeAnalysis', () => {
     expect(m.tier).toBe('strong');
     expect(m.candidate?.id).toBe('p1');
     expect(m.fields.find((f) => f.field === 'givenName')?.status).toBe('unchanged');
+    // DB-only field: occupation exists in DB but GEDCOM omits it -> incoming blank -> unchanged
+    expect(m.fields.find((f) => f.field === 'occupation')?.status).toBe('unchanged');
+    // candidate name resolves correctly
+    expect(m.candidate?.name).toBe('Margaret Smith');
+    // none-tier person has no field diffs
+    expect(a.persons.find((p) => p.xref === '@I2@')!.fields).toEqual([]);
   });
 });

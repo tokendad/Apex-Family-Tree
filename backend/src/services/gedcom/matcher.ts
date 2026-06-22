@@ -85,9 +85,10 @@ export function diffFields(
     const i = incoming[field] ?? '';
     if (!e && !i) continue;
     let status: FieldStatus;
-    if (!e && i) status = 'filled';
-    else if (e === i) status = 'unchanged';
-    else status = 'conflict';
+    if (!e && i) status = 'filled';            // existing blank, incoming has value
+    else if (!i) status = 'unchanged';         // incoming blank, existing has value -> keep existing, no-op
+    else if (e === i) status = 'unchanged';    // both present and equal
+    else status = 'conflict';                  // both present and differ
     out.push({ field, existing: existing[field] ?? '', incoming: incoming[field] ?? '', status });
   }
   return out;

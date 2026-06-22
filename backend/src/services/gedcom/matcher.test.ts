@@ -78,6 +78,14 @@ describe('diffFields', () => {
     expect(result).toContainEqual({ field: 'birthPlace', existing: 'London', incoming: 'London', status: 'unchanged' });
     expect(result.find((f) => f.field === 'notes')).toBeUndefined();
   });
+
+  it('treats incoming-blank as unchanged when existing has a value', () => {
+    const result = diffFields(
+      { occupation: 'Seamstress' },
+      { occupation: '' },
+    );
+    expect(result).toContainEqual({ field: 'occupation', existing: 'Seamstress', incoming: '', status: 'unchanged' });
+  });
 });
 
 describe('dedupe keys', () => {
