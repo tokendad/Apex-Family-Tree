@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeName, nameSoundex, dateMatch, diffFields, coupleKey, sourceKey } from './matcher';
+import { normalizeName, nameSoundex, dateMatch, diffFields, coupleKey, sourceKey } from './matcher.js';
 
 describe('normalizeName', () => {
   it('lowercases, trims, collapses spaces and strips punctuation', () => {
@@ -33,7 +33,7 @@ describe('dateMatch', () => {
   });
 });
 
-import { classify, type MatchPersonInput } from './matcher';
+import { classify, type MatchPersonInput, type FieldDiff } from './matcher.js';
 
 const existing: MatchPersonInput[] = [
   { id: 'x1', givenName: 'Margaret', surname: 'Smith', birthDate: '1842-04-12', deathDate: '1911-02-03' },
@@ -76,7 +76,7 @@ describe('diffFields', () => {
     expect(result).toContainEqual({ field: 'middle', existing: '', incoming: 'Eleanor', status: 'filled' });
     expect(result).toContainEqual({ field: 'occupation', existing: 'Seamstress', incoming: 'Dressmaker', status: 'conflict' });
     expect(result).toContainEqual({ field: 'birthPlace', existing: 'London', incoming: 'London', status: 'unchanged' });
-    expect(result.find((f) => f.field === 'notes')).toBeUndefined();
+    expect(result.find((f: FieldDiff) => f.field === 'notes')).toBeUndefined();
   });
 
   it('treats incoming-blank as unchanged when existing has a value', () => {
