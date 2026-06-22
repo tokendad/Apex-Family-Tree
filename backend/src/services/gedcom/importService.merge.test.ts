@@ -367,3 +367,104 @@ describe('merge processing', () => {
     expect(countAfter).toBe(countBefore); // deduped — no new row
   });
 });
+
+// ─── Gap-fill tests ───────────────────────────────────────────────────────────
+
+describe('gap-fill blank fields on merge', () => {
+  // These tests use a fresh in-memory DB per test to avoid colliding with the
+  // global Margaret seed (test-margaret-001 / @I1@). They use @I2@ xref and
+  // a separate person id.
+
+  let gapDb: Database.Database;
+
+  beforeEach(() => {
+    gapDb = new Database(':memory:');
+    gapDb.exec(SCHEMA);
+    // Point the module-level mock to gapDb for these tests
+    db = gapDb;
+  });
+
+  afterEach(() => {
+    gapDb.close();
+    // Restore db to a fresh instance so the outer afterEach doesn't crash
+    db = new Database(':memory:');
+    db.exec(SCHEMA);
+    seedMargaret(db);
+  });
+
+  const GED_JOHN_SMITH = `0 HEAD
+0 @I2@ INDI
+1 NAME John /Smith/
+0 TRLR
+`;
+
+  it("gap-fills blank givenName from incoming GEDCOM on 'same' decision with empty fieldResolutions", () => {
+    // Seed a person with surname='Smith' but given_name=NULL
+    const personId = 'test-john-001';
+    gapDb.prepare(
+      `INSERT INTO persons (id, sex, is_living, created_at, updated_at)
+       VALUES (?, 'U', 1, datetime('now'), datetime('now'))`
+    ).run(personId);
+    gapDb.prepare(
+      `INSERT INTO names (id, person_id, name_type, given_name, surname, is_primary, sort_order, created_at, updated_at)
+       VALUES ('test-john-name-001', ?, 'birth', NULL, 'Smith', 1, 0, datetime('now'), datetime('now'))`
+    ).run(personId);
+
+    const importRepo = new ImportRepository();
+    const job = importRepo.createJob({ user_id: 'u1', filename: 'john.ged', file_size: GED_JOHN_SMITH.length });
+
+    importRepo.saveMergeDecision({
+      import_job_id: job.id,
+      xref: '@I2@',
+      decision: 'same',
+      candidate_person_id: personId,
+      field_resolutions: '{}',
+    });
+
+    processImport(job.id, GED_JOHN_SMITH, 'u1', 'merge');
+
+    const nameRow = gapDb
+      .prepare(`SELECT given_name, surname FROM names WHERE person_id = ?`)
+      .get(personId) as { given_name: string | null; surname: string | null };
+
+    // given_name was blank — should now be gap-filled from incoming
+    expect(nameRow.given_name).toBe('John');
+    // surname was non-blank — should remain unchanged
+    expect(nameRow.surname).toBe('Smith');
+  });
+
+  it('does NOT overwrite a non-blank existing givenName even when incoming differs and fieldResolutions is empty', () => {
+    // Seed a person with given_name='Bob', surname='Smith'
+    const personId = 'test-bob-001';
+    gapDb.prepare(
+      `INSERT INTO persons (id, sex, is_living, created_at, updated_at)
+       VALUES (?, 'U', 1, datetime('now'), datetime('now'))`
+    ).run(personId);
+    gapDb.prepare(
+      `INSERT INTO names (id, person_id, name_type, given_name, surname, is_primary, sort_order, created_at, updated_at)
+       VALUES ('test-bob-name-001', ?, 'birth', 'Bob', 'Smith', 1, 0, datetime('now'), datetime('now'))`
+    ).run(personId);
+
+    const importRepo = new ImportRepository();
+    const job = importRepo.createJob({ user_id: 'u1', filename: 'john.ged', file_size: GED_JOHN_SMITH.length });
+
+    // Incoming has givenName='John' but existing has 'Bob'; empty fieldResolutions → no explicit overwrite
+    importRepo.saveMergeDecision({
+      import_job_id: job.id,
+      xref: '@I2@',
+      decision: 'same',
+      candidate_person_id: personId,
+      field_resolutions: '{}',
+    });
+
+    processImport(job.id, GED_JOHN_SMITH, 'u1', 'merge');
+
+    const nameRow = gapDb
+      .prepare(`SELECT given_name, surname FROM names WHERE person_id = ?`)
+      .get(personId) as { given_name: string | null; surname: string | null };
+
+    // given_name was non-blank ('Bob') — must NOT be overwritten
+    expect(nameRow.given_name).toBe('Bob');
+    expect(nameRow.surname).toBe('Smith');
+  });
+});

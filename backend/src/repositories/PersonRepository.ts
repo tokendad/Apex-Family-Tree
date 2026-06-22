@@ -482,8 +482,8 @@ export class PersonRepository extends BaseRepository {
       SELECT p.id AS id,
         (SELECT given_name FROM names WHERE person_id = p.id ORDER BY is_primary DESC LIMIT 1) AS givenName,
         (SELECT surname    FROM names WHERE person_id = p.id ORDER BY is_primary DESC LIMIT 1) AS surname,
-        (SELECT event_date FROM events WHERE person_id = p.id AND event_type = 'birth' LIMIT 1) AS birthDate,
-        (SELECT event_date FROM events WHERE person_id = p.id AND event_type = 'death' LIMIT 1) AS deathDate
+        (SELECT event_date FROM events WHERE person_id = p.id AND event_type = 'birth' ORDER BY event_date_sort_key ASC, id ASC LIMIT 1) AS birthDate,
+        (SELECT event_date FROM events WHERE person_id = p.id AND event_type = 'death' ORDER BY event_date_sort_key DESC, id ASC LIMIT 1) AS deathDate
       FROM persons p
     `).all() as MatchPersonInput[];
     return rows;

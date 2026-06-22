@@ -149,8 +149,13 @@ gedcomRouter.post(
   requireRole('admin', 'editor'),
   (req: Request, res: Response) => {
     try {
-      const repo = new ImportRepository();
-      const jobId = req.params.jobId as string;
+      const importRepo = new ImportRepository();
+      const jobId = String(req.params.jobId);
+      const job = importRepo.findJobById(jobId);
+      if (!job) {
+        res.status(404).json({ error: 'Import job not found' });
+        return;
+      }
       const decisions = (req.body?.decisions ?? []) as Array<{
         xref: string;
         decision: 'same' | 'new';
@@ -158,7 +163,7 @@ gedcomRouter.post(
         fieldResolutions: Record<string, 'old' | 'new'>;
       }>;
       for (const d of decisions) {
-        repo.saveMergeDecision({
+        importRepo.saveMergeDecision({
           import_job_id: jobId,
           xref: d.xref,
           decision: d.decision,
@@ -167,8 +172,8 @@ gedcomRouter.post(
         });
       }
       res.json({ saved: decisions.length });
-    } catch {
-      res.status(500).json({ error: 'Failed to save decisions' });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to save decisions: ' + String(error) });
     }
   },
 );

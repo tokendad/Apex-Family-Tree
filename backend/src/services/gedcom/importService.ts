@@ -404,6 +404,89 @@ export function processImport(jobId: string, content: string, userId: string, mo
               }
             }
 
+            // Gap-fill: for every 'same' decision, fill blank fields from incoming GEDCOM
+            // (only when the existing value is blank AND there is no explicit 'new' resolution
+            //  that already wrote the value above — to avoid double-write).
+
+            // Gap-fill name fields
+            if (primaryNameData) {
+              const existingPersonForGapFill = personRepo.findById(candidateId);
+              const primaryNameForGapFill = existingPersonForGapFill?.primary_name;
+              if (primaryNameForGapFill) {
+                const gapFillNameUpdate: Record<string, string | undefined> = {};
+                if (fieldResolutions.givenName !== 'new' && !primaryNameForGapFill.given_name && primaryNameData.givenName) {
+                  gapFillNameUpdate.given_name = primaryNameData.givenName;
+                }
+                if (fieldResolutions.surname !== 'new' && !primaryNameForGapFill.surname && primaryNameData.surname) {
+                  gapFillNameUpdate.surname = primaryNameData.surname;
+                }
+                if (fieldResolutions.prefix !== 'new' && !primaryNameForGapFill.prefix && primaryNameData.prefix) {
+                  gapFillNameUpdate.prefix = primaryNameData.prefix;
+                }
+                if (fieldResolutions.suffix !== 'new' && !primaryNameForGapFill.suffix && primaryNameData.suffix) {
+                  gapFillNameUpdate.suffix = primaryNameData.suffix;
+                }
+                if (Object.keys(gapFillNameUpdate).length > 0) {
+                  personRepo.updateName(primaryNameForGapFill.id, gapFillNameUpdate);
+                }
+              }
+            }
+
+            // Gap-fill sex
+            {
+              const existingPersonForSex = personRepo.findById(candidateId);
+              if (
+                fieldResolutions.sex !== 'new' &&
+                (!existingPersonForSex?.sex || existingPersonForSex.sex === 'U') &&
+                person.sex &&
+                person.sex !== 'U'
+              ) {
+                personRepo.update(candidateId, { sex: person.sex as 'M' | 'F' | 'X' | 'U' });
+              }
+            }
+
+            // Gap-fill birthPlace
+            if (fieldResolutions.birthPlace !== 'new') {
+              const incomingBirth = person.events.find((e) => e.eventType === 'birth');
+              if (incomingBirth?.place) {
+                const existingBirth = existingEventsForResolution.find((e) => e.event_type === 'birth');
+                if (!existingBirth?.event_place) {
+                  if (existingBirth) {
+                    eventRepo.update(existingBirth.id, { event_place: incomingBirth.place });
+                  } else {
+                    eventRepo.create({
+                      person_id: candidateId,
+                      event_type: 'birth',
+                      event_date: incomingBirth.date ?? undefined,
+                      event_place: incomingBirth.place,
+                    });
+                    eventCount++;
+                  }
+                }
+              }
+            }
+
+            // Gap-fill deathPlace
+            if (fieldResolutions.deathPlace !== 'new') {
+              const incomingDeath = person.events.find((e) => e.eventType === 'death');
+              if (incomingDeath?.place) {
+                const existingDeath = existingEventsForResolution.find((e) => e.event_type === 'death');
+                if (!existingDeath?.event_place) {
+                  if (existingDeath) {
+                    eventRepo.update(existingDeath.id, { event_place: incomingDeath.place });
+                  } else {
+                    eventRepo.create({
+                      person_id: candidateId,
+                      event_type: 'death',
+                      event_date: incomingDeath.date ?? undefined,
+                      event_place: incomingDeath.place,
+                    });
+                    eventCount++;
+                  }
+                }
+              }
+            }
+
             // Re-read events AFTER field-resolution block to get an up-to-date snapshot,
             // so that events created above are visible to the add-incoming-events loop and
             // are not duplicated.
