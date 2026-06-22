@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import type { MatchPersonInput } from '../services/gedcom/matcher.js';
 import { soundex } from '../utils/soundex.js';
 
 // ---- In-memory DB setup ----
@@ -803,5 +804,31 @@ describe('PersonRepository.findAll date qualifier filters', () => {
     expect(ids).toContain('p1');
     // p13 has birth with 'about' — excluded
     expect(ids).not.toContain('p13');
+  });
+});
+
+describe('PersonRepository.findAllForMatch', () => {
+  it('returns each person with primary name and birth/death dates', () => {
+    const repo = new PersonRepository();
+    const p = repo.create({ sex: 'F', is_living: 0 });
+    repo.addName(p.id, { given_name: 'Margaret', surname: 'Smith', is_primary: 1 });
+    db.prepare("INSERT INTO events (id, person_id, event_type, event_date) VALUES ('e_marg_b', ?, 'birth', '1842-04-12')").run(p.id);
+    db.prepare("INSERT INTO events (id, person_id, event_type, event_date) VALUES ('e_marg_d', ?, 'death', '1911-02-03')").run(p.id);
+
+    const rows: MatchPersonInput[] = repo.findAllForMatch();
+    const row = rows.find((r) => r.id === p.id);
+    expect(row).toMatchObject({ givenName: 'Margaret', surname: 'Smith', birthDate: '1842-04-12', deathDate: '1911-02-03' });
+  });
+
+  it('returns null birth/death dates when events are absent', () => {
+    const repo = new PersonRepository();
+    // p7 in seed: Mary Wilson, no events at all
+    const rows: MatchPersonInput[] = repo.findAllForMatch();
+    const row = rows.find((r) => r.id === 'p7');
+    expect(row).toBeDefined();
+    expect(row!.givenName).toBe('Mary');
+    expect(row!.surname).toBe('Wilson');
+    expect(row!.birthDate).toBeNull();
+    expect(row!.deathDate).toBeNull();
   });
 });
