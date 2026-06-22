@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeName, nameSoundex, dateMatch } from './matcher';
+import { normalizeName, nameSoundex, dateMatch, diffFields } from './matcher';
 
 describe('normalizeName', () => {
   it('lowercases, trims, collapses spaces and strips punctuation', () => {
@@ -64,5 +64,18 @@ describe('classify', () => {
     ];
     const r = classify({ id: 'i', givenName: 'Margaret', surname: 'Smith', birthDate: '1842-04-12', deathDate: '1911-02-03' }, many);
     expect(r).toEqual({ tier: 'strong', candidateId: 's' });
+  });
+});
+
+describe('diffFields', () => {
+  it('tags filled, unchanged, and conflict fields and omits both-empty', () => {
+    const result = diffFields(
+      { middle: '', occupation: 'Seamstress', birthPlace: 'London', notes: '' },
+      { middle: 'Eleanor', occupation: 'Dressmaker', birthPlace: 'London', notes: '' },
+    );
+    expect(result).toContainEqual({ field: 'middle', existing: '', incoming: 'Eleanor', status: 'filled' });
+    expect(result).toContainEqual({ field: 'occupation', existing: 'Seamstress', incoming: 'Dressmaker', status: 'conflict' });
+    expect(result).toContainEqual({ field: 'birthPlace', existing: 'London', incoming: 'London', status: 'unchanged' });
+    expect(result.find((f) => f.field === 'notes')).toBeUndefined();
   });
 });

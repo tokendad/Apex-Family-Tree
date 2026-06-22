@@ -68,3 +68,27 @@ export function classify(incoming: MatchPersonInput, existing: MatchPersonInput[
   }
   return best;
 }
+
+export type FieldStatus = 'filled' | 'unchanged' | 'conflict';
+export interface FieldDiff { field: string; existing: string | null; incoming: string | null; status: FieldStatus; }
+
+export function diffFields(
+  existing: Record<string, string | null>,
+  incoming: Record<string, string | null>,
+): FieldDiff[] {
+  const keys: string[] = [...Object.keys(existing)];
+  for (const k of Object.keys(incoming)) if (!keys.includes(k)) keys.push(k);
+
+  const out: FieldDiff[] = [];
+  for (const field of keys) {
+    const e = existing[field] ?? '';
+    const i = incoming[field] ?? '';
+    if (!e && !i) continue;
+    let status: FieldStatus;
+    if (!e && i) status = 'filled';
+    else if (e === i) status = 'unchanged';
+    else status = 'conflict';
+    out.push({ field, existing: existing[field] ?? '', incoming: incoming[field] ?? '', status });
+  }
+  return out;
+}
