@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeName, nameSoundex, dateMatch, diffFields } from './matcher';
+import { normalizeName, nameSoundex, dateMatch, diffFields, coupleKey, sourceKey } from './matcher';
 
 describe('normalizeName', () => {
   it('lowercases, trims, collapses spaces and strips punctuation', () => {
@@ -77,5 +77,14 @@ describe('diffFields', () => {
     expect(result).toContainEqual({ field: 'occupation', existing: 'Seamstress', incoming: 'Dressmaker', status: 'conflict' });
     expect(result).toContainEqual({ field: 'birthPlace', existing: 'London', incoming: 'London', status: 'unchanged' });
     expect(result.find((f) => f.field === 'notes')).toBeUndefined();
+  });
+});
+
+describe('dedupe keys', () => {
+  it('coupleKey is order-independent', () => {
+    expect(coupleKey('a', 'b')).toBe(coupleKey('b', 'a'));
+  });
+  it('sourceKey normalizes title and author', () => {
+    expect(sourceKey('  1900 Census ', 'US Gov')).toBe(sourceKey('1900 census', 'us gov'));
   });
 });

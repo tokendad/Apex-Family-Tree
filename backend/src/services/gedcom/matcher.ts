@@ -92,3 +92,11 @@ export function diffFields(
   }
   return out;
 }
+
+export function coupleKey(a: string | null, b: string | null): string {
+  return [a ?? '', b ?? ''].sort().join('|');
+}
+
+export function sourceKey(title: string, author: string | null): string {
+  return `${title.trim().toLowerCase()}|${(author ?? '').trim().toLowerCase()}`;
+}
