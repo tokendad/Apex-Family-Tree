@@ -149,6 +149,200 @@
   font-weight: var(--font-weight-semibold);
 }
 
+/* PersonMiniCard */
+.miniCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  gap: var(--space-2);
+  font-family: var(--font-family);
+  transition: background var(--transition-fast, 150ms ease), border-color var(--transition-fast, 150ms ease);
+}
+
+.miniCard:hover {
+  background: var(--color-gray-50);
+  border-color: var(--color-gray-200);
+}
+
+.miniCardSelected {
+  background: var(--color-primary-50);
+  border-color: var(--color-primary-300);
+}
+
+.miniCardMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.miniCardName {
+  font-size: 0.875rem;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.miniCardYears {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+.miniCardMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.miniCardCheck {
+  color: var(--color-success-700, #15803d);
+  font-weight: var(--font-weight-bold);
+  font-size: 0.875rem;
+}
+
+/* MergeSummaryBar */
+.summaryBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-gray-50);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-xl);
+  margin-bottom: var(--space-4);
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  font-family: var(--font-family);
+}
+
+.summaryPills {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.summaryPill {
+  display: inline-block;
+  padding: 3px var(--space-3);
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: var(--font-weight-semibold);
+}
+
+.summaryPill_none {
+  background-color: var(--color-info-100, #dbeafe);
+  color: var(--color-info-700, #1d4ed8);
+}
+
+.summaryPill_strong {
+  background-color: var(--color-success-100, #dcfce7);
+  color: var(--color-success-700, #15803d);
+}
+
+.summaryPill_partial {
+  background-color: var(--color-warning-100, #fef9c3);
+  color: var(--color-warning-700, #a16207);
+}
+
+.summaryProgress {
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+/* MergeReviewRail */
+.rail {
+  width: 280px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--color-gray-200);
+  padding-right: var(--space-2);
+}
+
+/* MergeDetailPanel */
+.detailPanel {
+  flex: 1;
+  min-width: 0;
+  padding: 0 var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  font-family: var(--font-family);
+}
+
+.detailNav {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.navBtn {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-gray-300);
+  border-radius: var(--radius-md);
+  background: white;
+  color: var(--color-text-secondary);
+  font-size: 0.875rem;
+  font-family: var(--font-family);
+  cursor: pointer;
+  transition: border-color var(--transition-fast, 150ms ease), color var(--transition-fast, 150ms ease);
+}
+
+.navBtn:hover {
+  border-color: var(--color-primary-400);
+  color: var(--color-primary-700);
+}
+
+.detailProfiles {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.detailProfiles > * {
+  flex: 1;
+  min-width: 180px;
+}
+
+.diffTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-family);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+}
+
+.diffCaption {
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  font-size: 0.8125rem;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  background: var(--color-gray-50);
+  border-bottom: 1px solid var(--color-gray-200);
+}
+
+/* MergeReviewScreen two-column layout */
+.reviewScreen {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-family);
+}
+
+.reviewLayout {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+  min-height: 400px;
+}
+
 /* ResolutionBar */
 .resolution {
   display: flex;
