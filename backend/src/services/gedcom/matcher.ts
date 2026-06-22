@@ -27,3 +27,44 @@ export function dateMatch(a: string | null, b: string | null): 'match' | 'mismat
   if (ya !== null && yb !== null) return ya === yb ? 'match' : 'mismatch';
   return 'mismatch';
 }
+
+export interface MatchPersonInput {
+  id: string;
+  givenName: string | null;
+  surname: string | null;
+  birthDate: string | null;
+  deathDate: string | null;
+}
+
+export type MatchTier = 'strong' | 'partial' | 'none';
+export interface MatchResult { tier: MatchTier; candidateId: string | null; }
+
+const TIER_RANK: Record<MatchTier, number> = { none: 0, partial: 1, strong: 2 };
+
+function classifyPair(a: MatchPersonInput, b: MatchPersonInput): MatchTier {
+  const exactName = normalizeName(a.givenName, a.surname) === normalizeName(b.givenName, b.surname)
+    && normalizeName(a.givenName, a.surname).length > 0;
+  const soundexName = nameSoundex(a.givenName, a.surname) === nameSoundex(b.givenName, b.surname);
+  const birth = dateMatch(a.birthDate, b.birthDate);
+  const death = dateMatch(a.deathDate, b.deathDate);
+
+  if (exactName && birth === 'match' && (death === 'match' || (death === 'absent' && !a.deathDate && !b.deathDate))) {
+    return 'strong';
+  }
+  if ((exactName || soundexName) && (birth === 'match' || death === 'match')) {
+    return 'partial';
+  }
+  return 'none';
+}
+
+export function classify(incoming: MatchPersonInput, existing: MatchPersonInput[]): MatchResult {
+  let best: MatchResult = { tier: 'none', candidateId: null };
+  for (const cand of existing) {
+    const tier = classifyPair(incoming, cand);
+    if (TIER_RANK[tier] > TIER_RANK[best.tier]) {
+      best = { tier, candidateId: tier === 'none' ? null : cand.id };
+      if (tier === 'strong') break;
+    }
+  }
+  return best;
+}
