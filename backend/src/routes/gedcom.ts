@@ -5,7 +5,7 @@ import path from 'path';
 import { requireRole } from '../middleware/auth.js';
 import { ImportRepository } from '../repositories/ImportRepository.js';
 import { getDataPath } from '../services/init.js';
-import { validateGedcom, processImport } from '../services/gedcom/importService.js';
+import { validateGedcom, processImport, analyzeMerge } from '../services/gedcom/importService.js';
 import { startExport, type ExportOptions } from '../services/gedcom/exportService.js';
 
 const upload = multer({
@@ -53,10 +53,12 @@ gedcomRouter.post(
       }
       fs.writeFileSync(path.join(importsDir, `${job.id}.ged`), content, 'utf-8');
 
+      const mode = req.body?.mode === 'merge' ? 'merge' : 'new';
+
       // Validate
       const validation = validateGedcom(job.id, content);
 
-      res.status(201).json({
+      const responseBody: Record<string, unknown> = {
         job: importRepo.findJobById(job.id),
         validation: {
           valid: validation.valid,
@@ -66,7 +68,13 @@ gedcomRouter.post(
           warnings: validation.warnings,
           conflictCount: validation.conflicts.length,
         },
-      });
+      };
+
+      if (mode === 'merge') {
+        responseBody.mergeAnalysis = analyzeMerge(job.id, content);
+      }
+
+      res.status(201).json(responseBody);
     } catch (error) {
       res.status(500).json({ error: 'Import failed: ' + String(error) });
     }
@@ -135,6 +143,36 @@ gedcomRouter.post(
   },
 );
 
+// POST /gedcom/import/:jobId/decisions — Save merge decisions
+gedcomRouter.post(
+  '/import/:jobId/decisions',
+  requireRole('admin', 'editor'),
+  (req: Request, res: Response) => {
+    try {
+      const repo = new ImportRepository();
+      const jobId = req.params.jobId as string;
+      const decisions = (req.body?.decisions ?? []) as Array<{
+        xref: string;
+        decision: 'same' | 'new';
+        candidatePersonId: string | null;
+        fieldResolutions: Record<string, 'old' | 'new'>;
+      }>;
+      for (const d of decisions) {
+        repo.saveMergeDecision({
+          import_job_id: jobId,
+          xref: d.xref,
+          decision: d.decision,
+          candidate_person_id: d.candidatePersonId,
+          field_resolutions: JSON.stringify(d.fieldResolutions ?? {}),
+        });
+      }
+      res.json({ saved: decisions.length });
+    } catch {
+      res.status(500).json({ error: 'Failed to save decisions' });
+    }
+  },
+);
+
 // POST /gedcom/import/:jobId/process — Start processing after conflict resolution
 gedcomRouter.post(
   '/import/:jobId/process',
@@ -161,7 +199,8 @@ gedcomRouter.post(
       }
       const content = fs.readFileSync(filePath, 'utf-8');
 
-      const stats = processImport(job.id, content, req.user!.userId);
+      const mode = req.body?.mode === 'merge' ? 'merge' : 'new';
+      const stats = processImport(job.id, content, req.user!.userId, mode);
       const updatedJob = importRepo.findJobById(job.id);
 
       res.json({ job: updatedJob, stats });
