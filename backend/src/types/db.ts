@@ -186,6 +186,19 @@ export interface EventMedia {
   created_at: string;
 }
 
+export interface MediaPersonRegion {
+  id: string;
+  media_id: string;
+  person_id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 // ─── GEDCOM Import / Export ─────────────────────────────────────────────────
 
 export interface ImportJob {

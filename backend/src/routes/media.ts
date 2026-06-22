@@ -14,6 +14,50 @@ function paramStr(val: string | string[]): string {
   return Array.isArray(val) ? val[0] : val;
 }
 
+function finiteCoord(value: unknown): number | undefined {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : undefined;
+}
+
+function parseRegionBody(body: Record<string, unknown>, partial = false): {
+  person_id?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  error?: string;
+} {
+  const personId = typeof body.person_id === 'string' ? body.person_id.trim() : undefined;
+  const x = body.x === undefined ? undefined : finiteCoord(body.x);
+  const y = body.y === undefined ? undefined : finiteCoord(body.y);
+  const width = body.width === undefined ? undefined : finiteCoord(body.width);
+  const height = body.height === undefined ? undefined : finiteCoord(body.height);
+
+  if (!partial && !personId) return { error: 'person_id is required' };
+  if (!partial && (x === undefined || y === undefined || width === undefined || height === undefined)) {
+    return { error: 'x, y, width, and height are required' };
+  }
+
+  for (const [key, value] of Object.entries({ x, y })) {
+    if (value !== undefined && (value < 0 || value > 1)) {
+      return { error: `${key} must be between 0 and 1` };
+    }
+  }
+  for (const [key, value] of Object.entries({ width, height })) {
+    if (value !== undefined && (value <= 0 || value > 1)) {
+      return { error: `${key} must be greater than 0 and no more than 1` };
+    }
+  }
+  if (x !== undefined && width !== undefined && x + width > 1) {
+    return { error: 'x + width must be no more than 1' };
+  }
+  if (y !== undefined && height !== undefined && y + height > 1) {
+    return { error: 'y + height must be no more than 1' };
+  }
+
+  return { person_id: personId, x, y, width, height };
+}
+
 const ALLOWED_MIME_TYPES = [
   'image/jpeg',
   'image/png',
@@ -173,6 +217,120 @@ mediaRouter.get('/:id/links', (req, res) => {
     res.status(500).json({ error: 'Failed to fetch media links' });
   }
 });
+
+// GET /media/:id/regions — Get rectangular person tags for a media item
+mediaRouter.get('/:id/regions', (req, res) => {
+  try {
+    const repo = new MediaRepository();
+    const mediaId = paramStr(req.params.id);
+    const media = repo.findById(mediaId);
+    if (!media) {
+      res.status(404).json({ error: 'Media not found' });
+      return;
+    }
+    res.json({ regions: repo.findRegions(mediaId) });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch media tags' });
+  }
+});
+
+// POST /media/:id/regions — Create a rectangular person tag
+mediaRouter.post(
+  '/:id/regions',
+  requireRole('admin', 'editor', 'limited_editor'),
+  (req, res) => {
+    try {
+      const repo = new MediaRepository();
+      const mediaId = paramStr(req.params.id);
+      const media = repo.findById(mediaId);
+      if (!media) {
+        res.status(404).json({ error: 'Media not found' });
+        return;
+      }
+
+      const body = parseRegionBody(req.body as Record<string, unknown>);
+      if (body.error || !body.person_id || body.x === undefined || body.y === undefined || body.width === undefined || body.height === undefined) {
+        res.status(400).json({ error: body.error ?? 'Invalid region' });
+        return;
+      }
+
+      const region = repo.createRegion(mediaId, {
+        person_id: body.person_id,
+        x: body.x,
+        y: body.y,
+        width: body.width,
+        height: body.height,
+      });
+      res.status(201).json({ region });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to create media tag' });
+    }
+  },
+);
+
+// PUT /media/:id/regions/:regionId — Update a rectangular person tag
+mediaRouter.put(
+  '/:id/regions/:regionId',
+  requireRole('admin', 'editor', 'limited_editor'),
+  (req, res) => {
+    try {
+      const repo = new MediaRepository();
+      const mediaId = paramStr(req.params.id);
+      const regionId = paramStr(req.params.regionId);
+      const media = repo.findById(mediaId);
+      if (!media) {
+        res.status(404).json({ error: 'Media not found' });
+        return;
+      }
+
+      const existing = repo.findRegionById(regionId);
+      if (!existing || existing.media_id !== mediaId) {
+        res.status(404).json({ error: 'Media tag not found' });
+        return;
+      }
+
+      const body = parseRegionBody(req.body as Record<string, unknown>, true);
+      if (body.error) {
+        res.status(400).json({ error: body.error });
+        return;
+      }
+
+      const region = repo.updateRegion(regionId, {
+        person_id: body.person_id,
+        x: body.x,
+        y: body.y,
+        width: body.width,
+        height: body.height,
+      });
+      res.json({ region });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to update media tag' });
+    }
+  },
+);
+
+// DELETE /media/:id/regions/:regionId — Delete a rectangular person tag
+mediaRouter.delete(
+  '/:id/regions/:regionId',
+  requireRole('admin', 'editor'),
+  (req, res) => {
+    try {
+      const repo = new MediaRepository();
+      const mediaId = paramStr(req.params.id);
+      const regionId = paramStr(req.params.regionId);
+      const existing = repo.findRegionById(regionId);
+      if (!existing || existing.media_id !== mediaId) {
+        res.status(404).json({ error: 'Media tag not found' });
+        return;
+      }
+
+      repo.deleteRegion(regionId);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to delete media tag' });
+    }
+  },
+);
 
 // GET /media/:id — Serve media file
 mediaRouter.get('/:id', (req, res) => {

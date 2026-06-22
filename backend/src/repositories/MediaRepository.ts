@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { BaseRepository } from './base.js';
-import type { MediaItem, PersonMedia, FamilyMedia, EventMedia } from '../types/db.js';
+import type { MediaItem, PersonMedia, FamilyMedia, EventMedia, MediaPersonRegion } from '../types/db.js';
 
 const SCANNABLE_EXTENSIONS = new Set([
   '.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf',
@@ -16,6 +16,14 @@ function mimeFromExt(ext: string): string {
     case '.pdf': return 'application/pdf';
     default: return 'application/octet-stream';
   }
+}
+
+interface MediaPersonRegionRow extends MediaPersonRegion {
+  person_given_name: string | null;
+  person_surname: string | null;
+  person_birth_date: string | null;
+  person_death_date: string | null;
+  person_photo_url: string | null;
 }
 
 export class MediaRepository extends BaseRepository {
@@ -106,6 +114,101 @@ export class MediaRepository extends BaseRepository {
     ).all(mediaId) as { event_id: string; label: string }[];
 
     return { persons, families, events };
+  }
+
+  findRegions(mediaId: string): MediaPersonRegionRow[] {
+    return this.db.prepare(
+      `SELECT mpr.*,
+              n.given_name AS person_given_name,
+              n.surname AS person_surname,
+              birth.event_date AS person_birth_date,
+              death.event_date AS person_death_date,
+              photo.file_path AS person_photo_url
+       FROM media_person_regions mpr
+       LEFT JOIN names n ON n.person_id = mpr.person_id AND n.is_primary = 1
+       LEFT JOIN events birth ON birth.person_id = mpr.person_id AND birth.event_type = 'birth'
+       LEFT JOIN events death ON death.person_id = mpr.person_id AND death.event_type = 'death'
+       LEFT JOIN person_media pm ON pm.person_id = mpr.person_id AND pm.is_primary = 1
+       LEFT JOIN media_items photo ON photo.id = pm.media_id
+       WHERE mpr.media_id = ?
+       ORDER BY mpr.sort_order ASC, mpr.created_at ASC`
+    ).all(mediaId) as MediaPersonRegionRow[];
+  }
+
+  findRegionById(regionId: string): MediaPersonRegionRow | undefined {
+    return this.db.prepare(
+      `SELECT mpr.*,
+              n.given_name AS person_given_name,
+              n.surname AS person_surname,
+              birth.event_date AS person_birth_date,
+              death.event_date AS person_death_date,
+              photo.file_path AS person_photo_url
+       FROM media_person_regions mpr
+       LEFT JOIN names n ON n.person_id = mpr.person_id AND n.is_primary = 1
+       LEFT JOIN events birth ON birth.person_id = mpr.person_id AND birth.event_type = 'birth'
+       LEFT JOIN events death ON death.person_id = mpr.person_id AND death.event_type = 'death'
+       LEFT JOIN person_media pm ON pm.person_id = mpr.person_id AND pm.is_primary = 1
+       LEFT JOIN media_items photo ON photo.id = pm.media_id
+       WHERE mpr.id = ?`
+    ).get(regionId) as MediaPersonRegionRow | undefined;
+  }
+
+  createRegion(mediaId: string, data: {
+    person_id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }): MediaPersonRegionRow {
+    const id = this.generateId();
+    const now = this.now();
+    const maxOrder = this.db.prepare(
+      'SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM media_person_regions WHERE media_id = ?'
+    ).get(mediaId) as { next: number };
+
+    this.db.prepare(
+      `INSERT INTO media_person_regions (id, media_id, person_id, x, y, width, height, sort_order, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(id, mediaId, data.person_id, data.x, data.y, data.width, data.height, maxOrder.next, now, now);
+
+    this.linkToPerson(mediaId, data.person_id);
+    return this.findRegionById(id)!;
+  }
+
+  updateRegion(regionId: string, data: {
+    person_id?: string;
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+  }): MediaPersonRegionRow | undefined {
+    const existing = this.findRegionById(regionId);
+    if (!existing) return undefined;
+
+    const fields: string[] = [];
+    const values: unknown[] = [];
+    for (const key of ['person_id', 'x', 'y', 'width', 'height'] as const) {
+      if (data[key] !== undefined) {
+        fields.push(`${key} = ?`);
+        values.push(data[key]);
+      }
+    }
+
+    if (fields.length === 0) return existing;
+
+    fields.push('updated_at = ?');
+    values.push(this.now(), regionId);
+    this.db.prepare(`UPDATE media_person_regions SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+
+    if (data.person_id) {
+      this.linkToPerson(existing.media_id, data.person_id);
+    }
+
+    return this.findRegionById(regionId);
+  }
+
+  deleteRegion(regionId: string): boolean {
+    return this.db.prepare('DELETE FROM media_person_regions WHERE id = ?').run(regionId).changes > 0;
   }
 
   create(data: {
