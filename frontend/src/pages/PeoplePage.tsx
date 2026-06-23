@@ -7,6 +7,8 @@ import Avatar from '@/components/Avatar/Avatar';
 import Button from '@/components/Button/Button';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useSearchStore, hasActiveFilters, filtersToParams } from '@/stores/searchStore';
+import { useModal } from '@/components/modals/useModal';
+import type { PersonSummary } from '@/types/genealogy';
 import styles from './PeoplePage.module.css';
 
 interface PersonListItem {
@@ -37,6 +39,7 @@ const SKELETON_COUNT = 12;
 
 const PeoplePage: React.FC = () => {
   const navigate = useNavigate();
+  const { openModal } = useModal();
   const { canCreate } = usePermissions();
   const searchFilters = useSearchStore();
   const setTotalCount = useSearchStore((s) => s.setTotalCount);
@@ -148,7 +151,12 @@ const PeoplePage: React.FC = () => {
               <option value="unconnected">Unconnected only</option>
             </select>
             {canCreate && (
-              <Button variant="primary" size="sm" onClick={() => navigate('/people/new')}>
+              <Button variant="primary" size="sm" onClick={async () => {
+                const result = await openModal<PersonSummary>('PersonEditor', { mode: 'create' });
+                if (result.action === 'created') {
+                  navigate(`/people/${result.entity.id}`);
+                }
+              }}>
                 + Add Person
               </Button>
             )}
