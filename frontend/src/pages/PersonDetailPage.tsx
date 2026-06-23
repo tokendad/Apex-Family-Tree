@@ -6,6 +6,8 @@ import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import PersonEditModal from '@/components/PersonEditModal/PersonEditModal';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useModal } from '@/components/modals/useModal';
+import type { FamilySummary } from '@/types/genealogy';
 import styles from './PersonDetailPage.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -215,7 +217,8 @@ const MediaThumb: React.FC<MediaThumbProps> = ({ item }) => {
 const PersonDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { canEdit, canDelete } = usePermissions();
+  const { canCreate, canEdit, canDelete } = usePermissions();
+  const { openModal } = useModal();
 
   // ── Person ──
   const [person, setPerson] = useState<PersonDetail | null>(null);
@@ -602,9 +605,28 @@ const PersonDetailPage: React.FC = () => {
 
             {/* ── Relationships ── */}
             <section className={styles.section} aria-labelledby="relationships-heading">
-              <h2 className={styles.sectionTitle} id="relationships-heading">
-                Relationships
-              </h2>
+              <div className={styles.sectionHeader}>
+                <h2 className={styles.sectionTitle} id="relationships-heading">
+                  Relationships
+                </h2>
+                {canCreate && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () => {
+                      const result = await openModal<FamilySummary>('FamilyEditor', {
+                        mode: 'create',
+                        defaults: { spouse1_id: id },
+                      });
+                      if (result.action === 'created') {
+                        navigate(`/families/${result.entity.id}`);
+                      }
+                    }}
+                  >
+                    + Add Family
+                  </Button>
+                )}
+              </div>
 
               {relLoading ? (
                 <div className={styles.skeletonLine} aria-hidden="true" />
