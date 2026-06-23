@@ -6,6 +6,8 @@ import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import { usePermissions } from '@/hooks/usePermissions';
+import PersonPicker from '@/components/entity-pickers/PersonPicker';
+import type { PersonResult } from '@/components/PersonSearch/PersonSearch';
 import styles from './FamilyDetailPage.module.css';
 
 interface PersonSummary {
@@ -75,10 +77,22 @@ function familyHeading(family: FamilyDetail): string {
 interface SpouseCardProps {
   person: PersonSummary | null;
   label: string;
+  canEdit?: boolean;
+  onAssign?: (personId: string) => Promise<void>;
 }
 
-const SpouseCard: React.FC<SpouseCardProps> = ({ person, label }) => {
+const SpouseCard: React.FC<SpouseCardProps> = ({ person, label, canEdit, onAssign }) => {
   if (!person) {
+    if (canEdit && onAssign) {
+      return (
+        <div className={`${styles.spouseCard} ${styles.spouseCardEmpty}`}>
+          <PersonPicker
+            label={label}
+            onSelect={(p: PersonResult) => void onAssign(p.id)}
+          />
+        </div>
+      );
+    }
     return (
       <div className={`${styles.spouseCard} ${styles.spouseCardEmpty}`}>
         <span className={styles.spouseLabel}>{label}</span>
@@ -160,6 +174,26 @@ const FamilyDetailPage: React.FC = () => {
   useEffect(() => {
     fetchFamily();
   }, [fetchFamily]);
+
+  const handleAssignSpouse = async (slot: 'spouse1' | 'spouse2', personId: string) => {
+    if (!id) return;
+    try {
+      const res = await fetch(`/api/v1/families/${id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [slot === 'spouse1' ? 'spouse1_id' : 'spouse2_id']: personId }),
+      });
+      if (!res.ok) {
+        const errData: { message?: string } = await res.json().catch(() => ({}));
+        setError(errData.message ?? `Failed to assign spouse (${res.status})`);
+        return;
+      }
+      await fetchFamily();
+    } catch {
+      setError('Failed to assign spouse');
+    }
+  };
 
   const openEdit = () => {
     if (!family) return;
@@ -375,13 +409,23 @@ const FamilyDetailPage: React.FC = () => {
         <section className={styles.section}>
           <h2 className={styles.sectionTitle}>Spouses</h2>
           <div className={styles.spousesRow}>
-            <SpouseCard person={family.spouse1} label="Spouse 1" />
+            <SpouseCard
+              person={family.spouse1}
+              label="Spouse 1"
+              canEdit={canEdit}
+              onAssign={(pid) => handleAssignSpouse('spouse1', pid)}
+            />
             <div className={styles.spouseConnector} aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
               </svg>
             </div>
-            <SpouseCard person={family.spouse2} label="Spouse 2" />
+            <SpouseCard
+              person={family.spouse2}
+              label="Spouse 2"
+              canEdit={canEdit}
+              onAssign={(pid) => handleAssignSpouse('spouse2', pid)}
+            />
           </div>
         </section>
 

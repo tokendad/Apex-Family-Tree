@@ -6,6 +6,8 @@ import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useSearchStore } from '@/stores/searchStore';
+import { useModal } from '@/components/modals/useModal';
+import type { FamilySummary } from '@/types/genealogy';
 import styles from './FamiliesPage.module.css';
 
 interface SpouseSummary {
@@ -41,6 +43,7 @@ const SKELETON_COUNT = 8;
 const FamiliesPage: React.FC = () => {
   const navigate = useNavigate();
   const { canCreate } = usePermissions();
+  const { openModal } = useModal();
 
   const [families, setFamilies] = useState<FamilyListItem[]>([]);
   const globalQuery = useSearchStore((s) => s.globalQuery);
@@ -128,7 +131,12 @@ const FamiliesPage: React.FC = () => {
               <option value="unlinked">Unlinked only</option>
             </select>
             {canCreate && (
-              <Button variant="primary" size="sm" onClick={() => navigate('/families/new')}>
+              <Button variant="primary" size="sm" onClick={async () => {
+                const result = await openModal<FamilySummary>('FamilyEditor', { mode: 'create' });
+                if (result.action === 'created') {
+                  navigate(`/families/${result.entity.id}`);
+                }
+              }}>
                 + Add Family
               </Button>
             )}
