@@ -10,7 +10,7 @@ function paramStr(val: string | string[]): string {
   return Array.isArray(val) ? val[0] : val;
 }
 
-function toSpouseSummary(person: ReturnType<PersonRepository['findById']>) {
+function toSpouseSummary(person: ReturnType<PersonRepository['findById']> | null | undefined) {
   if (!person) return null;
   return {
     id: person.id,
