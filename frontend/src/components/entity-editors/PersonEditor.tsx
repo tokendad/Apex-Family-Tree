@@ -15,7 +15,7 @@ interface PersonEditorProps extends ModalEditorProps {
 const PersonEditor: React.FC<PersonEditorProps> = ({
   mode,
   defaults,
-  modalId: _modalId,
+  modalId,
   onClose,
 }) => {
   const [givenName, setGivenName] = useState(defaults?.given_name ?? '');
@@ -53,12 +53,17 @@ const PersonEditor: React.FC<PersonEditorProps> = ({
         }),
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
-        setError(data.error ?? 'Failed to save person');
+        let message = `HTTP ${res.status}`;
+        try {
+          const err = await res.json();
+          message = err.error ?? message;
+        } catch { /* non-JSON body */ }
+        setError(message);
         return;
       }
+
+      const data = await res.json();
 
       const primaryName = Array.isArray(data.names)
         ? data.names.find((n: { is_primary: number }) => n.is_primary === 1) ?? data.names[0]
@@ -90,11 +95,11 @@ const PersonEditor: React.FC<PersonEditorProps> = ({
     <div
       role="dialog"
       aria-modal="true"
-      aria-labelledby="person-editor-title"
+      aria-labelledby={`person-editor-title-${modalId}`}
       className={styles.overlay}
     >
       <div className={styles.header}>
-        <h2 id="person-editor-title" className={styles.title}>
+        <h2 id={`person-editor-title-${modalId}`} className={styles.title}>
           {title}
         </h2>
         <button

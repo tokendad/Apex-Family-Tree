@@ -38,7 +38,7 @@ const ModalManager: React.FC<ModalManagerProps> = ({ registry = REGISTRY }) => {
     };
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
-  });
+  }, [stack, pop]);
 
   if (stack.length === 0) return null;
 

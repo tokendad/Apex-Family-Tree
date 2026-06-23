@@ -2,7 +2,7 @@ import { useModalStore } from './modalStore';
 import type { ModalResult } from './modalTypes';
 
 export function useModal() {
-  const { push, pop } = useModalStore();
+  const { push } = useModalStore();
 
   function openModal<T>(
     component: string,
@@ -17,9 +17,5 @@ export function useModal() {
     });
   }
 
-  function closeModal(id: string, result: ModalResult<unknown>): void {
-    pop(id, result);
-  }
-
-  return { openModal, closeModal };
+  return { openModal };
 }

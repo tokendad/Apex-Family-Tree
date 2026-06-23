@@ -15,7 +15,7 @@ interface FamilyEditorProps extends ModalEditorProps {
 
 const FamilyEditor: React.FC<FamilyEditorProps> = ({
   defaults,
-  modalId: _modalId,
+  modalId,
   onClose,
 }) => {
   const [spouse1, setSpouse1] = useState<PersonResult | null>(null);
@@ -49,12 +49,17 @@ const FamilyEditor: React.FC<FamilyEditorProps> = ({
         body: JSON.stringify(body),
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
-        setError(data.error ?? 'Failed to save family');
+        let message = `HTTP ${res.status}`;
+        try {
+          const err = await res.json();
+          message = err.error ?? message;
+        } catch { /* non-JSON body */ }
+        setError(message);
         return;
       }
+
+      const data = await res.json();
 
       const toSummary = (p: PersonResult | null): PersonSummary | null =>
         p
@@ -88,11 +93,11 @@ const FamilyEditor: React.FC<FamilyEditorProps> = ({
     <div
       role="dialog"
       aria-modal="true"
-      aria-labelledby="family-editor-title"
+      aria-labelledby={`family-editor-title-${modalId}`}
       className={styles.overlay}
     >
       <div className={styles.header}>
-        <h2 id="family-editor-title" className={styles.title}>
+        <h2 id={`family-editor-title-${modalId}`} className={styles.title}>
           {title}
         </h2>
         <button

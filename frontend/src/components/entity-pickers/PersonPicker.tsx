@@ -57,13 +57,17 @@ const PersonPicker: React.FC<PersonPickerProps> = ({
       setResolvedPerson(null);
       return;
     }
-    fetch(`/api/v1/people/${value}`, { credentials: 'include' })
+    const controller = new AbortController();
+    fetch(`/api/v1/people/${value}`, { credentials: 'include', signal: controller.signal })
       .then((r) => {
         if (!r.ok) throw new Error('Failed to load person');
         return r.json();
       })
       .then((data: PersonApiResponse) => setResolvedPerson(toPersonResult(data)))
-      .catch(() => setResolvedPerson(null));
+      .catch((err) => {
+        if (err.name !== 'AbortError') setResolvedPerson(null);
+      });
+    return () => controller.abort();
   }, [value]);
 
   const handleSelect = (person: PersonResult) => {
