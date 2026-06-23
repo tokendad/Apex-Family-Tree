@@ -1,11 +1,15 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import PersonEditor from './PersonEditor';
 
 const noop = () => {};
 
 describe('PersonEditor', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('renders a dialog with correct aria attributes', () => {
     render(
       <PersonEditor mode="create" modalId="m1" onClose={noop} />
