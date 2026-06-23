@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, act } from '@testing-library/react';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useModalStore } from '@/components/modals/modalStore';
 import PersonPicker from './PersonPicker';
 
@@ -26,6 +26,10 @@ vi.mock('@/components/PersonSearch/PersonSearch', () => ({
   ),
 }));
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 beforeEach(() => {
   useModalStore.setState({ stack: [] });
 });
@@ -48,7 +52,7 @@ describe('PersonPicker', () => {
   });
 
   it('shows selected person name when value is provided', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({
         id: 'p1',
@@ -65,7 +69,7 @@ describe('PersonPicker', () => {
   });
 
   it('calls onClear when clear button is clicked', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({
         id: 'p1',

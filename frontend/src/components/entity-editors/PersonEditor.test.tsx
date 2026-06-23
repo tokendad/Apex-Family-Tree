@@ -38,7 +38,7 @@ describe('PersonEditor', () => {
   });
 
   it('submits form and calls onClose with created result', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({ id: 'p2', sex: 'M', names: [{ given_name: 'John', surname: 'Smith', is_primary: 1 }] }),
     });
@@ -88,7 +88,7 @@ describe('PersonEditor', () => {
   });
 
   it('shows an error message when the API call fails', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: false,
       json: async () => ({ error: 'Failed to create person' }),
     });

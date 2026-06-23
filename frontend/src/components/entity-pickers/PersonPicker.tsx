@@ -104,6 +104,7 @@ const PersonPicker: React.FC<PersonPickerProps> = ({
             type="button"
             className={styles.trigger}
             onClick={() => setIsOpen(true)}
+            aria-expanded={isOpen}
           >
             {resolvedPerson ? (
               <span>

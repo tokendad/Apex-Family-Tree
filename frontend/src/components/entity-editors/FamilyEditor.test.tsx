@@ -55,7 +55,7 @@ describe('FamilyEditor', () => {
   });
 
   it('saves family with selected spouses', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({
         id: 'f1',
@@ -89,7 +89,7 @@ describe('FamilyEditor', () => {
   });
 
   it('shows an error when save fails', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: false,
       json: async () => ({ error: 'Failed to create family' }),
     });

@@ -33,6 +33,7 @@ const ModalManager: React.FC<ModalManagerProps> = ({ registry = REGISTRY }) => {
   };
 
   useEffect(() => {
+    if (stack.length === 0) return;
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') closeTop();
     };
@@ -57,7 +58,7 @@ const ModalManager: React.FC<ModalManagerProps> = ({ registry = REGISTRY }) => {
         return (
           <div
             key={entry.id}
-            className={styles.layer}
+            className={`${styles.layer}${!isTop ? ` ${styles.layerInactive}` : ''}`}
             style={{ zIndex: `calc(var(--z-modal) + ${i})` }}
           >
             <FocusTrap active={isTop}>

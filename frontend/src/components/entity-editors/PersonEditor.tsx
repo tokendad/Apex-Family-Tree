@@ -115,9 +115,9 @@ const PersonEditor: React.FC<PersonEditorProps> = ({
       <form className={styles.form} onSubmit={handleSubmit}>
         <div className={styles.row}>
           <FormGroup>
-            <Label htmlFor="pe-given-name">Given Name</Label>
+            <Label htmlFor={`pe-given-name-${modalId}`}>Given Name</Label>
             <Input
-              id="pe-given-name"
+              id={`pe-given-name-${modalId}`}
               value={givenName}
               onChange={(e) => setGivenName(e.target.value)}
               autoFocus
@@ -125,9 +125,9 @@ const PersonEditor: React.FC<PersonEditorProps> = ({
           </FormGroup>
 
           <FormGroup>
-            <Label htmlFor="pe-surname">Surname</Label>
+            <Label htmlFor={`pe-surname-${modalId}`}>Surname</Label>
             <Input
-              id="pe-surname"
+              id={`pe-surname-${modalId}`}
               value={surname}
               onChange={(e) => setSurname(e.target.value)}
             />
@@ -135,9 +135,9 @@ const PersonEditor: React.FC<PersonEditorProps> = ({
         </div>
 
         <FormGroup>
-          <Label htmlFor="pe-sex">Sex</Label>
+          <Label htmlFor={`pe-sex-${modalId}`}>Sex</Label>
           <Select
-            id="pe-sex"
+            id={`pe-sex-${modalId}`}
             value={sex}
             onChange={(e) => setSex(e.target.value as typeof sex)}
           >

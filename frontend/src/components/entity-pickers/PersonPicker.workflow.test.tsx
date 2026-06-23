@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useModalStore } from '@/components/modals/modalStore';
 import ModalManager from '@/components/modals/ModalManager';
 import PersonPicker from './PersonPicker';
@@ -18,13 +18,17 @@ vi.mock('@/components/PersonSearch/PersonSearch', () => ({
   ),
 }));
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 beforeEach(() => {
   useModalStore.setState({ stack: [] });
 });
 
 describe('PersonPicker create-new workflow', () => {
   it('opens PersonEditor and selects the created person', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({
         id: 'p-new',

@@ -20,3 +20,7 @@
 .layer > * {
   pointer-events: all;
 }
+
+.layerInactive > * {
+  pointer-events: none;
+}

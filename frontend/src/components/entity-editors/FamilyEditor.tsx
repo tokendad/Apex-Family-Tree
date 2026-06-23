@@ -18,8 +18,9 @@ const FamilyEditor: React.FC<FamilyEditorProps> = ({
   modalId,
   onClose,
 }) => {
-  const [spouse1, setSpouse1] = useState<PersonResult | null>(null);
-  const [spouse2, setSpouse2] = useState<PersonResult | null>(null);
+  // undefined = not touched (default applies); null = explicitly cleared; PersonResult = selected
+  const [spouse1, setSpouse1] = useState<PersonResult | null | undefined>(undefined);
+  const [spouse2, setSpouse2] = useState<PersonResult | null | undefined>(undefined);
   const [marriageDate, setMarriageDate] = useState('');
   const [marriagePlace, setMarriagePlace] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -35,8 +36,8 @@ const FamilyEditor: React.FC<FamilyEditorProps> = ({
     setIsLoading(true);
 
     const body = {
-      spouse1_id: spouse1?.id ?? defaults?.spouse1_id ?? null,
-      spouse2_id: spouse2?.id ?? defaults?.spouse2_id ?? null,
+      spouse1_id: spouse1 === undefined ? (defaults?.spouse1_id ?? null) : (spouse1?.id ?? null),
+      spouse2_id: spouse2 === undefined ? (defaults?.spouse2_id ?? null) : (spouse2?.id ?? null),
       marriage_date: marriageDate || null,
       marriage_place: marriagePlace || null,
     };
@@ -128,9 +129,9 @@ const FamilyEditor: React.FC<FamilyEditorProps> = ({
 
         <div className={styles.row}>
           <FormGroup>
-            <Label htmlFor="fe-marriage-date">Date</Label>
+            <Label htmlFor={`fe-marriage-date-${modalId}`}>Date</Label>
             <Input
-              id="fe-marriage-date"
+              id={`fe-marriage-date-${modalId}`}
               value={marriageDate}
               onChange={(e) => setMarriageDate(e.target.value)}
               placeholder="e.g. 14 Jun 1910"
@@ -138,9 +139,9 @@ const FamilyEditor: React.FC<FamilyEditorProps> = ({
           </FormGroup>
 
           <FormGroup>
-            <Label htmlFor="fe-marriage-place">Place</Label>
+            <Label htmlFor={`fe-marriage-place-${modalId}`}>Place</Label>
             <Input
-              id="fe-marriage-place"
+              id={`fe-marriage-place-${modalId}`}
               value={marriagePlace}
               onChange={(e) => setMarriagePlace(e.target.value)}
               placeholder="e.g. Boston, MA"
