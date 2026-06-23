@@ -5,7 +5,7 @@ import FormGroup from '@/components/Form/FormGroup';
 import PersonPicker from '@/components/entity-pickers/PersonPicker';
 import type { PersonResult } from '@/components/PersonSearch/PersonSearch';
 import type { ModalEditorProps, ModalResult } from '@/components/modals/modalTypes';
-import type { FamilySummary, PersonSummary } from '@/types/genealogy';
+import type { FamilySummary } from '@/types/genealogy';
 import styles from './FamilyEditor.module.css';
 
 interface FamilyEditorProps extends ModalEditorProps {
@@ -61,17 +61,12 @@ const FamilyEditor: React.FC<FamilyEditorProps> = ({
 
       const data = await res.json();
 
-      const toSummary = (p: PersonResult | null): PersonSummary | null =>
-        p
-          ? { id: p.id, given_name: p.given_name, surname: p.surname, birth_date: p.birth_date, death_date: p.death_date, photo_url: p.photo_url }
-          : null;
-
       const entity: FamilySummary = {
         id: data.id,
         spouse1_id: data.spouse1_id,
         spouse2_id: data.spouse2_id,
-        spouse1: toSummary(spouse1),
-        spouse2: toSummary(spouse2),
+        spouse1: data.spouse1 ?? null,
+        spouse2: data.spouse2 ?? null,
         marriage_date: data.marriage_date,
         marriage_place: data.marriage_place,
       };

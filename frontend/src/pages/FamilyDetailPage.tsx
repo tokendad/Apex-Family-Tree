@@ -86,7 +86,6 @@ const SpouseCard: React.FC<SpouseCardProps> = ({ person, label, canEdit, onAssig
     if (canEdit && onAssign) {
       return (
         <div className={`${styles.spouseCard} ${styles.spouseCardEmpty}`}>
-          <span className={styles.spouseLabel}>{label}</span>
           <PersonPicker
             label={label}
             onSelect={(p: PersonResult) => void onAssign(p.id)}

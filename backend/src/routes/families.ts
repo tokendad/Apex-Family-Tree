@@ -43,11 +43,14 @@ familiesRouter.post(
   ]),
   (req, res) => {
     try {
-      const repo = new FamilyRepository();
+      const familyRepo = new FamilyRepository();
+      const personRepo = new PersonRepository();
       const { spouse1_id, spouse2_id, marriage_date, marriage_place } = req.body;
 
-      const family = repo.create({ spouse1_id, spouse2_id, marriage_date, marriage_place });
-      res.status(201).json(family);
+      const family = familyRepo.create({ spouse1_id, spouse2_id, marriage_date, marriage_place });
+      const spouse1 = family.spouse1_id ? personRepo.findById(family.spouse1_id) : null;
+      const spouse2 = family.spouse2_id ? personRepo.findById(family.spouse2_id) : null;
+      res.status(201).json({ ...family, spouse1, spouse2 });
     } catch (error) {
       res.status(500).json({ error: 'Failed to create family' });
     }
