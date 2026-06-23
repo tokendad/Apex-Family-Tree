@@ -277,19 +277,16 @@ Represents an individual.
 Suggested fields:
 
 ```ts
-type Person = {
+// Matches PersonResult from PersonSearch and the API response shape.
+// Names live in a separate names table — given_name/surname come from
+// the primary name row joined to the person record.
+type PersonSummary = {
   id: string;
-  givenName: string;
-  middleName?: string;
-  surname?: string;
-  suffix?: string;
-  gender?: string;
-  birthDate?: string;
-  deathDate?: string;
-  primaryPhotoId?: string;
-  notes?: string;
-  createdAt: string;
-  updatedAt: string;
+  given_name: string | null;
+  surname: string | null;
+  birth_date: string | null;
+  death_date: string | null;
+  photo_url: string | null;   // served as /api/v1/media/:id — never a raw file path
 };
 ```
 
@@ -300,15 +297,17 @@ Represents a family unit or partnership.
 Suggested fields:
 
 ```ts
-type Family = {
+// Matches the actual families table schema.
+// Children are stored in a separate family_members join table — there is
+// no childIds column. Events are per-person, not per-family.
+type FamilySummary = {
   id: string;
-  spouse1Id?: string;
-  spouse2Id?: string;
-  childIds: string[];
-  eventIds: string[];
-  notes?: string;
-  createdAt: string;
-  updatedAt: string;
+  spouse1_id: string | null;
+  spouse2_id: string | null;
+  spouse1: PersonSummary | null;   // joined for display
+  spouse2: PersonSummary | null;
+  marriage_date: string | null;
+  marriage_place: string | null;
 };
 ```
 
@@ -524,8 +523,11 @@ Example:
   entityType: "person",
   entity: {
     id: "person_123",
-    givenName: "Mary",
-    surname: "Johnson"
+    given_name: "Mary",
+    surname: "Johnson",
+    birth_date: null,
+    death_date: null,
+    photo_url: null
   }
 }
 ```
@@ -539,7 +541,8 @@ This allows the parent form to continue cleanly after a child modal closes.
 The Modal Manager should support an API similar to this:
 
 ```ts
-const result = await openModal<Person>("PersonEditor", {
+// The project uses plain useState — no react-hook-form.
+const result = await openModal<PersonSummary>("PersonEditor", {
   mode: "create",
   defaults: {
     surname: "Johnson"
@@ -547,7 +550,7 @@ const result = await openModal<Person>("PersonEditor", {
 });
 
 if (result.action === "created") {
-  familyForm.setValue("spouse2Id", result.entity.id);
+  setSpouse2Id(result.entity.id);
 }
 ```
 
@@ -659,12 +662,14 @@ Responsibilities:
 Example props:
 
 ```ts
+// onSelect receives a PersonResult (snake_case) — the shape PersonSearch
+// already passes. No relationshipContext prop — pickers stay generic (ADR-004).
 type PersonPickerProps = {
   label?: string;
-  value?: string;
-  relationshipContext?: "spouse" | "child" | "parent" | "witness" | "media_tag";
+  value?: string | null;        // current selection by person ID
   defaultSearch?: string;
-  onSelect: (person: Person) => void;
+  onSelect: (person: PersonResult) => void;
+  onClear?: () => void;
 };
 ```
 
@@ -711,10 +716,11 @@ Should include:
 - Title
 - Date
 - Location
-- Tagged people
 - Linked source
 - Linked event
 - Notes
+
+> **Note:** Person tagging (drawing rectangular regions on a media item and linking them to people) is already fully implemented by `MediaPersonTagger` (`frontend/src/components/MediaPersonTagger/MediaPersonTagger.tsx`). MediaEditor should embed `MediaPersonTagger` rather than re-implement tagging.
 
 ---
 
@@ -776,12 +782,17 @@ Create:
 - PersonPicker
 - PersonEditor
 
+Then immediately refactor:
+
+- `MediaPersonTagger` — replace its local inline create form (`showCreatePerson` / `handleCreatePerson`) with `PersonPicker` → `ModalManager` so all "create person" entry points share one implementation.
+
 Acceptance criteria:
 
 - User can search people.
 - User can select an existing person.
 - User can create a new person.
 - Newly created person is returned to the original workflow.
+- `MediaPersonTagger`'s "Create New Person" flow routes through `PersonPicker` and returns a `ModalResult<PersonSummary>`.
 
 ### Phase 4: Build Family Editor
 
@@ -829,16 +840,22 @@ Acceptance criteria:
 
 ### Phase 7: Add Media Support
 
+`MediaPersonTagger` (canvas-based person region tagging) is already production-complete in the codebase. Do not rebuild tagging.
+
 Create:
 
-- MediaPicker
-- MediaEditor
+- MediaPicker — search and select existing media items
+- MediaEditor — upload/edit metadata + embed `MediaPersonTagger` for tagging
+
+Refactor:
+
+- Wire `MediaPersonTagger`'s inline "Create New Person" flow through `PersonPicker` → `ModalManager` so newly created persons return a `ModalResult<PersonSummary>` instead of using a local form.
 
 Acceptance criteria:
 
 - Media can be attached to people, families, events, and sources.
-- Media can tag people.
-- Media can link to locations and sources.
+- Person tagging uses the existing `MediaPersonTagger` component (no duplicate implementation).
+- Creating a new person from inside `MediaPersonTagger` routes through the ModalManager and returns to the tagger.
 
 ### Phase 8: Add Duplicate Detection
 
@@ -913,8 +930,11 @@ Good:
 ```ts
 {
   id: "person_123",
-  displayName: "Mary Johnson",
-  birthDate: "1884"
+  given_name: "Mary",
+  surname: "Johnson",
+  birth_date: "1884",
+  death_date: null,
+  photo_url: null
 }
 ```
 
@@ -924,11 +944,11 @@ Not just:
 "person_123"
 ```
 
+> `displayName` is not a stored field — use `getPersonDisplayName(entity)` from `entityDisplay.ts` to derive it when needed.
+
 ### Standardize Display Names
 
-Each entity should have a display helper.
-
-Examples:
+Each entity should have a display helper in `frontend/src/utils/entityDisplay.ts`.
 
 ```ts
 getPersonDisplayName(person)
@@ -936,6 +956,12 @@ getLocationDisplayName(location)
 getSourceDisplayName(source)
 getFamilyDisplayName(family)
 ```
+
+**Important:** Three independent local copies of `personDisplayName` currently exist and must be deleted when `entityDisplay.ts` is introduced:
+
+- `frontend/src/components/PersonSearch/PersonSearch.tsx:24` — `function personDisplayName(p: PersonResult)`
+- `frontend/src/components/MediaPersonTagger/MediaPersonTagger.tsx:52` — `function personDisplayName(person: {...})`
+- `backend/src/services/gedcom/mergeAnalysis.ts:27` — `function fullName(given, surname)` (backend copy; align separately)
 
 This keeps pickers and editors consistent.
 
@@ -969,9 +995,11 @@ For the first working version, build only:
 - ModalHost
 - useModal
 - ModalResult type
+- `entityDisplay.ts` (consolidate the three existing `personDisplayName` copies)
 - PersonPicker
 - PersonEditor
 - FamilyEditor with spouse and child PersonPicker fields
+- Refactor `MediaPersonTagger` inline create to use PersonPicker + ModalManager
 
 Do not start with every modal at once.
 
@@ -980,7 +1008,7 @@ Once this works, add:
 1. LocationPicker and LocationEditor
 2. SourcePicker and SourceEditor
 3. CitationEditor
-4. MediaPicker and MediaEditor
+4. MediaPicker and MediaEditor (embedding existing `MediaPersonTagger`)
 
 ---
 
