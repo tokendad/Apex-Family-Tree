@@ -1,0 +1,128 @@
+.sidebar {
+  width: 260px;
+  height: 100%;
+  padding: var(--space-4);
+  border-right: 1px solid var(--color-gray-200);
+  background: var(--color-bg-secondary);
+}
+
+.sidebarTitle {
+  display: block;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.sidebarText {
+  display: block;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.page {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: var(--space-6);
+}
+
+.header {
+  margin-bottom: var(--space-6);
+}
+
+.title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-3xl);
+  color: var(--color-text-primary);
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  min-height: 168px;
+  padding: var(--space-4);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-primary);
+  text-decoration: none;
+}
+
+.activeCard {
+  border-color: var(--color-primary-300);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.activeCard:hover {
+  border-color: var(--color-primary-500);
+  box-shadow: var(--shadow-md);
+  text-decoration: none;
+}
+
+.disabledCard {
+  background: var(--color-gray-50);
+  color: var(--color-text-secondary);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  color: var(--color-text-primary);
+}
+
+.cardDescription {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.availableBadge,
+.plannedBadge {
+  flex-shrink: 0;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.availableBadge {
+  color: var(--color-primary-700);
+  background: var(--color-primary-50);
+}
+
+.plannedBadge {
+  color: var(--color-text-secondary);
+  background: var(--color-gray-200);
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    display: none;
+  }
+
+  .page {
+    padding: var(--space-4);
+  }
+}

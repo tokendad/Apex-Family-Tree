@@ -19,6 +19,8 @@ const PersonDetailPage = React.lazy(() => import('./pages/PersonDetailPage'));
 const SourcesPage = React.lazy(() => import('./pages/SourcesPage'));
 const ImportPage = React.lazy(() => import('./pages/ImportPage'));
 const ExportPage = React.lazy(() => import('./pages/ExportPage'));
+const ToolsPage = React.lazy(() => import('./pages/ToolsPage'));
+const PeopleDedupPage = React.lazy(() => import('./pages/PeopleDedupPage'));
 const SetupPage = React.lazy(() => import('./pages/SetupPage'));
 const LoginPage = React.lazy(() => import('./pages/LoginPage'));
 const RegisterPage = React.lazy(() => import('./pages/RegisterPage'));
@@ -80,6 +82,10 @@ function App() {
               {/* Import/Export (protected) */}
               <Route path="/import" element={<ProtectedRoute><ImportPage /></ProtectedRoute>} />
               <Route path="/export" element={<ProtectedRoute><ExportPage /></ProtectedRoute>} />
+
+              {/* Tools routes (protected, editor and admin only) */}
+              <Route path="/tools" element={<ProtectedRoute minimumRole="editor"><ToolsPage /></ProtectedRoute>} />
+              <Route path="/tools/people-dedup" element={<ProtectedRoute minimumRole="editor"><PeopleDedupPage /></ProtectedRoute>} />
 
               {/* Admin routes (protected, admin only) */}
               <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />

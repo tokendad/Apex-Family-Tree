@@ -10,6 +10,7 @@ import { homePersonRouter } from './homePerson.js';
 import { adminRouter } from './admin.js';
 import { settingsRouter } from './settings.js';
 import { gedcomRouter } from './gedcom.js';
+import { toolsRouter } from './tools.js';
 
 const apiRouter = Router();
 
@@ -25,5 +26,6 @@ apiRouter.use('/v1/home-person', homePersonRouter);
 apiRouter.use('/v1/admin', adminRouter);
 apiRouter.use('/v1/admin', settingsRouter);
 apiRouter.use('/v1/gedcom', gedcomRouter);
+apiRouter.use('/v1/tools', toolsRouter);
 
 export { apiRouter };

@@ -12,11 +12,30 @@ const NAV_ITEMS = [
   { label: 'Media', path: '/media' },
 ];
 
+const ROLE_RANK = {
+  viewer: 0,
+  limited_editor: 1,
+  editor: 2,
+  admin: 3,
+} as const;
+
+type Role = keyof typeof ROLE_RANK;
+
+function hasMinimumRole(role: string | undefined, minimum: Role): boolean {
+  if (!role || !(role in ROLE_RANK)) return false;
+  return ROLE_RANK[role as Role] >= ROLE_RANK[minimum];
+}
+
 const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const visibleNavItems = [
+    ...NAV_ITEMS,
+    ...(hasMinimumRole(user?.role, 'editor') ? [{ label: 'Tools', path: '/tools' }] : []),
+    ...(user?.role === 'admin' ? [{ label: 'Admin', path: '/admin' }] : []),
+  ];
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -44,7 +63,7 @@ const Navbar: React.FC = () => {
       <span className={styles.version}>v{__APP_VERSION__}</span>
 
       <div className={styles.nav}>
-        {NAV_ITEMS.map((item) => (
+        {visibleNavItems.map((item) => (
           <Link
             key={item.path}
             to={item.path}
