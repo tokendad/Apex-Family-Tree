@@ -11,6 +11,7 @@ import Navbar from '@/components/Navbar/Navbar';
 import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
+import MediaPersonTagger from '@/components/MediaPersonTagger/MediaPersonTagger';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useSearchStore } from '@/stores/searchStore';
 import styles from './MediaPage.module.css';
@@ -745,6 +746,12 @@ const MediaPage: React.FC = () => {
     }
   };
 
+  const handleTagsChanged = async () => {
+    if (selectedItem) {
+      await fetchDetailLinks(selectedItem.id);
+    }
+  };
+
   // ── Keyboard: close detail drawer on Escape ────────────────────────────────
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -1153,6 +1160,15 @@ const MediaPage: React.FC = () => {
                     className={styles.detailImg}
                   />
                 </div>
+              )}
+
+              {!isPdf(selectedItem.mime_type) && (
+                <MediaPersonTagger
+                  mediaId={selectedItem.id}
+                  mediaSrc={`/api/v1/media/${selectedItem.id}`}
+                  canEdit={canEdit}
+                  onChanged={handleTagsChanged}
+                />
               )}
 
               {/* Detail content */}

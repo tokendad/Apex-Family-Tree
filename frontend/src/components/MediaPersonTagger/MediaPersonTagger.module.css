@@ -1,0 +1,196 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.subtitle {
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.error {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: var(--font-size-sm);
+}
+
+.stage {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-secondary);
+}
+
+.stageEditable {
+  cursor: crosshair;
+}
+
+.stageActive {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.12);
+}
+
+.image {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  pointer-events: none;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.region,
+.draft {
+  position: absolute;
+  box-sizing: border-box;
+  border-radius: 2px;
+}
+
+.region {
+  border: 2px solid rgba(59, 130, 246, 0.95);
+  background: rgba(59, 130, 246, 0.16);
+  color: inherit;
+  outline: none;
+}
+
+.regionEditable {
+  cursor: move;
+}
+
+.regionSelected {
+  border-color: rgba(220, 38, 38, 0.98);
+  background: rgba(220, 38, 38, 0.14);
+}
+
+.draft {
+  border: 2px dashed rgba(17, 24, 39, 0.8);
+  background: rgba(17, 24, 39, 0.08);
+}
+
+.regionLabel {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  max-width: 100%;
+  padding: 2px 6px;
+  overflow: hidden;
+  border-top-right-radius: 4px;
+  background: rgba(17, 24, 39, 0.84);
+  color: white;
+  font-size: 11px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resizeHandle {
+  position: absolute;
+  right: -7px;
+  bottom: -7px;
+  width: 14px;
+  height: 14px;
+  border: 2px solid white;
+  border-radius: 999px;
+  background: rgba(220, 38, 38, 0.98);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.35);
+  cursor: nwse-resize;
+}
+
+.editorPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-primary);
+}
+
+.editingNotice,
+.empty {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.regionDetails {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.regionHeading {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.regionMeta {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+}
+
+.actionsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.createPersonBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.createPersonForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-secondary);
+}
+
+.fieldLabel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.createPersonForm .actionsRow {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 640px) {
+  .createPersonForm {
+    grid-template-columns: 1fr;
+  }
+}
