@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Input from '@/components/Form/Input';
 import Avatar from '@/components/Avatar/Avatar';
+import { getPersonDisplayName, getPersonDates } from '@/utils/entityDisplay';
 import styles from './PersonSearch.module.css';
 
 export interface PersonResult {
@@ -19,18 +20,6 @@ interface PersonSearchProps {
   onRemove?: (id: string) => void;
   placeholder?: string;
   className?: string;
-}
-
-function personDisplayName(p: PersonResult): string {
-  const parts = [p.given_name, p.surname].filter(Boolean);
-  return parts.length > 0 ? parts.join(' ') : 'Unknown';
-}
-
-function personDates(p: PersonResult): string {
-  const parts: string[] = [];
-  if (p.birth_date) parts.push(`b. ${p.birth_date}`);
-  if (p.death_date) parts.push(`d. ${p.death_date}`);
-  return parts.join(' — ');
 }
 
 const PersonSearch: React.FC<PersonSearchProps> = ({
@@ -123,10 +112,10 @@ const PersonSearch: React.FC<PersonSearchProps> = ({
               type="button"
               onClick={() => handleSelect(person)}
             >
-              <Avatar name={personDisplayName(person)} src={person.photo_url ?? undefined} size="xs" />
+              <Avatar name={getPersonDisplayName(person)} src={person.photo_url ?? undefined} size="xs" />
               <div className={styles.itemInfo}>
-                <span className={styles.itemName}>{personDisplayName(person)}</span>
-                <span className={styles.itemDates}>{personDates(person)}</span>
+                <span className={styles.itemName}>{getPersonDisplayName(person)}</span>
+                <span className={styles.itemDates}>{getPersonDates(person)}</span>
               </div>
             </button>
           ))}
@@ -149,17 +138,17 @@ const PersonSearch: React.FC<PersonSearchProps> = ({
         <div className={styles.selectedList}>
           {selectedPersons.map((person) => (
             <div key={person.id} className={styles.miniCard}>
-              <Avatar name={personDisplayName(person)} src={person.photo_url ?? undefined} size="xs" />
+              <Avatar name={getPersonDisplayName(person)} src={person.photo_url ?? undefined} size="xs" />
               <div className={styles.miniCardInfo}>
-                <div className={styles.miniCardName}>{personDisplayName(person)}</div>
-                <div className={styles.miniCardDates}>{personDates(person)}</div>
+                <div className={styles.miniCardName}>{getPersonDisplayName(person)}</div>
+                <div className={styles.miniCardDates}>{getPersonDates(person)}</div>
               </div>
               {onRemove && (
                 <button
                   type="button"
                   className={styles.removeBtn}
                   onClick={() => onRemove(person.id)}
-                  aria-label={`Remove ${personDisplayName(person)}`}
+                  aria-label={`Remove ${getPersonDisplayName(person)}`}
                 >
                   ✕
                 </button>
