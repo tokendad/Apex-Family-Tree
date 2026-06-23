@@ -163,4 +163,28 @@ export class ImportRepository extends BaseRepository {
     values.push(id);
     this.db.prepare(`UPDATE export_jobs SET ${fields.join(', ')} WHERE id = ?`).run(...values);
   }
+
+  // ─── Merge Decisions ──────────────────────────────────────────────────────
+
+  saveMergeDecision(data: {
+    import_job_id: string; xref: string; decision: 'same' | 'new';
+    candidate_person_id: string | null; field_resolutions: string;
+  }): void {
+    this.db.prepare(`
+      INSERT INTO import_merge_decisions (import_job_id, xref, decision, candidate_person_id, field_resolutions)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(import_job_id, xref) DO UPDATE SET
+        decision = excluded.decision,
+        candidate_person_id = excluded.candidate_person_id,
+        field_resolutions = excluded.field_resolutions
+    `).run(data.import_job_id, data.xref, data.decision, data.candidate_person_id, data.field_resolutions);
+  }
+
+  findMergeDecisions(importJobId: string): Array<{
+    xref: string; decision: 'same' | 'new'; candidate_person_id: string | null; field_resolutions: string;
+  }> {
+    return this.db.prepare(
+      'SELECT xref, decision, candidate_person_id, field_resolutions FROM import_merge_decisions WHERE import_job_id = ?'
+    ).all(importJobId) as Array<{ xref: string; decision: 'same' | 'new'; candidate_person_id: string | null; field_resolutions: string }>;
+  }
 }

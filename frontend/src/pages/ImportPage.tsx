@@ -1,5 +1,8 @@
 import React, { useState, useCallback, useRef } from 'react';
 import styles from './ImportPage.module.css';
+import type { MergeAnalysis, ReviewState } from '@/pages/import/mergeReview';
+import { initReviewState, setDecision, setField, unresolvedCount, toApiDecisions } from '@/pages/import/mergeReview';
+import MergeReviewScreen from '@/components/MergeReview/MergeReviewScreen';
 
 interface ImportStats {
   persons: number;
@@ -32,16 +35,28 @@ interface ImportJob {
   error_message: string | null;
 }
 
-type Step = 'upload' | 'validation' | 'conflicts' | 'progress';
+type ImportMode = 'new' | 'merge';
 
-const STEP_LABELS: Record<Step, string> = {
+type Step = 'upload' | 'validation' | 'conflicts' | 'review' | 'progress';
+
+const NEW_STEPS: Step[] = ['upload', 'validation', 'conflicts', 'progress'];
+const MERGE_STEPS: Step[] = ['upload', 'review', 'progress'];
+
+const NEW_STEP_LABELS: Record<Step, string> = {
   upload: '1. Upload',
   validation: '2. Validation',
   conflicts: '3. Conflicts',
+  review: '3. Review',
   progress: '4. Import',
 };
 
-const STEPS: Step[] = ['upload', 'validation', 'conflicts', 'progress'];
+const MERGE_STEP_LABELS: Record<Step, string> = {
+  upload: '1. Upload',
+  validation: '2. Validation',
+  conflicts: '3. Conflicts',
+  review: '2. Review',
+  progress: '3. Import',
+};
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -50,6 +65,7 @@ function formatBytes(bytes: number): string {
 }
 
 const ImportPage: React.FC = () => {
+  const [mode, setMode] = useState<ImportMode>('new');
   const [step, setStep] = useState<Step>('upload');
   const [file, setFile] = useState<File | null>(null);
   const [dragActive, setDragActive] = useState(false);
@@ -61,6 +77,14 @@ const ImportPage: React.FC = () => {
   const [version, setVersion] = useState<string | null>(null);
   const [encoding, setEncoding] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Merge-mode state
+  const [analysis, setAnalysis] = useState<MergeAnalysis | null>(null);
+  const [reviewState, setReviewState] = useState<ReviewState>({});
+  const [selectedXref, setSelectedXref] = useState<string>('');
+
+  const STEPS = mode === 'merge' ? MERGE_STEPS : NEW_STEPS;
+  const STEP_LABELS = mode === 'merge' ? MERGE_STEP_LABELS : NEW_STEP_LABELS;
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -91,6 +115,7 @@ const ImportPage: React.FC = () => {
     try {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('mode', mode);
 
       const res = await fetch('/api/v1/gedcom/import', {
         method: 'POST',
@@ -105,20 +130,32 @@ const ImportPage: React.FC = () => {
 
       const data = await res.json();
       setJob(data.job);
-      setStats(data.validation.stats);
-      setVersion(data.validation.version);
-      setEncoding(data.validation.encoding);
 
-      if (data.validation.conflictCount > 0) {
-        // Fetch conflicts
-        const conflictsRes = await fetch(`/api/v1/gedcom/import/${data.job.id}/conflicts`, {
-          credentials: 'include',
-        });
-        const conflictsData = await conflictsRes.json();
-        setConflicts(conflictsData.conflicts || []);
+      if (mode === 'merge') {
+        // Merge mode: read merge analysis and go to review step
+        const mergeAnalysis: MergeAnalysis = data.mergeAnalysis;
+        setAnalysis(mergeAnalysis);
+        const initState = initReviewState(mergeAnalysis);
+        setReviewState(initState);
+        const firstXref = mergeAnalysis.persons[0]?.xref ?? '';
+        setSelectedXref(firstXref);
+        setStep('review');
+      } else {
+        // New-tree mode: existing validation flow
+        setStats(data.validation.stats);
+        setVersion(data.validation.version);
+        setEncoding(data.validation.encoding);
+
+        if (data.validation.conflictCount > 0) {
+          const conflictsRes = await fetch(`/api/v1/gedcom/import/${data.job.id}/conflicts`, {
+            credentials: 'include',
+          });
+          const conflictsData = await conflictsRes.json();
+          setConflicts(conflictsData.conflicts || []);
+        }
+
+        setStep('validation');
       }
-
-      setStep('validation');
     } catch (err) {
       setError(String(err));
     } finally {
@@ -151,7 +188,7 @@ const ImportPage: React.FC = () => {
     setStep('progress');
 
     try {
-      // Submit conflict resolutions if any
+      // Submit conflict resolutions if any (new-tree mode)
       const resolvedConflicts = conflicts.filter(c => c.resolution);
       if (resolvedConflicts.length > 0) {
         await fetch(`/api/v1/gedcom/import/${job.id}/conflicts`, {
@@ -171,6 +208,50 @@ const ImportPage: React.FC = () => {
       const res = await fetch(`/api/v1/gedcom/import/${job.id}/process`, {
         method: 'POST',
         credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Processing failed');
+      }
+
+      const data = await res.json();
+      setJob(data.job);
+      if (data.stats) setStats(data.stats);
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMergeConfirm = async () => {
+    if (!job || !analysis) return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Post decisions
+      const decisionsRes = await fetch(`/api/v1/gedcom/import/${job.id}/decisions`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decisions: toApiDecisions(analysis, reviewState) }),
+      });
+      if (!decisionsRes.ok) {
+        const data = await decisionsRes.json();
+        throw new Error(data.error || 'Failed to save merge decisions');
+      }
+
+      // Then process with mode
+      setStep('progress');
+      const res = await fetch(`/api/v1/gedcom/import/${job.id}/process`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode }),
       });
 
       if (!res.ok) {
@@ -190,6 +271,19 @@ const ImportPage: React.FC = () => {
 
   const stepIndex = STEPS.indexOf(step);
   const allConflictsResolved = conflicts.every(c => c.resolution !== null);
+  const mergeUnresolved = analysis ? unresolvedCount(analysis, reviewState) : 0;
+
+  const resetAll = () => {
+    setStep('upload');
+    setFile(null);
+    setJob(null);
+    setStats(null);
+    setConflicts([]);
+    setError(null);
+    setAnalysis(null);
+    setReviewState({});
+    setSelectedXref('');
+  };
 
   return (
     <div className={styles.page}>
@@ -212,6 +306,24 @@ const ImportPage: React.FC = () => {
       {/* Step 1: Upload */}
       {step === 'upload' && (
         <>
+          {/* Mode toggle */}
+          <div className={styles.modeToggle}>
+            <button
+              type="button"
+              className={`${styles.modeBtn} ${mode === 'new' ? styles.modeBtnActive : ''}`}
+              onClick={() => setMode('new')}
+            >
+              Import as new tree
+            </button>
+            <button
+              type="button"
+              className={`${styles.modeBtn} ${mode === 'merge' ? styles.modeBtnActive : ''}`}
+              onClick={() => setMode('merge')}
+            >
+              Merge with existing tree
+            </button>
+          </div>
+
           <div
             className={`${styles.dropzone} ${dragActive ? styles.dropzoneActive : ''}`}
             onDrop={handleDrop}
@@ -253,7 +365,7 @@ const ImportPage: React.FC = () => {
         </>
       )}
 
-      {/* Step 2: Validation */}
+      {/* Step 2 (new mode): Validation */}
       {step === 'validation' && stats && (
         <>
           <div className={styles.statsGrid}>
@@ -324,7 +436,7 @@ const ImportPage: React.FC = () => {
         </>
       )}
 
-      {/* Step 3: Conflicts */}
+      {/* Step 3 (new mode): Conflicts */}
       {step === 'conflicts' && (
         <>
           <p style={{ marginBottom: 'var(--space-4)', color: 'var(--color-text-secondary)' }}>
@@ -391,7 +503,44 @@ const ImportPage: React.FC = () => {
         </>
       )}
 
-      {/* Step 4: Progress / Completion */}
+      {/* Review step (merge mode only) */}
+      {step === 'review' && analysis && (
+        <>
+          <MergeReviewScreen
+            analysis={analysis}
+            state={reviewState}
+            selectedXref={selectedXref}
+            onSelect={setSelectedXref}
+            onDecision={(xref, kind, candidateId) =>
+              setReviewState((s) => setDecision(s, xref, kind, candidateId))
+            }
+            onField={(xref, field, choice) =>
+              setReviewState((s) => setField(s, xref, field, choice))
+            }
+          />
+          <div className={styles.actions}>
+            <button
+              className={`${styles.btn} ${styles.btnSecondary}`}
+              onClick={resetAll}
+            >
+              Start Over
+            </button>
+            <button
+              className={`${styles.btn} ${styles.btnPrimary}`}
+              disabled={mergeUnresolved > 0 || loading}
+              onClick={handleMergeConfirm}
+            >
+              {loading
+                ? 'Processing…'
+                : mergeUnresolved > 0
+                ? `${mergeUnresolved} decision${mergeUnresolved !== 1 ? 's' : ''} remaining`
+                : 'Confirm & Import'}
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Progress / Completion */}
       {step === 'progress' && (
         <>
           {loading ? (
@@ -439,14 +588,7 @@ const ImportPage: React.FC = () => {
               <div className={styles.actions}>
                 <button
                   className={`${styles.btn} ${styles.btnSecondary}`}
-                  onClick={() => {
-                    setStep('upload');
-                    setFile(null);
-                    setJob(null);
-                    setStats(null);
-                    setConflicts([]);
-                    setError(null);
-                  }}
+                  onClick={resetAll}
                 >
                   Try Again
                 </button>

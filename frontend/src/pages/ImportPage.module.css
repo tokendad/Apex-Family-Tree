@@ -40,6 +40,39 @@
   color: var(--color-primary-700);
 }
 
+/* Mode toggle */
+.modeToggle {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+}
+
+.modeBtn {
+  flex: 1;
+  padding: var(--space-3) var(--space-4);
+  border: 2px solid var(--color-gray-300);
+  border-radius: var(--radius-md);
+  background: white;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  font-family: var(--font-family);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.modeBtn:hover {
+  border-color: var(--color-primary-400);
+  color: var(--color-primary-700);
+}
+
+.modeBtnActive {
+  border-color: var(--color-primary-500);
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
+  font-weight: var(--font-weight-semibold);
+}
+
 /* Upload area */
 .dropzone {
   border: 2px dashed var(--color-gray-300);
