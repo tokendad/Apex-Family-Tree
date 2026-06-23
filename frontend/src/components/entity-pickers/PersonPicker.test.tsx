@@ -60,7 +60,7 @@ describe('PersonPicker', () => {
         names: [{ given_name: 'Mary', surname: 'Johnson', is_primary: 1 }],
         events: [],
       }),
-    });
+    } as Response);
     const onSelect = vi.fn();
     await act(async () => {
       render(<PersonPicker label="Spouse" value="p1" onSelect={onSelect} />);
@@ -77,7 +77,7 @@ describe('PersonPicker', () => {
         names: [{ given_name: 'Mary', surname: 'Johnson', is_primary: 1 }],
         events: [],
       }),
-    });
+    } as Response);
     const onClear = vi.fn();
     const onSelect = vi.fn();
     await act(async () => {

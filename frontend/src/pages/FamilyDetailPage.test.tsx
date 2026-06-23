@@ -79,7 +79,7 @@ describe('FamilyDetailPage — spouse assignment', () => {
 
   it('calls PUT /api/v1/families/:id with spouse1_id on selection', async () => {
     let callCount = 0;
-    global.fetch = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+    global.fetch = vi.fn().mockImplementation((_url: string, options?: RequestInit) => {
       callCount += 1;
       if (callCount === 1) {
         // Initial GET
@@ -126,7 +126,7 @@ describe('FamilyDetailPage — spouse assignment', () => {
     await waitFor(() => {
       const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls;
       const putCall = calls.find(
-        (c: [string, RequestInit?]) => (c[1]?.method ?? 'GET') === 'PUT'
+        (c: any) => (c[1]?.method ?? 'GET') === 'PUT'
       );
       expect(putCall).toBeTruthy();
       expect(JSON.parse(putCall![1]!.body as string).spouse1_id).toBe('p-999');

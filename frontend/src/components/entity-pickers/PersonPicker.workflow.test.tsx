@@ -35,7 +35,7 @@ describe('PersonPicker create-new workflow', () => {
         sex: 'U',
         names: [{ given_name: 'Ada', surname: 'Lovelace', is_primary: 1 }],
       }),
-    });
+    } as Response);
 
     const onSelect = vi.fn();
     render(

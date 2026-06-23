@@ -64,7 +64,7 @@ describe('FamilyEditor', () => {
         marriage_date: null,
         marriage_place: null,
       }),
-    });
+    } as Response);
     const onClose = vi.fn();
     render(<FamilyEditor mode="create" modalId="m1" onClose={onClose} />);
 
@@ -92,7 +92,7 @@ describe('FamilyEditor', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: false,
       json: async () => ({ error: 'Failed to create family' }),
-    });
+    } as Response);
     render(<FamilyEditor mode="create" modalId="m1" onClose={noop} />);
     fireEvent.click(screen.getByRole('button', { name: /save/i }));
     await waitFor(() => {

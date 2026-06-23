@@ -41,7 +41,7 @@ describe('PersonEditor', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({ id: 'p2', sex: 'M', names: [{ given_name: 'John', surname: 'Smith', is_primary: 1 }] }),
-    });
+    } as Response);
 
     const onClose = vi.fn();
     render(<PersonEditor mode="create" modalId="m1" onClose={onClose} />);
@@ -91,7 +91,7 @@ describe('PersonEditor', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: false,
       json: async () => ({ error: 'Failed to create person' }),
-    });
+    } as Response);
 
     render(<PersonEditor mode="create" modalId="m1" onClose={noop} />);
     fireEvent.click(screen.getByRole('button', { name: /save/i }));
