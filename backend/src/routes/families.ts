@@ -10,6 +10,15 @@ function paramStr(val: string | string[]): string {
   return Array.isArray(val) ? val[0] : val;
 }
 
+function toSpouseSummary(person: ReturnType<PersonRepository['findById']>) {
+  if (!person) return null;
+  return {
+    id: person.id,
+    given_name: person.primary_name?.given_name ?? null,
+    surname: person.primary_name?.surname ?? null,
+  };
+}
+
 // GET /families — List families (paginated)
 familiesRouter.get('/', (req, res) => {
   try {
@@ -48,8 +57,8 @@ familiesRouter.post(
       const { spouse1_id, spouse2_id, marriage_date, marriage_place } = req.body;
 
       const family = familyRepo.create({ spouse1_id, spouse2_id, marriage_date, marriage_place });
-      const spouse1 = family.spouse1_id ? personRepo.findById(family.spouse1_id) : null;
-      const spouse2 = family.spouse2_id ? personRepo.findById(family.spouse2_id) : null;
+      const spouse1 = toSpouseSummary(family.spouse1_id ? personRepo.findById(family.spouse1_id) : null);
+      const spouse2 = toSpouseSummary(family.spouse2_id ? personRepo.findById(family.spouse2_id) : null);
       res.status(201).json({ ...family, spouse1, spouse2 });
     } catch (error) {
       res.status(500).json({ error: 'Failed to create family' });
@@ -70,8 +79,8 @@ familiesRouter.get('/:id', (req, res) => {
     }
 
     const members = familyRepo.getMembers(family.id);
-    const spouse1 = family.spouse1_id ? personRepo.findById(family.spouse1_id) : null;
-    const spouse2 = family.spouse2_id ? personRepo.findById(family.spouse2_id) : null;
+    const spouse1 = toSpouseSummary(family.spouse1_id ? personRepo.findById(family.spouse1_id) : null);
+    const spouse2 = toSpouseSummary(family.spouse2_id ? personRepo.findById(family.spouse2_id) : null);
     const children = members.map(m => ({
       ...m,
       person: personRepo.findById(m.person_id),
@@ -89,10 +98,11 @@ familiesRouter.put(
   requireRole('admin', 'editor'),
   (req, res) => {
     try {
-      const repo = new FamilyRepository();
+      const familyRepo = new FamilyRepository();
+      const personRepo = new PersonRepository();
       const { spouse1_id, spouse2_id, marriage_date, marriage_place, divorce_date, divorce_place } = req.body;
 
-      const family = repo.update(paramStr(req.params.id), {
+      const family = familyRepo.update(paramStr(req.params.id), {
         spouse1_id, spouse2_id, marriage_date, marriage_place, divorce_date, divorce_place,
       });
       if (!family) {
@@ -100,7 +110,9 @@ familiesRouter.put(
         return;
       }
 
-      res.json(family);
+      const spouse1 = toSpouseSummary(family.spouse1_id ? personRepo.findById(family.spouse1_id) : null);
+      const spouse2 = toSpouseSummary(family.spouse2_id ? personRepo.findById(family.spouse2_id) : null);
+      res.json({ ...family, spouse1, spouse2 });
     } catch (error) {
       res.status(500).json({ error: 'Failed to update family' });
     }
