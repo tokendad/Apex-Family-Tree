@@ -234,12 +234,16 @@ const ImportPage: React.FC = () => {
 
     try {
       // Post decisions
-      await fetch(`/api/v1/gedcom/import/${job.id}/decisions`, {
+      const decisionsRes = await fetch(`/api/v1/gedcom/import/${job.id}/decisions`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ decisions: toApiDecisions(analysis, reviewState) }),
       });
+      if (!decisionsRes.ok) {
+        const data = await decisionsRes.json();
+        throw new Error(data.error || 'Failed to save merge decisions');
+      }
 
       // Then process with mode
       setStep('progress');

@@ -70,7 +70,7 @@ gedcomRouter.post(
         },
       };
 
-      if (mode === 'merge') {
+      if (mode === 'merge' && validation.valid) {
         responseBody.mergeAnalysis = analyzeMerge(job.id, content);
       }
 
@@ -156,7 +156,11 @@ gedcomRouter.post(
         res.status(404).json({ error: 'Import job not found' });
         return;
       }
-      const decisions = (req.body?.decisions ?? []) as Array<{
+      if (!Array.isArray(req.body?.decisions)) {
+        res.status(400).json({ error: 'decisions must be an array' });
+        return;
+      }
+      const decisions = req.body.decisions as Array<{
         xref: string;
         decision: 'same' | 'new';
         candidatePersonId: string | null;

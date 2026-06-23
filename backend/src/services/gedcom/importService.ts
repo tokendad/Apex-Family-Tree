@@ -337,9 +337,14 @@ export function processImport(jobId: string, content: string, userId: string, mo
             xrefMap.set(person.xref, candidateId);
 
             // Apply field resolutions: for each field set to 'new', write incoming value
-            const fieldResolutions: Record<string, 'old' | 'new'> = decision.field_resolutions
-              ? JSON.parse(decision.field_resolutions)
-              : {};
+            let fieldResolutions: Record<string, 'old' | 'new'> = {};
+            if (decision.field_resolutions) {
+              try {
+                fieldResolutions = JSON.parse(decision.field_resolutions);
+              } catch {
+                fieldResolutions = {};
+              }
+            }
 
             // Name-related field resolution
             const primaryNameData = person.names.find((n) => n.isPrimary) ?? person.names[0];
@@ -597,6 +602,18 @@ export function processImport(jobId: string, content: string, userId: string, mo
           const existingFamilyId = existingCoupleKeys.get(ck);
           if (existingFamilyId) {
             xrefMap.set(family.xref, existingFamilyId);
+
+            // Gap-fill: add children that are new to this import but not yet members
+            const existingMemberIds = new Set(
+              familyRepo.getMembers(existingFamilyId).map((m) => m.person_id)
+            );
+            for (const childXref of family.childXrefs) {
+              const childId = xrefMap.get(childXref);
+              if (childId && !existingMemberIds.has(childId)) {
+                familyRepo.addMember(existingFamilyId, childId, 'child');
+              }
+            }
+
             importRepo.logAction({
               import_job_id: jobId,
               action: 'skipped',

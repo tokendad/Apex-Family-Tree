@@ -26,7 +26,8 @@ export function setDecision(state: ReviewState, xref: string, kind: 'same' | 'ne
 }
 
 export function setField(state: ReviewState, xref: string, field: string, choice: 'old' | 'new'): ReviewState {
-  const prev = state[xref] ?? { kind: 'same', candidateId: null, fields: {} };
+  const prev = state[xref];
+  if (!prev) return state; // ignore field choice before an explicit same/new decision is made
   return { ...state, [xref]: { ...prev, fields: { ...prev.fields, [field]: choice } } };
 }
 
