@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import FocusTrap from '@/components/FocusTrap/FocusTrap';
+import PersonEditor from '@/components/entity-editors/PersonEditor';
 import { useModalStore } from './modalStore';
 import type { ModalEditorProps, ModalResult } from './modalTypes';
 import styles from './ModalManager.module.css';
@@ -13,7 +14,7 @@ export type ModalRegistry = Record<
 // Registry is populated after editor components are created (Tasks 7 & 8).
 // Import editors here once they exist.
 export const REGISTRY: ModalRegistry = {
-  // PersonEditor: added in Task 7
+  PersonEditor: PersonEditor as React.ComponentType<ModalEditorProps & Record<string, unknown>>,
   // FamilyEditor: added in Task 8
 };
 
