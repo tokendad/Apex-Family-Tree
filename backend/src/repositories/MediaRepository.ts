@@ -121,15 +121,12 @@ export class MediaRepository extends BaseRepository {
       `SELECT mpr.*,
               n.given_name AS person_given_name,
               n.surname AS person_surname,
-              birth.event_date AS person_birth_date,
-              death.event_date AS person_death_date,
-              photo.file_path AS person_photo_url
+              (SELECT event_date FROM events WHERE person_id = mpr.person_id AND event_type = 'birth' ORDER BY created_at ASC LIMIT 1) AS person_birth_date,
+              (SELECT event_date FROM events WHERE person_id = mpr.person_id AND event_type = 'death' ORDER BY created_at ASC LIMIT 1) AS person_death_date,
+              CASE WHEN pm.media_id IS NOT NULL THEN '/api/v1/media/' || pm.media_id ELSE NULL END AS person_photo_url
        FROM media_person_regions mpr
        LEFT JOIN names n ON n.person_id = mpr.person_id AND n.is_primary = 1
-       LEFT JOIN events birth ON birth.person_id = mpr.person_id AND birth.event_type = 'birth'
-       LEFT JOIN events death ON death.person_id = mpr.person_id AND death.event_type = 'death'
        LEFT JOIN person_media pm ON pm.person_id = mpr.person_id AND pm.is_primary = 1
-       LEFT JOIN media_items photo ON photo.id = pm.media_id
        WHERE mpr.media_id = ?
        ORDER BY mpr.sort_order ASC, mpr.created_at ASC`
     ).all(mediaId) as MediaPersonRegionRow[];
@@ -140,15 +137,12 @@ export class MediaRepository extends BaseRepository {
       `SELECT mpr.*,
               n.given_name AS person_given_name,
               n.surname AS person_surname,
-              birth.event_date AS person_birth_date,
-              death.event_date AS person_death_date,
-              photo.file_path AS person_photo_url
+              (SELECT event_date FROM events WHERE person_id = mpr.person_id AND event_type = 'birth' ORDER BY created_at ASC LIMIT 1) AS person_birth_date,
+              (SELECT event_date FROM events WHERE person_id = mpr.person_id AND event_type = 'death' ORDER BY created_at ASC LIMIT 1) AS person_death_date,
+              CASE WHEN pm.media_id IS NOT NULL THEN '/api/v1/media/' || pm.media_id ELSE NULL END AS person_photo_url
        FROM media_person_regions mpr
        LEFT JOIN names n ON n.person_id = mpr.person_id AND n.is_primary = 1
-       LEFT JOIN events birth ON birth.person_id = mpr.person_id AND birth.event_type = 'birth'
-       LEFT JOIN events death ON death.person_id = mpr.person_id AND death.event_type = 'death'
        LEFT JOIN person_media pm ON pm.person_id = mpr.person_id AND pm.is_primary = 1
-       LEFT JOIN media_items photo ON photo.id = pm.media_id
        WHERE mpr.id = ?`
     ).get(regionId) as MediaPersonRegionRow | undefined;
   }

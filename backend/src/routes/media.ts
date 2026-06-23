@@ -15,8 +15,8 @@ function paramStr(val: string | string[]): string {
 }
 
 function finiteCoord(value: unknown): number | undefined {
-  const numeric = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(numeric) ? numeric : undefined;
+  if (typeof value !== 'number') return undefined;
+  return Number.isFinite(value) ? value : undefined;
 }
 
 function parseRegionBody(body: Record<string, unknown>, partial = false): {
@@ -292,6 +292,20 @@ mediaRouter.put(
       const body = parseRegionBody(req.body as Record<string, unknown>, true);
       if (body.error) {
         res.status(400).json({ error: body.error });
+        return;
+      }
+
+      // Merge incoming partial values with persisted values before cross-field validation.
+      const mergedX = body.x ?? existing.x;
+      const mergedY = body.y ?? existing.y;
+      const mergedW = body.width ?? existing.width;
+      const mergedH = body.height ?? existing.height;
+      if (mergedX + mergedW > 1) {
+        res.status(400).json({ error: 'x + width must be no more than 1' });
+        return;
+      }
+      if (mergedY + mergedH > 1) {
+        res.status(400).json({ error: 'y + height must be no more than 1' });
         return;
       }
 

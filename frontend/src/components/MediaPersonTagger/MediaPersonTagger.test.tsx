@@ -90,9 +90,9 @@ describe('MediaPersonTagger', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Tag for Ruth Apex' }));
 
     const handle = screen.getByRole('button', { name: 'Resize tag Ruth Apex' });
-    fireEvent.mouseDown(handle, { clientX: 30, clientY: 30 });
-    fireEvent.mouseMove(handle, { clientX: 45, clientY: 50 });
-    fireEvent.mouseUp(handle, { clientX: 45, clientY: 50 });
+    fireEvent.pointerDown(handle, { clientX: 30, clientY: 30, pointerId: 1 });
+    fireEvent.pointerMove(handle, { clientX: 45, clientY: 50, pointerId: 1 });
+    fireEvent.pointerUp(handle, { clientX: 45, clientY: 50, pointerId: 1 });
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Tag for Ruth Apex' })).toHaveStyle({
       width: '35%',

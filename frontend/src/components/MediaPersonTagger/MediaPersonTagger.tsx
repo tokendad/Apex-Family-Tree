@@ -160,17 +160,23 @@ export default function MediaPersonTagger({
   const loadRegions = useCallback(async () => {
     setLoading(true);
     setError('');
+    const controller = new AbortController();
     try {
-      const res = await fetch(`/api/v1/media/${mediaId}/regions`, { credentials: 'include' });
+      const res = await fetch(`/api/v1/media/${mediaId}/regions`, {
+        credentials: 'include',
+        signal: controller.signal,
+      });
       if (!res.ok) throw new Error(`Failed to load tags (${res.status})`);
       const data = (await res.json()) as MediaRegionResponse;
       setRegions(data.regions ?? []);
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : 'Failed to load tags');
       setRegions([]);
     } finally {
       setLoading(false);
     }
+    return () => controller.abort();
   }, [mediaId]);
 
   useEffect(() => {
@@ -572,26 +578,6 @@ export default function MediaPersonTagger({
                     finishMoveOrResize();
                   }}
                   onPointerCancel={finishMoveOrResize}
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    const position = pointerPosition(e.clientX, e.clientY);
-                    if (!position) return;
-                    resizingRegionRef.current = {
-                      id: region.id,
-                      start: position,
-                      original: regionRect(region),
-                    };
-                  }}
-                  onMouseMove={(e) => {
-                    if (resizingRegionRef.current?.id !== region.id) return;
-                    e.stopPropagation();
-                    resizeRegion(e.clientX, e.clientY);
-                  }}
-                  onMouseUp={(e) => {
-                    if (resizingRegionRef.current?.id !== region.id) return;
-                    e.stopPropagation();
-                    finishMoveOrResize();
-                  }}
                 />
               )}
             </div>
