@@ -1,4 +1,3 @@
-import React from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useModalStore } from './modalStore';
@@ -8,7 +7,7 @@ const FakeEditor = ({
   onClose,
 }: {
   modalId: string;
-  onClose: (r: { action: string }) => void;
+  onClose: (result: { action: 'cancelled' }) => void;
 }) => (
   <div role="dialog" aria-label="Fake Editor">
     <button onClick={() => onClose({ action: 'cancelled' })}>Cancel</button>

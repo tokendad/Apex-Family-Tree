@@ -5,6 +5,7 @@ import { ProtectedRoute } from './components/ProtectedRoute.js';
 import { AdminRoute } from './components/AdminRoute.js';
 import ErrorBoundary from './components/ErrorBoundary/ErrorBoundary';
 import OfflineBanner from './components/OfflineBanner/OfflineBanner';
+import ModalHost from './components/modals/ModalHost';
 
 // Lazy-loaded page components
 const TreePage = React.lazy(() => import('./pages/TreePage'));
@@ -55,6 +56,7 @@ function App() {
     <ErrorBoundary>
       <BrowserRouter>
         <AuthProvider>
+          <ModalHost />
           <OfflineBanner />
           <Suspense fallback={<LoadingFallback />}>
             <Routes>
