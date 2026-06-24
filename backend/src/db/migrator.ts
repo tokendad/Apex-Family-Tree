@@ -23,9 +23,9 @@ export function runMigrations(db: Database.Database, migrationsDir: string, logg
     )
   `);
 
-  // Read all .sql files sorted by name
+  // Read all .sql files sorted by name; skip rollback files (named *-down.sql)
   const files = fs.readdirSync(migrationsDir)
-    .filter(f => f.endsWith('.sql'))
+    .filter(f => f.endsWith('.sql') && !f.endsWith('-down.sql'))
     .sort();
 
   if (files.length === 0) {
