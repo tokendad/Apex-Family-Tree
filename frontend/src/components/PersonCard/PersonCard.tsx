@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCanvasStore } from '@/stores/canvasStore';
 import type { TreeNode } from '@/stores/canvasStore';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
@@ -47,6 +48,7 @@ function sexColor(sex: string): string {
 }
 
 const PersonCard: React.FC<PersonCardProps> = ({ node, isHome = false }) => {
+  const navigate = useNavigate();
   const { person, x, y } = node;
   const {
     selectedPersonId,
@@ -81,6 +83,14 @@ const PersonCard: React.FC<PersonCardProps> = ({ node, isHome = false }) => {
     [person.id, setContextMenu],
   );
 
+  const handleDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      navigate(`/people/${person.id}`);
+    },
+    [navigate, person.id],
+  );
+
   const cls = [
     styles.card,
     sexClass(person.sex),
@@ -103,7 +113,7 @@ const PersonCard: React.FC<PersonCardProps> = ({ node, isHome = false }) => {
         tabIndex={0}
         aria-label={ariaLabel}
         onClick={handleClick}
-        onDoubleClick={(e) => e.stopPropagation()}
+        onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
         onMouseEnter={() => setHoveredPerson(person.id)}
         onMouseLeave={() => setHoveredPerson(null)}

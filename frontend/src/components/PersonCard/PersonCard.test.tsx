@@ -1,8 +1,15 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import PersonCard from './PersonCard';
 import type { TreeNode } from '@/stores/canvasStore';
 import { CARD_WIDTH, CARD_HEIGHT } from '@/constants/card';
+
+// Mock react-router-dom
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', () => ({
+  useNavigate: () => mockNavigate,
+}));
 
 // Mock canvasStore
 vi.mock('@/stores/canvasStore', () => ({
@@ -267,5 +274,34 @@ describe('PersonCard basics', () => {
   it('exported constants match expected values', () => {
     expect(CARD_WIDTH).toBe(220);
     expect(CARD_HEIGHT).toBe(80);
+  });
+});
+
+// ─── Double-click navigation ──────────────────────────────────────────────────
+
+describe('Double-click navigation', () => {
+  it('double-click navigates to person detail page', async () => {
+    const user = userEvent.setup();
+    render(<PersonCard node={makeNode({ id: 'p42' })} />);
+    const btn = screen.getByRole('button');
+
+    await user.dblClick(btn);
+
+    expect(mockNavigate).toHaveBeenCalledWith('/people/p42');
+  });
+
+  it('double-click still calls stopPropagation', async () => {
+    const node = makeNode({ id: 'p99' });
+    render(<PersonCard node={node} />);
+    const btn = screen.getByRole('button');
+
+    const stopPropagationSpy = vi.fn();
+    const event = new MouseEvent('dblclick', { bubbles: true });
+    Object.defineProperty(event, 'stopPropagation', { value: stopPropagationSpy });
+
+    btn.dispatchEvent(event);
+
+    // Verify navigation was called
+    expect(mockNavigate).toHaveBeenCalledWith('/people/p99');
   });
 });
