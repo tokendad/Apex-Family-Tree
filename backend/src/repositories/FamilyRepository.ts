@@ -1,7 +1,13 @@
 import { BaseRepository } from './base.js';
-import type { Family, FamilyMember, FamilyWithSpouseNames, SpouseNameSummary } from '../types/db.js';
+import type { Family, FamilyMember, FamilyWithSpouseNames, Name, SpouseNameSummary } from '../types/db.js';
+import { formatName } from '../utils/nameFormatter.js';
 
 export class FamilyRepository extends BaseRepository {
+  private getNameDisplayFormat(): string {
+    const row = this.db.prepare('SELECT value FROM app_settings WHERE key = ?').get('name_display_format') as { value: string | null } | undefined;
+    return row?.value || '%f %m %s';
+  }
+
   findById(id: string): Family | undefined {
     return this.db.prepare('SELECT * FROM families WHERE id = ?').get(id) as Family | undefined;
   }
@@ -106,15 +112,32 @@ export class FamilyRepository extends BaseRepository {
       if (!spouseId) return null;
       const row = (
         this.db.prepare(
-          'SELECT given_name, surname FROM names WHERE person_id = ? AND is_primary = 1 LIMIT 1'
+          `SELECT n.*, p.display_name
+           FROM names n
+           JOIN persons p ON p.id = n.person_id
+           WHERE n.person_id = ? AND n.is_primary = 1
+           LIMIT 1`
         ).get(spouseId) ??
         this.db.prepare(
-          'SELECT given_name, surname FROM names WHERE person_id = ? ORDER BY sort_order ASC LIMIT 1'
+          `SELECT n.*, p.display_name
+           FROM names n
+           JOIN persons p ON p.id = n.person_id
+           WHERE n.person_id = ?
+           ORDER BY n.sort_order ASC
+           LIMIT 1`
         ).get(spouseId)
-      ) as { given_name: string | null; surname: string | null } | undefined;
+      ) as (Name & { display_name: string | null }) | undefined;
+
+      const displayName = row
+        ? formatName({ personDisplayName: row.display_name, primaryName: row, names: [row], formatString: this.getNameDisplayFormat() })
+        : '';
+
       return {
         id: spouseId,
+        displayName,
+        display_name: row?.display_name ?? null,
         given_name: row?.given_name ?? null,
+        middle_name: row?.middle_name ?? null,
         surname: row?.surname ?? null,
       };
     };

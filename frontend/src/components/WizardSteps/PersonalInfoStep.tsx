@@ -79,6 +79,7 @@ const PersonalInfoStep: React.FC<PersonalInfoStepProps> = ({ data, onChange }) =
           <Input
             placeholder="Dr., Rev."
             value={data.prefix}
+            maxLength={50}
             onChange={(e) => onChange('prefix', e.target.value)}
           />
         </FormGroup>
@@ -87,6 +88,7 @@ const PersonalInfoStep: React.FC<PersonalInfoStepProps> = ({ data, onChange }) =
           <Input
             placeholder="Given name"
             value={data.givenName}
+            maxLength={100}
             onChange={(e) => onChange('givenName', e.target.value)}
           />
         </FormGroup>
@@ -94,11 +96,33 @@ const PersonalInfoStep: React.FC<PersonalInfoStepProps> = ({ data, onChange }) =
 
       <FormRow>
         <FormGroup>
+          <Label>Middle Name</Label>
+          <Input
+            placeholder="Middle name"
+            value={data.middleName}
+            maxLength={100}
+            onChange={(e) => onChange('middleName', e.target.value)}
+          />
+        </FormGroup>
+        <FormGroup>
           <Label required>Surname</Label>
           <Input
             placeholder="Surname"
             value={data.surname}
+            maxLength={100}
             onChange={(e) => onChange('surname', e.target.value)}
+          />
+        </FormGroup>
+      </FormRow>
+
+      <FormRow>
+        <FormGroup>
+          <Label>Nickname</Label>
+          <Input
+            placeholder="Nickname"
+            value={data.nickname}
+            maxLength={100}
+            onChange={(e) => onChange('nickname', e.target.value)}
           />
         </FormGroup>
         <FormGroup>
@@ -106,6 +130,7 @@ const PersonalInfoStep: React.FC<PersonalInfoStepProps> = ({ data, onChange }) =
           <Input
             placeholder="Jr., III"
             value={data.suffix}
+            maxLength={50}
             onChange={(e) => onChange('suffix', e.target.value)}
           />
         </FormGroup>
@@ -124,6 +149,18 @@ const PersonalInfoStep: React.FC<PersonalInfoStepProps> = ({ data, onChange }) =
             <option value="nickname">Nickname</option>
           </Select>
         </FormGroup>
+        <FormGroup>
+          <Label>Display Name Override</Label>
+          <Input
+            placeholder="Leave blank to use global format"
+            value={data.displayName}
+            maxLength={200}
+            onChange={(e) => onChange('displayName', e.target.value)}
+          />
+        </FormGroup>
+      </FormRow>
+
+      <FormRow>
         <FormGroup>
           <Label>Sex</Label>
           <Select

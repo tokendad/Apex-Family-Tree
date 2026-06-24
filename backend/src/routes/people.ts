@@ -116,13 +116,14 @@ peopleRouter.post(
   (req, res) => {
     try {
       const repo = new PersonRepository();
-      const { sex, is_living, is_private, notes, names } = req.body;
+      const { sex, is_living, is_private, notes, display_name, names } = req.body;
 
       const person = repo.create({
         sex: sex || 'U',
         is_living: is_living ?? 1,
         is_private: is_private ?? 0,
         notes,
+        display_name,
         created_by: req.user!.userId,
       });
 
@@ -133,8 +134,10 @@ peopleRouter.post(
             name_type: nameData.name_type,
             prefix: nameData.prefix,
             given_name: nameData.given_name,
+            middle_name: nameData.middle_name,
             surname: nameData.surname,
             suffix: nameData.suffix,
+            nickname: nameData.nickname,
             is_primary: nameData.is_primary,
           });
           addedNames.push(name);
@@ -179,10 +182,10 @@ peopleRouter.put(
   (req, res) => {
     try {
       const repo = new PersonRepository();
-      const { sex, is_living, is_private, notes } = req.body;
+      const { sex, is_living, is_private, notes, display_name } = req.body;
       const id = paramStr(req.params.id);
 
-      const person = repo.update(id, { sex, is_living, is_private, notes });
+      const person = repo.update(id, { sex, is_living, is_private, notes, display_name });
       if (!person) {
         res.status(404).json({ error: 'Person not found' });
         return;
@@ -300,8 +303,8 @@ peopleRouter.post(
         return;
       }
 
-      const { name_type, given_name, surname, prefix, suffix, is_primary } = req.body;
-      const name = repo.addName(personId, { name_type, given_name, surname, prefix, suffix, is_primary });
+      const { name_type, given_name, middle_name, surname, prefix, suffix, nickname, is_primary } = req.body;
+      const name = repo.addName(personId, { name_type, given_name, middle_name, surname, prefix, suffix, nickname, is_primary });
       res.status(201).json(name);
     } catch (error) {
       res.status(500).json({ error: 'Failed to add name' });
@@ -331,8 +334,8 @@ peopleRouter.put(
         return;
       }
 
-      const { name_type, given_name, surname, prefix, suffix, is_primary } = req.body;
-      const updated = repo.updateName(nameId, { name_type, given_name, surname, prefix, suffix, is_primary });
+      const { name_type, given_name, middle_name, surname, prefix, suffix, nickname, is_primary } = req.body;
+      const updated = repo.updateName(nameId, { name_type, given_name, middle_name, surname, prefix, suffix, nickname, is_primary });
       res.json(updated);
     } catch (error) {
       res.status(500).json({ error: 'Failed to update name' });

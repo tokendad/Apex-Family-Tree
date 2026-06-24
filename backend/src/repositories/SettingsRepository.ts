@@ -1,5 +1,6 @@
 import { BaseRepository } from './base.js';
 import type { AppSetting, FeatureFlag } from '../types/db.js';
+import { validateGlobalFormatString } from '../utils/nameFormatter.js';
 
 export class SettingsRepository extends BaseRepository {
   // ─── App Settings ─────────────────────────────────────────────────────────
@@ -58,6 +59,27 @@ export class SettingsRepository extends BaseRepository {
 
   deleteSetting(key: string): boolean {
     return this.db.prepare('DELETE FROM app_settings WHERE key = ?').run(key).changes > 0;
+  }
+
+  /**
+   * Set the global name display format with validation.
+   * Rejects format strings containing %D token to prevent infinite recursion.
+   * 
+   * @throws Error if format string is invalid
+   */
+  setNameDisplayFormat(formatString: string): void {
+    const error = validateGlobalFormatString(formatString);
+    if (error) {
+      throw new Error(error);
+    }
+    this.setSetting('name_display_format', formatString, 'string', 'Global name display format');
+  }
+
+  /**
+   * Get the global name display format (defaults to '%f %m %s' if not set)
+   */
+  getNameDisplayFormat(): string {
+    return this.getSettingValue('name_display_format') || '%f %m %s';
   }
 
   // ─── Feature Flags ────────────────────────────────────────────────────────

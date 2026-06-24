@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import Select from '@/components/Form/Select';
+import { getPersonDisplayName } from '@/utils/entityDisplay';
 import styles from './PersonEditModal.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -17,8 +18,10 @@ interface PersonName {
   name_type: NameType;
   prefix: string | null;
   given_name: string | null;
+  middle_name: string | null;
   surname: string | null;
   suffix: string | null;
+  nickname: string | null;
   is_primary: 0 | 1;
 }
 
@@ -36,6 +39,8 @@ interface PersonDetail {
   is_living: 0 | 1;
   is_private: 0 | 1;
   notes: string | null;
+  displayName?: string | null;
+  display_name: string | null;
   created_at: string;
   names: PersonName[];
   events: PersonEvent[];
@@ -43,14 +48,20 @@ interface PersonDetail {
 
 interface PersonSummary {
   id: string;
+  displayName?: string | null;
+  display_name?: string | null;
   given_name: string | null;
+  middle_name?: string | null;
   surname: string | null;
 }
 
 interface ChildMember {
   id: string;
   person_id: string;
+  displayName?: string | null;
+  display_name?: string | null;
   given_name: string | null;
+  middle_name?: string | null;
   surname: string | null;
   role: ChildRole;
 }
@@ -129,14 +140,14 @@ const EVENT_EARLY_ORDER: Record<string, number> = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function personName(p: { given_name: string | null; surname: string | null } | null): string {
+function personName(p: { displayName?: string | null; display_name?: string | null; given_name: string | null; middle_name?: string | null; surname: string | null } | null): string {
   if (!p) return 'Unknown';
-  const parts = [p.given_name, p.surname].filter(Boolean);
-  return parts.length > 0 ? parts.join(' ') : 'Unknown';
+  return getPersonDisplayName(p);
 }
 
 function fullName(name: PersonName): string {
-  const parts = [name.prefix, name.given_name, name.surname, name.suffix].filter(Boolean);
+  const nickname = name.nickname ? `"${name.nickname}"` : null;
+  const parts = [name.prefix, name.given_name, name.middle_name, nickname, name.surname, name.suffix].filter(Boolean);
   return parts.length > 0 ? parts.join(' ') : 'Unknown';
 }
 

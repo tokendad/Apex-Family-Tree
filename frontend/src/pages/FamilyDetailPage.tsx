@@ -8,11 +8,15 @@ import Input from '@/components/Form/Input';
 import { usePermissions } from '@/hooks/usePermissions';
 import PersonPicker from '@/components/entity-pickers/PersonPicker';
 import type { PersonResult } from '@/components/PersonSearch/PersonSearch';
+import { getPersonDisplayName } from '@/utils/entityDisplay';
 import styles from './FamilyDetailPage.module.css';
 
 interface PersonSummary {
   id: string;
+  displayName?: string | null;
+  display_name?: string | null;
   given_name: string | null;
+  middle_name?: string | null;
   surname: string | null;
 }
 
@@ -20,7 +24,10 @@ interface ChildMember {
   id: string;
   person_id: string;
   role: 'child' | 'adopted' | 'foster' | 'step';
+  displayName?: string | null;
+  display_name?: string | null;
   given_name: string | null;
+  middle_name?: string | null;
   surname: string | null;
 }
 
@@ -44,7 +51,7 @@ interface EditForm {
   divorce_place: string;
 }
 
-type PersonLike = { given_name: string | null; surname: string | null };
+type PersonLike = { displayName?: string | null; display_name?: string | null; given_name: string | null; middle_name?: string | null; surname: string | null };
 
 const ROLE_LABELS: Record<ChildMember['role'], string> = {
   child: 'Biological',
@@ -62,8 +69,7 @@ const ROLE_CSS: Record<ChildMember['role'], string> = {
 
 function personName(p: PersonLike | null): string {
   if (!p) return 'Unknown';
-  const parts = [p.given_name, p.surname].filter(Boolean);
-  return parts.length > 0 ? parts.join(' ') : 'Unknown';
+  return getPersonDisplayName(p);
 }
 
 function familyHeading(family: FamilyDetail): string {

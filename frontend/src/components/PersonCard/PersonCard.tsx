@@ -1,16 +1,12 @@
 import React, { useCallback } from 'react';
 import { useCanvasStore } from '@/stores/canvasStore';
 import type { TreeNode } from '@/stores/canvasStore';
+import { getPersonDisplayName } from '@/utils/entityDisplay';
 import styles from './PersonCard.module.css';
 
 interface PersonCardProps {
   node: TreeNode;
   isHome?: boolean;
-}
-
-function formatName(given: string | null, surname: string | null): string {
-  const parts = [given, surname].filter(Boolean);
-  return parts.length > 0 ? parts.join(' ') : 'Unknown';
 }
 
 function formatDates(birth: string | null, death: string | null, isLiving: boolean): string {
@@ -62,7 +58,7 @@ const PersonCard: React.FC<PersonCardProps> = ({ node, isHome = false }) => {
   const highlightedIds = useCanvasStore((s) => s.highlightedPersonIds);
   const isHighlighted = highlightedIds.size > 0 && highlightedIds.has(person.id);
   const isDimmed = highlightedIds.size > 0 && !highlightedIds.has(person.id);
-  const name = formatName(person.given_name, person.surname);
+  const name = getPersonDisplayName(person);
   const initials = getInitials(person.given_name, person.surname);
 
   const handleClick = useCallback(

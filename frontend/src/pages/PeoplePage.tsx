@@ -9,11 +9,15 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { useSearchStore, hasActiveFilters, filtersToParams } from '@/stores/searchStore';
 import { useModal } from '@/components/modals/useModal';
 import type { PersonSummary } from '@/types/genealogy';
+import { getPersonDisplayName } from '@/utils/entityDisplay';
 import styles from './PeoplePage.module.css';
 
 interface PersonListItem {
   id: string;
+  displayName?: string | null;
+  display_name?: string | null;
   given_name: string | null;
+  middle_name?: string | null;
   surname: string | null;
   birth_date: string | null;
   death_date: string | null;
@@ -21,11 +25,6 @@ interface PersonListItem {
 }
 
 type FilterValue = '' | 'unconnected';
-
-function displayName(p: PersonListItem): string {
-  const parts = [p.given_name, p.surname].filter(Boolean);
-  return parts.length > 0 ? parts.join(' ') : 'Unknown';
-}
 
 function displayDates(p: PersonListItem): string {
   const parts: string[] = [];
@@ -207,12 +206,12 @@ const PeoplePage: React.FC = () => {
                 }}
               >
                 <Avatar
-                  name={displayName(person)}
+                  name={getPersonDisplayName(person)}
                   src={person.photo_url ?? undefined}
                   size="sm"
                 />
                 <div className={styles.cardInfo}>
-                  <div className={styles.cardName}>{displayName(person)}</div>
+                  <div className={styles.cardName}>{getPersonDisplayName(person)}</div>
                   <div className={styles.cardDates}>{displayDates(person)}</div>
                 </div>
               </div>

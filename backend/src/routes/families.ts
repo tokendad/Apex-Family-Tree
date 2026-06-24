@@ -14,7 +14,10 @@ function toSpouseSummary(person: ReturnType<PersonRepository['findById']> | null
   if (!person) return null;
   return {
     id: person.id,
+    displayName: person.displayName ?? null,
+    display_name: person.display_name ?? null,
     given_name: person.primary_name?.given_name ?? null,
+    middle_name: person.primary_name?.middle_name ?? null,
     surname: person.primary_name?.surname ?? null,
   };
 }

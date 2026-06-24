@@ -15,8 +15,10 @@ export interface MappedName {
   nameType: 'birth' | 'married' | 'aka' | 'nickname' | 'formal' | 'religious';
   prefix: string | null;
   givenName: string | null;
+  middleName: string | null;
   surname: string | null;
   suffix: string | null;
+  nickname: string | null;
   isPrimary: boolean;
 }
 
@@ -121,6 +123,19 @@ function extractEvent(record: GedcomRecord, eventType: string): MappedEvent {
   };
 }
 
+function splitGivenAndMiddle(value: string | null): { givenName: string | null; middleName: string | null } {
+  const trimmed = value?.trim();
+  if (!trimmed) return { givenName: null, middleName: null };
+
+  const firstSpace = trimmed.search(/\s/);
+  if (firstSpace === -1) return { givenName: trimmed, middleName: null };
+
+  return {
+    givenName: trimmed.slice(0, firstSpace),
+    middleName: trimmed.slice(firstSpace).trim() || null,
+  };
+}
+
 function parseName(nameRecord: GedcomRecord, index: number): MappedName {
   const rawName = nameRecord.value || '';
 
@@ -129,9 +144,11 @@ function parseName(nameRecord: GedcomRecord, index: number): MappedName {
   const surnRec = findChildByTag(nameRecord, 'SURN');
   const npfxRec = findChildByTag(nameRecord, 'NPFX');
   const nsfxRec = findChildByTag(nameRecord, 'NSFX');
+  const nickRec = findChildByTag(nameRecord, 'NICK');
   const typeRec = findChildByTag(nameRecord, 'TYPE');
 
   let givenName = givnRec?.value || null;
+  let middleName: string | null = null;
   let surname = surnRec?.value || null;
 
   // Parse from formatted name: "Given /Surname/"
@@ -145,6 +162,10 @@ function parseName(nameRecord: GedcomRecord, index: number): MappedName {
     }
   }
 
+  const splitName = splitGivenAndMiddle(givenName);
+  givenName = splitName.givenName;
+  middleName = splitName.middleName;
+
   const typeStr = typeRec?.value?.toLowerCase() || '';
   const nameType = NAME_TYPE_MAP[typeStr] || 'birth';
 
@@ -152,8 +173,10 @@ function parseName(nameRecord: GedcomRecord, index: number): MappedName {
     nameType,
     prefix: npfxRec?.value || null,
     givenName,
+    middleName,
     surname,
     suffix: nsfxRec?.value || null,
+    nickname: nickRec?.value || null,
     isPrimary: index === 0,
   };
 }
@@ -171,8 +194,10 @@ function mapIndividual(record: GedcomRecord): MappedPerson {
       nameType: 'birth',
       prefix: null,
       givenName: 'Unknown',
+      middleName: null,
       surname: null,
       suffix: null,
+      nickname: null,
       isPrimary: true,
     });
   }

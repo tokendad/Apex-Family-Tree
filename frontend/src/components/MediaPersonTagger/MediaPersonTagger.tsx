@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import PersonSearch, { type PersonResult } from '@/components/PersonSearch/PersonSearch';
+import { getPersonDisplayName } from '@/utils/entityDisplay';
 import styles from './MediaPersonTagger.module.css';
 
 interface MediaRegion {
@@ -16,7 +17,9 @@ interface MediaRegion {
   created_at: string;
   updated_at: string;
   person_given_name: string | null;
+  person_middle_name?: string | null;
   person_surname: string | null;
+  person_display_name?: string | null;
   person_birth_date: string | null;
   person_death_date: string | null;
   person_photo_url: string | null;
@@ -48,17 +51,6 @@ interface MovingRegion {
 }
 
 type ResizingRegion = MovingRegion;
-
-function personDisplayName(person: {
-  given_name?: string | null;
-  surname?: string | null;
-  person_given_name?: string | null;
-  person_surname?: string | null;
-}): string {
-  const givenName = person.given_name ?? person.person_given_name ?? null;
-  const surname = person.surname ?? person.person_surname ?? null;
-  return [givenName, surname].filter(Boolean).join(' ').trim() || 'Unknown';
-}
 
 function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
@@ -102,12 +94,16 @@ interface RegionView extends MediaRegion {
 
 function createdPersonToResult(person: {
   id: string;
+  displayName?: string | null;
+  display_name?: string | null;
   primary_name?: {
     given_name?: string | null;
+    middle_name?: string | null;
     surname?: string | null;
   } | null;
   names?: Array<{
     given_name?: string | null;
+    middle_name?: string | null;
     surname?: string | null;
     is_primary?: number;
   }>;
@@ -115,7 +111,10 @@ function createdPersonToResult(person: {
   const primaryName = person.primary_name ?? person.names?.find((name) => name.is_primary) ?? person.names?.[0];
   return {
     id: person.id,
+    displayName: person.displayName ?? null,
+    display_name: person.display_name ?? null,
     given_name: primaryName?.given_name ?? null,
+    middle_name: primaryName?.middle_name ?? null,
     surname: primaryName?.surname ?? null,
     birth_date: null,
     death_date: null,
@@ -246,7 +245,9 @@ export default function MediaPersonTagger({
     setShowCreatePerson(false);
     setSelectedPerson({
       id: region.person_id,
+      displayName: region.person_display_name ?? null,
       given_name: region.person_given_name,
+      middle_name: region.person_middle_name ?? null,
       surname: region.person_surname,
       birth_date: region.person_birth_date,
       death_date: region.person_death_date,
@@ -431,8 +432,10 @@ export default function MediaPersonTagger({
     top: `${regionRect(region).y * 100}%`,
     widthCss: `${regionRect(region).width * 100}%`,
     heightCss: `${regionRect(region).height * 100}%`,
-    displayName: personDisplayName({
+    displayName: getPersonDisplayName({
+      displayName: region.person_display_name,
       given_name: region.person_given_name,
+      middle_name: region.person_middle_name,
       surname: region.person_surname,
     }),
   }));
@@ -605,7 +608,12 @@ export default function MediaPersonTagger({
         {selectedRegion ? (
           <>
             <div className={styles.regionDetails}>
-              <div className={styles.regionHeading}>{personDisplayName(selectedRegion)}</div>
+              <div className={styles.regionHeading}>{getPersonDisplayName({
+                displayName: selectedRegion.person_display_name,
+                given_name: selectedRegion.person_given_name,
+                middle_name: selectedRegion.person_middle_name,
+                surname: selectedRegion.person_surname,
+              })}</div>
               <div className={styles.regionMeta}>Existing tag</div>
             </div>
             {canEdit && (

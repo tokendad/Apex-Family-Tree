@@ -2,7 +2,10 @@ import { create } from 'zustand';
 
 export interface TreePerson {
   id: string;
+  displayName?: string | null;
+  display_name?: string | null;
   given_name: string | null;
+  middle_name?: string | null;
   surname: string | null;
   sex: 'M' | 'F' | 'X' | 'U';
   birth_date: string | null;

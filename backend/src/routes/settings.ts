@@ -54,6 +54,9 @@ settingsRouter.put('/settings', (req, res) => {
         const encrypted = encrypt(stringValue);
         settingsRepo.setSetting(key, encrypted, 'encrypted');
         updated.push({ key, value: '••••••••' });
+      } else if (key === 'name_display_format') {
+        settingsRepo.setNameDisplayFormat(stringValue ?? '');
+        updated.push({ key, value: stringValue });
       } else {
         // Detect type from value
         let valueType: AppSetting['value_type'] = 'string';
@@ -69,6 +72,10 @@ settingsRouter.put('/settings', (req, res) => {
 
     res.json({ updated });
   } catch (error) {
+    if (error instanceof Error && (error.message.includes('Global name format') || error.message.includes('Format string'))) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     logger.error('Failed to update settings', error);
     res.status(500).json({ error: 'Failed to update settings' });
   }

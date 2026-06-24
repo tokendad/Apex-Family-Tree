@@ -25,6 +25,7 @@ function seedDB(database: Database.Database) {
       notes TEXT,
       created_by TEXT,
       gedcom_id TEXT,
+      display_name TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -34,8 +35,10 @@ function seedDB(database: Database.Database) {
       name_type TEXT DEFAULT 'birth',
       prefix TEXT,
       given_name TEXT,
+      middle_name TEXT,
       surname TEXT,
       suffix TEXT,
+      nickname TEXT,
       is_primary INTEGER NOT NULL DEFAULT 0,
       sort_order INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -98,6 +101,10 @@ function seedDB(database: Database.Database) {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       PRIMARY KEY (person_id, media_id)
     );
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
   `);
 
   // FTS5 table for full-text search (content-storing, matching migration 033)
@@ -157,6 +164,10 @@ function seedDB(database: Database.Database) {
       DELETE FROM persons_fts WHERE person_id = OLD.id;
     END;
   `);
+  
+  // Insert default name display format setting
+  database.prepare('INSERT INTO app_settings (key, value) VALUES (?, ?)').run('name_display_format', '%f %m %s');
+  
   const ins = database.prepare('INSERT INTO persons (id, sex, is_living) VALUES (?, ?, ?)');
   ins.run('p1', 'M', 1);  // John Smith, living male
   ins.run('p2', 'F', 0);  // Jane Doe, deceased female

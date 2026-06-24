@@ -83,6 +83,45 @@ function groupByGeneration(genMap: Map<string, number>): Map<number, string[]> {
   return groups;
 }
 
+function resolveGenerationCollisions(
+  nodePositions: Map<string, { x: number; y: number; generation: number }>,
+): void {
+  const rows = new Map<number, Array<{ id: string; position: { x: number; y: number; generation: number } }>>();
+  const minSpacing = CARD_WIDTH + H_GAP;
+
+  for (const [id, position] of nodePositions) {
+    rows.set(position.generation, [...(rows.get(position.generation) ?? []), { id, position }]);
+  }
+
+  for (const row of rows.values()) {
+    if (row.length < 2) continue;
+
+    const sorted = row.sort((a, b) => a.position.x - b.position.x || a.id.localeCompare(b.id));
+    const originalMinX = sorted[0].position.x;
+    const originalMaxX = sorted[sorted.length - 1].position.x + CARD_WIDTH;
+    const originalCenterX = (originalMinX + originalMaxX) / 2;
+
+    for (let i = 1; i < sorted.length; i++) {
+      const previous = sorted[i - 1].position;
+      const current = sorted[i].position;
+      const minX = previous.x + minSpacing;
+
+      if (current.x < minX) {
+        current.x = minX;
+      }
+    }
+
+    const resolvedMinX = sorted[0].position.x;
+    const resolvedMaxX = sorted[sorted.length - 1].position.x + CARD_WIDTH;
+    const resolvedCenterX = (resolvedMinX + resolvedMaxX) / 2;
+    const shiftX = originalCenterX - resolvedCenterX;
+
+    for (const { position } of sorted) {
+      position.x += shiftX;
+    }
+  }
+}
+
 /**
  * Produces positioned nodes and connector lines from raw tree data.
  */
@@ -167,6 +206,8 @@ export function layoutTree(input: LayoutInput): LayoutOutput {
       }
     }
   }
+
+  resolveGenerationCollisions(nodePositions);
 
   // Build nodes array
   const nodes: TreeNode[] = [];

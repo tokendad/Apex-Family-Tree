@@ -40,7 +40,7 @@ describe('PersonEditor', () => {
   it('submits form and calls onClose with created result', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
-      json: async () => ({ id: 'p2', sex: 'M', names: [{ given_name: 'John', surname: 'Smith', is_primary: 1 }] }),
+      json: async () => ({ id: 'p2', sex: 'M', displayName: 'John Smith', names: [{ given_name: 'John', middle_name: null, surname: 'Smith', is_primary: 1 }] }),
     } as Response);
 
     const onClose = vi.fn();
@@ -57,7 +57,9 @@ describe('PersonEditor', () => {
           entityType: 'person',
           entity: expect.objectContaining({
             id: 'p2',
+            displayName: 'John Smith',
             given_name: 'John',
+            middle_name: null,
             surname: 'Smith',
           }),
         })
@@ -74,11 +76,16 @@ describe('PersonEditor', () => {
           sex: 'U',
           is_living: 1,
           is_private: 0,
+          display_name: null,
           names: [
             {
               name_type: 'birth',
+              prefix: null,
               given_name: 'John',
+              middle_name: null,
               surname: 'Smith',
+              suffix: null,
+              nickname: null,
               is_primary: 1,
             },
           ],

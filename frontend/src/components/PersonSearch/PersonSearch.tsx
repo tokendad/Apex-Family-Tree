@@ -6,7 +6,10 @@ import styles from './PersonSearch.module.css';
 
 export interface PersonResult {
   id: string;
+  displayName?: string | null;
+  display_name?: string | null;
   given_name: string | null;
+  middle_name?: string | null;
   surname: string | null;
   birth_date: string | null;
   death_date: string | null;

@@ -10,6 +10,20 @@ function formatSex551(sex: string): string {
   return 'U';
 }
 
+function getGivenNames(name: Name): string | null {
+  return [name.given_name, name.middle_name].filter(Boolean).join(' ') || null;
+}
+
+function formatGedcomName(name: Name): string {
+  const parts: string[] = [];
+  if (name.prefix) parts.push(name.prefix);
+  const givenNames = getGivenNames(name);
+  if (givenNames) parts.push(givenNames);
+  parts.push(name.surname ? `/${name.surname}/` : '//');
+  if (name.suffix) parts.push(name.suffix);
+  return parts.join(' ');
+}
+
 // ─── Person IDs in scope ────────────────────────────────────────────────────
 
 export interface ExportScope {
@@ -167,16 +181,13 @@ export function generateGedcom551(data: ExportData): string {
     lines.push(`0 ${xref} INDI`);
 
     for (const name of person.names) {
-      const parts: string[] = [];
-      if (name.given_name) parts.push(name.given_name);
-      if (name.surname) parts.push(`/${name.surname}/`);
-      else parts.push('//');
-      const nameStr = parts.join(' ');
-      lines.push(`1 NAME ${nameStr}`);
-      if (name.given_name) lines.push(`2 GIVN ${name.given_name}`);
+      const givenNames = getGivenNames(name);
+      lines.push(`1 NAME ${formatGedcomName(name)}`);
+      if (givenNames) lines.push(`2 GIVN ${givenNames}`);
       if (name.surname) lines.push(`2 SURN ${name.surname}`);
       if (name.prefix) lines.push(`2 NPFX ${name.prefix}`);
       if (name.suffix) lines.push(`2 NSFX ${name.suffix}`);
+      if (name.nickname) lines.push(`2 NICK ${name.nickname}`);
     }
 
     lines.push(`1 SEX ${formatSex551(person.sex)}`);

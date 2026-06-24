@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS persons (
   gedcom_id TEXT,
   notes TEXT,
   created_by TEXT,
+  display_name TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -28,8 +29,10 @@ CREATE TABLE IF NOT EXISTS names (
   name_type TEXT NOT NULL DEFAULT 'birth' CHECK (name_type IN ('birth', 'married', 'aka', 'nickname', 'formal', 'religious')),
   prefix TEXT,
   given_name TEXT,
+  middle_name TEXT,
   surname TEXT,
   suffix TEXT,
+  nickname TEXT,
   is_primary INTEGER NOT NULL DEFAULT 0,
   sort_order INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -164,6 +167,11 @@ CREATE TABLE IF NOT EXISTS import_merge_decisions (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (import_job_id, xref)
 );
+
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
 `;
 
 // Seed Margaret Smith with birth 1842 and death 1911 events
@@ -244,6 +252,7 @@ const GED_WITH_SOURCE = (title: string, author: string) => `0 HEAD
 beforeEach(() => {
   db = new Database(':memory:');
   db.exec(SCHEMA);
+  db.prepare('INSERT INTO app_settings (key, value) VALUES (?, ?)').run('name_display_format', '%f %m %s');
   seedMargaret(db);
 });
 
@@ -380,6 +389,7 @@ describe('gap-fill blank fields on merge', () => {
   beforeEach(() => {
     gapDb = new Database(':memory:');
     gapDb.exec(SCHEMA);
+    gapDb.prepare('INSERT INTO app_settings (key, value) VALUES (?, ?)').run('name_display_format', '%f %m %s');
     // Point the module-level mock to gapDb for these tests
     db = gapDb;
   });
@@ -389,6 +399,7 @@ describe('gap-fill blank fields on merge', () => {
     // Restore db to a fresh instance so the outer afterEach doesn't crash
     db = new Database(':memory:');
     db.exec(SCHEMA);
+    db.prepare('INSERT INTO app_settings (key, value) VALUES (?, ?)').run('name_display_format', '%f %m %s');
     seedMargaret(db);
   });
 

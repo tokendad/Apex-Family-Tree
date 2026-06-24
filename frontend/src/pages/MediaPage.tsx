@@ -471,7 +471,7 @@ const MediaPage: React.FC = () => {
         setPersonOptions(
           items.map((p: Record<string, unknown>) => ({
             id: p.id as string,
-            label: `${(p as Record<string, unknown>).given_name ?? ''} ${(p as Record<string, unknown>).surname ?? ''}`.trim() || (p.id as string),
+            label: ((p.displayName as string | undefined) ?? `${p.given_name ?? ''} ${p.surname ?? ''}`.trim()) || (p.id as string),
           })),
         );
       }

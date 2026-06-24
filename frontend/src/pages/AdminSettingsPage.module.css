@@ -74,7 +74,54 @@
 .saveRow {
   display: flex;
   justify-content: flex-end;
+  gap: var(--space-2);
   padding-top: var(--space-2);
+}
+
+.previewBox {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+}
+
+.previewLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.previewValue {
+  font-size: var(--font-size-base);
+  color: var(--color-text-primary);
+}
+
+.tokenDetails {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.tokenDetails summary {
+  cursor: pointer;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.tokenGrid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-3);
+}
+
+.tokenGrid code {
+  color: var(--color-primary-700);
+  font-weight: var(--font-weight-semibold);
 }
 
 /* Feature flags */

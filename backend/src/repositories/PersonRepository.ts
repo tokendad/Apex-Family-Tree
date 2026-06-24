@@ -1,5 +1,6 @@
 import { BaseRepository } from './base.js';
 import { soundex } from '../utils/soundex.js';
+import { formatName, normalizeToNull, sanitizeDisplayName, sanitizeNameField } from '../utils/nameFormatter.js';
 import type { Person, Name, Family, PersonWithNames } from '../types/db.js';
 import type { MatchPersonInput } from '../services/gedcom/matcher.js';
 
@@ -17,6 +18,31 @@ function buildFtsQuery(input: string): string | null {
 }
 
 export class PersonRepository extends BaseRepository {
+  /**
+   * Get the global name display format from settings (cached per repository instance).
+   * Defaults to '%f %m %s' if not set.
+   */
+  private getNameDisplayFormat(): string {
+    // Note: In a real app, you might cache this or inject SettingsRepository.
+    // For simplicity, we'll fetch it directly each time. Consider optimization later.
+    const row = this.db.prepare('SELECT value FROM app_settings WHERE key = ?').get('name_display_format') as { value: string | null } | undefined;
+    return row?.value || '%f %m %s';
+  }
+
+  /**
+   * Enrich a PersonWithNames object with the formatted displayName.
+   */
+  private addDisplayName(person: PersonWithNames): PersonWithNames {
+    const formatString = this.getNameDisplayFormat();
+    const displayName = formatName({
+      personDisplayName: person.display_name,
+      primaryName: person.primary_name,
+      names: person.names,
+      formatString,
+    });
+    return { ...person, displayName };
+  }
+
   findById(id: string): PersonWithNames | undefined {
     const person = this.db.prepare('SELECT * FROM persons WHERE id = ?').get(id) as Person | undefined;
     if (!person) return undefined;
@@ -24,7 +50,9 @@ export class PersonRepository extends BaseRepository {
     const names = this.db.prepare(
       'SELECT * FROM names WHERE person_id = ? ORDER BY is_primary DESC, sort_order ASC'
     ).all(id) as Name[];
-    return { ...person, names, primary_name: names.find(n => n.is_primary) || names[0] };
+    
+    const personWithNames = { ...person, names, primary_name: names.find(n => n.is_primary) || names[0] };
+    return this.addDisplayName(personWithNames);
   }
 
   findAll(options?: {
@@ -368,7 +396,7 @@ export class PersonRepository extends BaseRepository {
         'SELECT * FROM names WHERE person_id = ? ORDER BY is_primary DESC, sort_order ASC'
       ).all(person.id) as Name[];
       const primaryName = names.find(n => n.is_primary) || names[0];
-      return {
+      const personWithNames: PersonWithNames = {
         ...person,
         names,
         primary_name: primaryName,
@@ -376,6 +404,7 @@ export class PersonRepository extends BaseRepository {
         given_name: primaryName?.given_name ?? null,
         surname: primaryName?.surname ?? null,
       };
+      return this.addDisplayName(personWithNames);
     });
 
     return { data, next_cursor: hasMore ? rows[rows.length - 1]?.id ?? null : null, total_count: totalCount };
@@ -494,25 +523,37 @@ export class PersonRepository extends BaseRepository {
     is_living?: number;
     is_private?: number;
     notes?: string;
+    display_name?: string | null;
     created_by?: string;
     gedcom_id?: string;
   }): Person {
     const id = this.generateId();
     const now = this.now();
     this.db.prepare(
-      'INSERT INTO persons (id, sex, is_living, is_private, notes, created_by, gedcom_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(id, data.sex || 'U', data.is_living ?? 1, data.is_private ?? 0, data.notes || null, data.created_by || null, data.gedcom_id || null, now, now);
+      'INSERT INTO persons (id, sex, is_living, is_private, notes, display_name, created_by, gedcom_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(
+      id,
+      data.sex || 'U',
+      data.is_living ?? 1,
+      data.is_private ?? 0,
+      normalizeToNull(data.notes),
+      sanitizeDisplayName(data.display_name),
+      data.created_by || null,
+      data.gedcom_id || null,
+      now,
+      now,
+    );
     return this.db.prepare('SELECT * FROM persons WHERE id = ?').get(id) as Person;
   }
 
-  update(id: string, data: Partial<Pick<Person, 'sex' | 'is_living' | 'is_private' | 'notes'>>): Person | undefined {
+  update(id: string, data: Partial<Pick<Person, 'sex' | 'is_living' | 'is_private' | 'notes' | 'display_name'>>): Person | undefined {
     const fields: string[] = [];
     const values: unknown[] = [];
 
     for (const [key, value] of Object.entries(data)) {
       if (value !== undefined) {
         fields.push(`${key} = ?`);
-        values.push(value);
+        values.push(key === 'display_name' ? sanitizeDisplayName(value as string | null) : value);
       }
     }
 
@@ -535,8 +576,10 @@ export class PersonRepository extends BaseRepository {
     name_type?: Name['name_type'];
     prefix?: string;
     given_name?: string;
+    middle_name?: string;
     surname?: string;
     suffix?: string;
+    nickname?: string;
     is_primary?: number;
   }): Name {
     const id = this.generateId();
@@ -551,10 +594,11 @@ export class PersonRepository extends BaseRepository {
     ).get(personId) as { next: number };
 
     this.db.prepare(
-      'INSERT INTO names (id, person_id, name_type, prefix, given_name, surname, suffix, is_primary, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO names (id, person_id, name_type, prefix, given_name, middle_name, surname, suffix, nickname, is_primary, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(
       id, personId, data.name_type || 'birth',
-      data.prefix || null, data.given_name || null, data.surname || null, data.suffix || null,
+      sanitizeNameField(data.prefix), sanitizeNameField(data.given_name), sanitizeNameField(data.middle_name),
+      sanitizeNameField(data.surname), sanitizeNameField(data.suffix), sanitizeNameField(data.nickname),
       data.is_primary ?? 0, maxOrder.next, now, now,
     );
 
@@ -569,8 +613,10 @@ export class PersonRepository extends BaseRepository {
     name_type?: Name['name_type'];
     prefix?: string;
     given_name?: string;
+    middle_name?: string;
     surname?: string;
     suffix?: string;
+    nickname?: string;
     is_primary?: number;
   }): Name | undefined {
     const existing = this.findNameById(nameId);
@@ -586,7 +632,7 @@ export class PersonRepository extends BaseRepository {
     for (const [key, value] of Object.entries(data)) {
       if (value !== undefined) {
         fields.push(`${key} = ?`);
-        values.push(value);
+        values.push(typeof value === 'string' || value === null ? sanitizeNameField(value) : value);
       }
     }
 

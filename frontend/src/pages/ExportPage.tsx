@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getPersonDisplayName } from '@/utils/entityDisplay';
 import styles from './ExportPage.module.css';
 
 type GedcomVersion = '5.5.1' | '7.0';
@@ -7,8 +8,10 @@ type MediaOption = 'links' | 'zip';
 
 interface PersonResult {
   id: string;
-  names: { given_name: string | null; surname: string | null; is_primary: number }[];
-  primary_name?: { given_name: string | null; surname: string | null };
+  displayName?: string | null;
+  display_name?: string | null;
+  names: { given_name: string | null; middle_name?: string | null; surname: string | null; is_primary: number }[];
+  primary_name?: { given_name: string | null; middle_name?: string | null; surname: string | null };
 }
 
 interface ExportJob {
@@ -61,7 +64,13 @@ const ExportPage: React.FC = () => {
   const formatPersonName = (p: PersonResult): string => {
     const name = p.primary_name || p.names?.[0];
     if (!name) return 'Unknown';
-    return [name.given_name, name.surname].filter(Boolean).join(' ') || 'Unknown';
+    return getPersonDisplayName({
+      displayName: p.displayName,
+      display_name: p.display_name,
+      given_name: name.given_name,
+      middle_name: name.middle_name,
+      surname: name.surname,
+    });
   };
 
   const handleExport = async () => {

@@ -6,6 +6,31 @@ import styles from './AdminSettingsPage.module.css';
 
 type Tab = 'instance' | 'smtp' | 'features';
 
+const DEFAULT_NAME_FORMAT = '%f %m %s';
+const SAMPLE_NAME = {
+  prefix: 'Dr.',
+  givenName: 'Jane',
+  middleName: 'Anne',
+  surname: 'Smith-Jones',
+  marriedSurname: 'Rivera',
+  suffix: 'Jr.',
+  nickname: 'Jenny',
+};
+
+function previewNameFormat(format: string): string {
+  return format
+    .replaceAll('%mi', SAMPLE_NAME.middleName.charAt(0) + '.')
+    .replaceAll('%ms', SAMPLE_NAME.marriedSurname)
+    .replaceAll('%f', SAMPLE_NAME.givenName)
+    .replaceAll('%m', SAMPLE_NAME.middleName)
+    .replaceAll('%s', SAMPLE_NAME.surname)
+    .replaceAll('%t', SAMPLE_NAME.prefix)
+    .replaceAll('%n', SAMPLE_NAME.nickname)
+    .replaceAll('%x', SAMPLE_NAME.suffix)
+    .replace(/\s+/g, ' ')
+    .trim() || 'Preview unavailable';
+}
+
 interface AppSetting {
   key: string;
   value: string | null;
@@ -28,6 +53,7 @@ function AdminSettingsPage() {
   // Instance settings
   const [instanceName, setInstanceName] = useState('');
   const [timezone, setTimezone] = useState('');
+  const [nameFormat, setNameFormat] = useState(DEFAULT_NAME_FORMAT);
 
   // SMTP settings
   const [smtpHost, setSmtpHost] = useState('');
@@ -41,6 +67,7 @@ function AdminSettingsPage() {
   const [flags, setFlags] = useState<FeatureFlag[]>([]);
 
   const [savingInstance, setSavingInstance] = useState(false);
+  const [savingNameFormat, setSavingNameFormat] = useState(false);
   const [savingSmtp, setSavingSmtp] = useState(false);
 
   const loadSettings = useCallback(async () => {
@@ -56,6 +83,7 @@ function AdminSettingsPage() {
 
       setInstanceName(settingsMap.get('instance_name')?.value || '');
       setTimezone(settingsMap.get('timezone')?.value || '');
+      setNameFormat(settingsMap.get('name_display_format')?.value || DEFAULT_NAME_FORMAT);
       setSmtpHost(settingsMap.get('smtp_host')?.value || '');
       setSmtpPort(settingsMap.get('smtp_port')?.value || '587');
       setSmtpSecure(settingsMap.get('smtp_secure')?.value === 'true');
@@ -153,6 +181,34 @@ function AdminSettingsPage() {
     }
   };
 
+  const saveNameFormat = async () => {
+    clearMessages();
+    if (nameFormat.includes('%D')) {
+      setError('Global name format cannot contain %D token');
+      return;
+    }
+
+    setSavingNameFormat(true);
+    try {
+      const res = await fetch('/api/v1/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ settings: { name_display_format: nameFormat } }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || 'Failed to save name format');
+        return;
+      }
+      setSuccess('Name display format saved.');
+    } catch {
+      setError('Failed to save name format');
+    } finally {
+      setSavingNameFormat(false);
+    }
+  };
+
   const toggleFlag = async (key: string, currentEnabled: number) => {
     clearMessages();
     try {
@@ -208,44 +264,87 @@ function AdminSettingsPage() {
       </div>
 
       {activeTab === 'instance' && (
-        <div className={styles.section}>
-          <h2 className={styles.sectionTitle}>Instance Settings</h2>
-          <div className={styles.fieldGroup}>
-            <FormGroup>
-              <Label htmlFor="instance-name">Instance Name</Label>
-              <Input
-                id="instance-name"
-                value={instanceName}
-                onChange={e => setInstanceName(e.target.value)}
-                placeholder="My Family Tree"
-              />
-            </FormGroup>
-            <FormGroup>
-              <Label htmlFor="timezone">Timezone</Label>
-              <Select
-                id="timezone"
-                value={timezone}
-                onChange={e => setTimezone(e.target.value)}
-              >
-                <option value="">Auto-detect</option>
-                <option value="UTC">UTC</option>
-                <option value="America/New_York">Eastern (US)</option>
-                <option value="America/Chicago">Central (US)</option>
-                <option value="America/Denver">Mountain (US)</option>
-                <option value="America/Los_Angeles">Pacific (US)</option>
-                <option value="Europe/London">London</option>
-                <option value="Europe/Paris">Paris / Berlin</option>
-                <option value="Asia/Tokyo">Tokyo</option>
-                <option value="Australia/Sydney">Sydney</option>
-              </Select>
-            </FormGroup>
+        <>
+          <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>Instance Settings</h2>
+            <div className={styles.fieldGroup}>
+              <FormGroup>
+                <Label htmlFor="instance-name">Instance Name</Label>
+                <Input
+                  id="instance-name"
+                  value={instanceName}
+                  onChange={e => setInstanceName(e.target.value)}
+                  placeholder="My Family Tree"
+                />
+              </FormGroup>
+              <FormGroup>
+                <Label htmlFor="timezone">Timezone</Label>
+                <Select
+                  id="timezone"
+                  value={timezone}
+                  onChange={e => setTimezone(e.target.value)}
+                >
+                  <option value="">Auto-detect</option>
+                  <option value="UTC">UTC</option>
+                  <option value="America/New_York">Eastern (US)</option>
+                  <option value="America/Chicago">Central (US)</option>
+                  <option value="America/Denver">Mountain (US)</option>
+                  <option value="America/Los_Angeles">Pacific (US)</option>
+                  <option value="Europe/London">London</option>
+                  <option value="Europe/Paris">Paris / Berlin</option>
+                  <option value="Asia/Tokyo">Tokyo</option>
+                  <option value="Australia/Sydney">Sydney</option>
+                </Select>
+              </FormGroup>
+            </div>
+            <div className={styles.saveRow}>
+              <Button variant="primary" size="sm" onClick={saveInstanceSettings} loading={savingInstance}>
+                Save Instance Settings
+              </Button>
+            </div>
           </div>
-          <div className={styles.saveRow}>
-            <Button variant="primary" size="sm" onClick={saveInstanceSettings} loading={savingInstance}>
-              Save Instance Settings
-            </Button>
+
+          <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>Name Display Format</h2>
+            <div className={styles.fieldGroup}>
+              <FormGroup>
+                <Label htmlFor="name-display-format">Global Name Format</Label>
+                <Input
+                  id="name-display-format"
+                  value={nameFormat}
+                  onChange={e => setNameFormat(e.target.value)}
+                  placeholder={DEFAULT_NAME_FORMAT}
+                />
+              </FormGroup>
+              <div className={styles.previewBox}>
+                <span className={styles.previewLabel}>Preview</span>
+                <span className={styles.previewValue}>{previewNameFormat(nameFormat)}</span>
+              </div>
+              <details className={styles.tokenDetails}>
+                <summary>Token reference</summary>
+                <div className={styles.tokenGrid}>
+                  <code>%f</code><span>First / given name</span>
+                  <code>%m</code><span>Middle name</span>
+                  <code>%mi</code><span>Middle initial</span>
+                  <code>%s</code><span>Birth surname</span>
+                  <code>%ms</code><span>Married surname</span>
+                  <code>%t</code><span>Prefix / title</span>
+                  <code>%n</code><span>Nickname</span>
+                  <code>%x</code><span>Suffix</span>
+                  <code>%D</code><span>Not available in global format</span>
+                </div>
+              </details>
+            </div>
+            <div className={styles.saveRow}>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setNameFormat(DEFAULT_NAME_FORMAT)}>
+                Reset to Default
+              </Button>
+              <Button variant="primary" size="sm" onClick={saveNameFormat} loading={savingNameFormat}>
+                Save Name Format
+              </Button>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {activeTab === 'smtp' && (

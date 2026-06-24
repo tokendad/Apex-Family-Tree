@@ -9,8 +9,19 @@ import styles from './PersonEditor.module.css';
 interface PersonEditorProps extends ModalEditorProps {
   mode: 'create' | 'edit';
   personId?: string;
-  defaults?: { given_name?: string; surname?: string; sex?: 'M' | 'F' | 'X' | 'U' };
+  defaults?: {
+    prefix?: string;
+    given_name?: string;
+    middle_name?: string;
+    surname?: string;
+    suffix?: string;
+    nickname?: string;
+    display_name?: string;
+    sex?: 'M' | 'F' | 'X' | 'U';
+  };
 }
+
+const toNull = (value: string) => value.trim() || null;
 
 const PersonEditor: React.FC<PersonEditorProps> = ({
   mode,
@@ -18,8 +29,13 @@ const PersonEditor: React.FC<PersonEditorProps> = ({
   modalId,
   onClose,
 }) => {
+  const [prefix, setPrefix] = useState(defaults?.prefix ?? '');
   const [givenName, setGivenName] = useState(defaults?.given_name ?? '');
+  const [middleName, setMiddleName] = useState(defaults?.middle_name ?? '');
   const [surname, setSurname] = useState(defaults?.surname ?? '');
+  const [suffix, setSuffix] = useState(defaults?.suffix ?? '');
+  const [nickname, setNickname] = useState(defaults?.nickname ?? '');
+  const [displayName, setDisplayName] = useState(defaults?.display_name ?? '');
   const [sex, setSex] = useState<'M' | 'F' | 'X' | 'U'>(defaults?.sex ?? 'U');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -42,11 +58,16 @@ const PersonEditor: React.FC<PersonEditorProps> = ({
           sex,
           is_living: 1,
           is_private: 0,
+          display_name: toNull(displayName),
           names: [
             {
               name_type: 'birth',
-              given_name: givenName || null,
-              surname: surname || null,
+              prefix: toNull(prefix),
+              given_name: toNull(givenName),
+              middle_name: toNull(middleName),
+              surname: toNull(surname),
+              suffix: toNull(suffix),
+              nickname: toNull(nickname),
               is_primary: 1,
             },
           ],
@@ -71,7 +92,10 @@ const PersonEditor: React.FC<PersonEditorProps> = ({
 
       const entity: PersonSummary = {
         id: data.id,
+        displayName: data.displayName ?? data.display_name ?? null,
+        display_name: data.display_name ?? null,
         given_name: primaryName?.given_name ?? null,
+        middle_name: primaryName?.middle_name ?? null,
         surname: primaryName?.surname ?? null,
         birth_date: null,
         death_date: null,
@@ -115,12 +139,35 @@ const PersonEditor: React.FC<PersonEditorProps> = ({
       <form className={styles.form} onSubmit={handleSubmit}>
         <div className={styles.row}>
           <FormGroup>
+            <Label htmlFor={`pe-prefix-${modalId}`}>Prefix</Label>
+            <Input
+              id={`pe-prefix-${modalId}`}
+              value={prefix}
+              maxLength={50}
+              onChange={(e) => setPrefix(e.target.value)}
+            />
+          </FormGroup>
+
+          <FormGroup>
             <Label htmlFor={`pe-given-name-${modalId}`}>Given Name</Label>
             <Input
               id={`pe-given-name-${modalId}`}
               value={givenName}
+              maxLength={100}
               onChange={(e) => setGivenName(e.target.value)}
               autoFocus
+            />
+          </FormGroup>
+        </div>
+
+        <div className={styles.row}>
+          <FormGroup>
+            <Label htmlFor={`pe-middle-name-${modalId}`}>Middle Name</Label>
+            <Input
+              id={`pe-middle-name-${modalId}`}
+              value={middleName}
+              maxLength={100}
+              onChange={(e) => setMiddleName(e.target.value)}
             />
           </FormGroup>
 
@@ -129,10 +176,43 @@ const PersonEditor: React.FC<PersonEditorProps> = ({
             <Input
               id={`pe-surname-${modalId}`}
               value={surname}
+              maxLength={100}
               onChange={(e) => setSurname(e.target.value)}
             />
           </FormGroup>
         </div>
+
+        <div className={styles.row}>
+          <FormGroup>
+            <Label htmlFor={`pe-nickname-${modalId}`}>Nickname</Label>
+            <Input
+              id={`pe-nickname-${modalId}`}
+              value={nickname}
+              maxLength={100}
+              onChange={(e) => setNickname(e.target.value)}
+            />
+          </FormGroup>
+
+          <FormGroup>
+            <Label htmlFor={`pe-suffix-${modalId}`}>Suffix</Label>
+            <Input
+              id={`pe-suffix-${modalId}`}
+              value={suffix}
+              maxLength={50}
+              onChange={(e) => setSuffix(e.target.value)}
+            />
+          </FormGroup>
+        </div>
+
+        <FormGroup>
+          <Label htmlFor={`pe-display-name-${modalId}`}>Display Name Override</Label>
+          <Input
+            id={`pe-display-name-${modalId}`}
+            value={displayName}
+            maxLength={200}
+            onChange={(e) => setDisplayName(e.target.value)}
+          />
+        </FormGroup>
 
         <FormGroup>
           <Label htmlFor={`pe-sex-${modalId}`}>Sex</Label>

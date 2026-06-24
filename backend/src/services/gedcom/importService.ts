@@ -301,8 +301,10 @@ export function processImport(jobId: string, content: string, userId: string, mo
                 name_type: name.nameType,
                 prefix: name.prefix || undefined,
                 given_name: name.givenName || undefined,
+                middle_name: name.middleName || undefined,
                 surname: name.surname || undefined,
                 suffix: name.suffix || undefined,
+                nickname: name.nickname || undefined,
                 is_primary: name.isPrimary ? 1 : 0,
               });
             }
@@ -356,9 +358,11 @@ export function processImport(jobId: string, content: string, userId: string, mo
                 // Build update object for fields set to 'new'
                 const nameUpdate: Record<string, string | undefined> = {};
                 if (fieldResolutions.givenName === 'new') nameUpdate.given_name = primaryNameData.givenName ?? undefined;
+                if (fieldResolutions.middleName === 'new') nameUpdate.middle_name = primaryNameData.middleName ?? undefined;
                 if (fieldResolutions.surname === 'new') nameUpdate.surname = primaryNameData.surname ?? undefined;
                 if (fieldResolutions.prefix === 'new') nameUpdate.prefix = primaryNameData.prefix ?? undefined;
                 if (fieldResolutions.suffix === 'new') nameUpdate.suffix = primaryNameData.suffix ?? undefined;
+                if (fieldResolutions.nickname === 'new') nameUpdate.nickname = primaryNameData.nickname ?? undefined;
                 if (Object.keys(nameUpdate).length > 0) {
                   personRepo.updateName(primaryName.id, nameUpdate);
                 }
@@ -422,6 +426,9 @@ export function processImport(jobId: string, content: string, userId: string, mo
                 if (fieldResolutions.givenName !== 'new' && !primaryNameForGapFill.given_name && primaryNameData.givenName) {
                   gapFillNameUpdate.given_name = primaryNameData.givenName;
                 }
+                if (fieldResolutions.middleName !== 'new' && !primaryNameForGapFill.middle_name && primaryNameData.middleName) {
+                  gapFillNameUpdate.middle_name = primaryNameData.middleName;
+                }
                 if (fieldResolutions.surname !== 'new' && !primaryNameForGapFill.surname && primaryNameData.surname) {
                   gapFillNameUpdate.surname = primaryNameData.surname;
                 }
@@ -430,6 +437,9 @@ export function processImport(jobId: string, content: string, userId: string, mo
                 }
                 if (fieldResolutions.suffix !== 'new' && !primaryNameForGapFill.suffix && primaryNameData.suffix) {
                   gapFillNameUpdate.suffix = primaryNameData.suffix;
+                }
+                if (fieldResolutions.nickname !== 'new' && !primaryNameForGapFill.nickname && primaryNameData.nickname) {
+                  gapFillNameUpdate.nickname = primaryNameData.nickname;
                 }
                 if (Object.keys(gapFillNameUpdate).length > 0) {
                   personRepo.updateName(primaryNameForGapFill.id, gapFillNameUpdate);
@@ -547,8 +557,10 @@ export function processImport(jobId: string, content: string, userId: string, mo
             name_type: name.nameType,
             prefix: name.prefix || undefined,
             given_name: name.givenName || undefined,
+            middle_name: name.middleName || undefined,
             surname: name.surname || undefined,
             suffix: name.suffix || undefined,
+            nickname: name.nickname || undefined,
             is_primary: name.isPrimary ? 1 : 0,
           });
         }

@@ -17,6 +17,7 @@ function seedDB(database: Database.Database) {
       sex TEXT NOT NULL DEFAULT 'U',
       is_living INTEGER NOT NULL DEFAULT 1,
       is_private INTEGER NOT NULL DEFAULT 0,
+      display_name TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -25,7 +26,9 @@ function seedDB(database: Database.Database) {
       person_id TEXT NOT NULL REFERENCES persons(id) ON DELETE CASCADE,
       name_type TEXT DEFAULT 'birth',
       given_name TEXT,
+      middle_name TEXT,
       surname TEXT,
+      nickname TEXT,
       is_primary INTEGER NOT NULL DEFAULT 0,
       sort_order INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),

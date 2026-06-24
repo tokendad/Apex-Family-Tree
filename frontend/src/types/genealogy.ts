@@ -1,7 +1,10 @@
 export interface PersonSummary {
   id: string;
   given_name: string | null;
+  middle_name?: string | null;
   surname: string | null;
+  displayName?: string | null;
+  display_name?: string | null;
   birth_date: string | null;
   death_date: string | null;
   photo_url: string | null;

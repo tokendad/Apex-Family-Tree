@@ -8,11 +8,15 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { useSearchStore } from '@/stores/searchStore';
 import { useModal } from '@/components/modals/useModal';
 import type { FamilySummary } from '@/types/genealogy';
+import { getPersonDisplayName } from '@/utils/entityDisplay';
 import styles from './FamiliesPage.module.css';
 
 interface SpouseSummary {
   id: string;
+  displayName?: string | null;
+  display_name?: string | null;
   given_name: string | null;
+  middle_name?: string | null;
   surname: string | null;
 }
 
@@ -29,8 +33,7 @@ type FilterValue = '' | 'unlinked';
 
 function personName(p: SpouseSummary | null): string {
   if (!p) return 'Unknown';
-  const parts = [p.given_name, p.surname].filter(Boolean);
-  return parts.length > 0 ? parts.join(' ') : 'Unknown';
+  return getPersonDisplayName(p);
 }
 
 function familyTitle(family: FamilyListItem): string {

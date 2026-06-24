@@ -15,13 +15,16 @@ interface PersonPickerProps {
 
 interface PersonApiResponse {
   id: string;
+  displayName?: string | null;
+  display_name?: string | null;
   given_name?: string | null;
+  middle_name?: string | null;
   surname?: string | null;
   birth_date?: string | null;
   death_date?: string | null;
   photo_url?: string | null;
-  primary_name?: { given_name: string | null; surname: string | null } | null;
-  names?: Array<{ given_name: string | null; surname: string | null; is_primary?: number }>;
+  primary_name?: { given_name: string | null; middle_name?: string | null; surname: string | null } | null;
+  names?: Array<{ given_name: string | null; middle_name?: string | null; surname: string | null; is_primary?: number }>;
 }
 
 function toPersonResult(data: PersonApiResponse): PersonResult {
@@ -33,7 +36,10 @@ function toPersonResult(data: PersonApiResponse): PersonResult {
 
   return {
     id: data.id,
+    displayName: data.displayName ?? null,
+    display_name: data.display_name ?? null,
     given_name: data.given_name ?? primaryName?.given_name ?? null,
+    middle_name: data.middle_name ?? primaryName?.middle_name ?? null,
     surname: data.surname ?? primaryName?.surname ?? null,
     birth_date: data.birth_date ?? null,
     death_date: data.death_date ?? null,

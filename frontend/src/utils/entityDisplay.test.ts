@@ -9,6 +9,12 @@ describe('getPersonDisplayName', () => {
   it('joins given name and surname', () => {
     expect(getPersonDisplayName({ given_name: 'Mary', surname: 'Johnson' })).toBe('Mary Johnson');
   });
+  it('prefers formatted displayName when present', () => {
+    expect(getPersonDisplayName({ displayName: 'Dr. Mary J.', given_name: 'Mary', surname: 'Johnson' })).toBe('Dr. Mary J.');
+  });
+  it('includes middle name in fallback display', () => {
+    expect(getPersonDisplayName({ given_name: 'Mary', middle_name: 'Anne', surname: 'Johnson' })).toBe('Mary Anne Johnson');
+  });
   it('returns only given name when surname is null', () => {
     expect(getPersonDisplayName({ given_name: 'Mary', surname: null })).toBe('Mary');
   });

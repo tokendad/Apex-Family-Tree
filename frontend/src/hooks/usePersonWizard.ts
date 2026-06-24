@@ -19,8 +19,11 @@ export interface WizardFormData {
   photoPreviewUrl: string;
   prefix: string;
   givenName: string;
+  middleName: string;
   surname: string;
   suffix: string;
+  nickname: string;
+  displayName: string;
   nameType: string;
   sex: 'M' | 'F' | 'X' | 'U';
   isLiving: boolean;
@@ -59,8 +62,11 @@ const INITIAL_DATA: WizardFormData = {
   photoPreviewUrl: '',
   prefix: '',
   givenName: '',
+  middleName: '',
   surname: '',
   suffix: '',
+  nickname: '',
+  displayName: '',
   nameType: 'birth',
   sex: 'U',
   isLiving: true,
@@ -137,11 +143,14 @@ export function usePersonWizard(options: UsePersonWizardOptions = {}) {
 
         setData((prev) => ({
           ...prev,
-          givenName: person.given_name ?? '',
-          surname: person.surname ?? '',
-          prefix: person.prefix ?? '',
-          suffix: person.suffix ?? '',
-          nameType: person.name_type ?? 'birth',
+          givenName: person.primary_name?.given_name ?? person.given_name ?? '',
+          middleName: person.primary_name?.middle_name ?? person.middle_name ?? '',
+          surname: person.primary_name?.surname ?? person.surname ?? '',
+          prefix: person.primary_name?.prefix ?? person.prefix ?? '',
+          suffix: person.primary_name?.suffix ?? person.suffix ?? '',
+          nickname: person.primary_name?.nickname ?? person.nickname ?? '',
+          displayName: person.display_name ?? '',
+          nameType: person.primary_name?.name_type ?? person.name_type ?? 'birth',
           sex: person.sex ?? 'U',
           isLiving: person.is_living ?? true,
           isPrivate: person.is_private ?? false,
@@ -167,9 +176,12 @@ export function usePersonWizard(options: UsePersonWizardOptions = {}) {
       // 1. Create or update person
       const personPayload = {
         given_name: data.givenName || null,
+        middle_name: data.middleName || null,
         surname: data.surname || null,
         prefix: data.prefix || null,
         suffix: data.suffix || null,
+        nickname: data.nickname || null,
+        display_name: data.displayName || null,
         sex: data.sex,
         is_living: data.isLiving,
         is_private: data.isPrivate,
@@ -200,16 +212,18 @@ export function usePersonWizard(options: UsePersonWizardOptions = {}) {
       if (!personId) throw new Error('Failed to create/update person');
 
       // 2. Create name record
-      if (data.givenName || data.surname) {
+      if (data.prefix || data.givenName || data.middleName || data.surname || data.suffix || data.nickname) {
         await fetch(`/api/v1/people/${personId}/names`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({
             given_name: data.givenName || null,
+            middle_name: data.middleName || null,
             surname: data.surname || null,
             prefix: data.prefix || null,
             suffix: data.suffix || null,
+            nickname: data.nickname || null,
             name_type: data.nameType,
           }),
         });

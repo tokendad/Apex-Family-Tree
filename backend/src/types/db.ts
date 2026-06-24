@@ -51,6 +51,7 @@ export interface Person {
   is_private: number;
   gedcom_id: string | null;
   notes: string | null;
+  display_name: string | null; // Per-person name format override
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -62,8 +63,10 @@ export interface Name {
   name_type: 'birth' | 'married' | 'aka' | 'nickname' | 'formal' | 'religious';
   prefix: string | null;
   given_name: string | null;
+  middle_name: string | null; // New field for middle name
   surname: string | null;
   suffix: string | null;
+  nickname: string | null; // New field for nickname
   is_primary: number;
   sort_order: number;
   created_at: string;
@@ -319,11 +322,16 @@ export interface PersonWithNames extends Person {
   /** Flat convenience fields populated on list responses (from primary_name) */
   given_name?: string | null;
   surname?: string | null;
+  /** Formatted name using global name_display_format or person's display_name override */
+  displayName?: string;
 }
 
 export interface SpouseNameSummary {
   id: string;
+  displayName?: string;
+  display_name?: string | null;
   given_name: string | null;
+  middle_name?: string | null;
   surname: string | null;
 }
 
