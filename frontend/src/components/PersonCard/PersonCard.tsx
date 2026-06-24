@@ -11,9 +11,15 @@ interface PersonCardProps {
   isHome?: boolean;
 }
 
+function extractYear(date: string | null): string | null {
+  if (!date) return null;
+  const m = date.match(/\b(\d{4})\b/);
+  return m ? m[1] : null;
+}
+
 function formatDates(birth: string | null, death: string | null, isLiving: boolean): string | null {
-  const b = birth ? birth.substring(0, 4) : null;
-  const d = death ? death.substring(0, 4) : null;
+  const b = extractYear(birth);
+  const d = extractYear(death);
 
   if (b && d) return `${b} – ${d}`;
   if (b && !d && !isLiving) return `b. ${b}`;
