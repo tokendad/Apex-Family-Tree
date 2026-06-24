@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireRole } from '../middleware/auth.js';
 import { UserRepository } from '../repositories/UserRepository.js';
-import { generateRefreshToken, hashToken } from '../services/auth.js';
+import { generateRefreshToken, hashToken, hashPassword } from '../services/auth.js';
 import { createEmailService } from '../services/email.js';
 import { createLogger } from '../services/logger.js';
 import { getDatabase } from '../db/connection.js';
@@ -77,6 +77,49 @@ adminRouter.post('/users/invite', async (req, res) => {
   } catch (error) {
     logger.error('Failed to create invite', error);
     res.status(500).json({ error: 'Failed to create invite' });
+  }
+});
+
+// POST /api/v1/admin/users/create — Create a new user directly (no invite flow)
+adminRouter.post('/users/create', async (req, res) => {
+  try {
+    const { email, display_name, password, role } = req.body;
+
+    if (!email || typeof email !== 'string') {
+      res.status(400).json({ error: 'Email is required' });
+      return;
+    }
+
+    if (!display_name || typeof display_name !== 'string' || !display_name.trim()) {
+      res.status(400).json({ error: 'Display name is required' });
+      return;
+    }
+
+    if (!password || typeof password !== 'string' || password.length < 8) {
+      res.status(400).json({ error: 'Password must be at least 8 characters' });
+      return;
+    }
+
+    const validRoles = ['admin', 'editor', 'limited_editor', 'viewer'];
+    if (!role || !validRoles.includes(role)) {
+      res.status(400).json({ error: `Role must be one of: ${validRoles.join(', ')}` });
+      return;
+    }
+
+    const existing = userRepo.findByEmail(email);
+    if (existing) {
+      res.status(409).json({ error: 'A user with this email already exists' });
+      return;
+    }
+
+    const password_hash = await hashPassword(password);
+    const user = userRepo.create({ email, display_name: display_name.trim(), password_hash, role });
+
+    const { password_hash: _, ...safeUser } = user;
+    res.status(201).json({ user: safeUser as SafeUser });
+  } catch (error) {
+    logger.error('Failed to create user', error);
+    res.status(500).json({ error: 'Failed to create user' });
   }
 });
 

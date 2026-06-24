@@ -4,6 +4,7 @@ import Button from '@/components/Button/Button';
 import Badge from '@/components/Badge/Badge';
 import Avatar from '@/components/Avatar/Avatar';
 import InviteUserModal from '@/components/InviteUserModal/InviteUserModal';
+import CreateUserModal from '@/components/CreateUserModal/CreateUserModal';
 import styles from './AdminUsersPage.module.css';
 
 interface SafeUser {
@@ -49,6 +50,7 @@ function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -153,8 +155,11 @@ function AdminUsersPage() {
     <div className={styles.page}>
       <div className={styles.header}>
         <h1 className={styles.title}>User Management</h1>
-        <Button variant="primary" size="sm" onClick={() => setInviteOpen(true)}>
+        <Button variant="ghost" size="sm" onClick={() => setInviteOpen(true)}>
           Invite User
+        </Button>
+        <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
+          Create User
         </Button>
       </div>
 
@@ -257,6 +262,11 @@ function AdminUsersPage() {
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
         onInvited={fetchUsers}
+      />
+      <CreateUserModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={fetchUsers}
       />
     </div>
   );
