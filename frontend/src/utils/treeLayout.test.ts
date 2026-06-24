@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TreeFamily, TreeNode, TreePerson } from '@/stores/canvasStore';
 import { layoutTree } from './treeLayout';
-
-const CARD_WIDTH = 240;
+import { CARD_WIDTH } from '@/constants/card';
 
 function person(id: string): TreePerson {
   return {
