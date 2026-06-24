@@ -1,7 +1,6 @@
 import type { TreePerson, TreeFamily, TreeNode, ConnectorLine } from '@/stores/canvasStore';
+import { CARD_WIDTH, CARD_HEIGHT } from '@/constants/card';
 
-const CARD_WIDTH = 240;
-const CARD_HEIGHT = 140;
 const H_GAP = 50;
 const V_GAP = 200;
 

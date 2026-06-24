@@ -2,6 +2,7 @@ import React, { useCallback } from 'react';
 import { useCanvasStore } from '@/stores/canvasStore';
 import type { TreeNode } from '@/stores/canvasStore';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
+import { CARD_WIDTH, CARD_HEIGHT } from '@/constants/card';
 import styles from './PersonCard.module.css';
 
 interface PersonCardProps {
@@ -39,9 +40,6 @@ function sexColor(sex: string): string {
     default: return '#9ca3af';
   }
 }
-
-const CARD_WIDTH = 240;
-const CARD_HEIGHT = 140;
 
 const PersonCard: React.FC<PersonCardProps> = ({ node, isHome = false }) => {
   const { person, x, y } = node;
