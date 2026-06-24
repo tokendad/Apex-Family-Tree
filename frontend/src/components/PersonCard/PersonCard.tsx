@@ -124,7 +124,7 @@ const PersonCard: React.FC<PersonCardProps> = ({ node, isHome = false }) => {
           <span
             className={styles.sexIcon}
             aria-hidden="true"
-            style={{ color: person.sex === 'M' ? '#3b82f6' : '#ec4899' }}
+            style={{ color: sexColor(person.sex) }}
           >
             {person.sex === 'M' ? '♂' : '♀'}
           </span>

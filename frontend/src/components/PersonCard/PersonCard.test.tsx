@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import PersonCard from './PersonCard';
 import type { TreeNode } from '@/stores/canvasStore';
 import { CARD_WIDTH, CARD_HEIGHT } from '@/constants/card';
@@ -54,6 +54,10 @@ function makeNode(overrides: Partial<TreeNode['person']> = {}): TreeNode {
 }
 
 // ─── formatDates logic ────────────────────────────────────────────────────────
+
+beforeEach(() => {
+  mockNavigate.mockClear();
+});
 
 describe('formatDates via PersonCard rendering', () => {
   it('both birth and death year known → "YYYY – YYYY"', () => {
