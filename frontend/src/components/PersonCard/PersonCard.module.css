@@ -99,16 +99,25 @@
 .homeBadge {
   position: absolute;
   top: 6px;
-  right: 6px;
-  font-size: 0.5625rem;
+  left: 6px;
+  font-size: 0.46875rem; /* 7.5px */
   padding: 2px 6px;
-  background-color: var(--color-accent-400);
-  color: var(--color-gray-900);
-  border-radius: var(--radius-sm);
-  font-weight: var(--font-weight-bold);
+  background-color: var(--color-teal-800, #0F6E56);
+  color: var(--color-teal-100, #9FE1CB);
+  border-radius: 4px;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   line-height: 1;
+}
+
+.sexIcon {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-size: 1rem; /* ~16px */
+  line-height: 1;
+  color: inherit; /* overridden inline per sex */
 }
 
 /* Search highlight: glow ring around matching nodes */

@@ -10,11 +10,16 @@ interface PersonCardProps {
   isHome?: boolean;
 }
 
-function formatDates(birth: string | null, death: string | null, isLiving: boolean): string {
-  const b = birth ? birth.substring(0, 4) : '?';
-  if (isLiving) return `b. ${b}`;
-  const d = death ? death.substring(0, 4) : '?';
-  return `${b} – ${d}`;
+function formatDates(birth: string | null, death: string | null, isLiving: boolean): string | null {
+  const b = birth ? birth.substring(0, 4) : null;
+  const d = death ? death.substring(0, 4) : null;
+
+  if (b && d) return `${b} – ${d}`;
+  if (b && !d && !isLiving) return `b. ${b}`;
+  if (!b && d) return `d. ${d}`;
+  if (isLiving && b) return `b. ${b} –`;
+  // isLiving + no birth year, or neither year: return null
+  return null;
 }
 
 function getInitials(given: string | null, surname: string | null): string {
@@ -87,10 +92,16 @@ const PersonCard: React.FC<PersonCardProps> = ({ node, isHome = false }) => {
     .filter(Boolean)
     .join(' ');
 
+  const dateLabel = formatDates(person.birth_date, person.death_date, person.is_living);
+  const ariaLabel = dateLabel ? `${name}, ${dateLabel}` : name;
+
   return (
     <foreignObject x={x} y={y} width={CARD_WIDTH} height={CARD_HEIGHT}>
       <div
         className={cls}
+        role="button"
+        tabIndex={0}
+        aria-label={ariaLabel}
         onClick={handleClick}
         onDoubleClick={(e) => e.stopPropagation()}
         onContextMenu={handleContextMenu}
@@ -98,6 +109,16 @@ const PersonCard: React.FC<PersonCardProps> = ({ node, isHome = false }) => {
         onMouseLeave={() => setHoveredPerson(null)}
       >
         {isHome && <span className={styles.homeBadge}>HOME</span>}
+
+        {(person.sex === 'M' || person.sex === 'F') && (
+          <span
+            className={styles.sexIcon}
+            aria-hidden="true"
+            style={{ color: person.sex === 'M' ? '#3b82f6' : '#ec4899' }}
+          >
+            {person.sex === 'M' ? '♂' : '♀'}
+          </span>
+        )}
 
         {person.photo_url ? (
           <img
@@ -132,8 +153,11 @@ const PersonCard: React.FC<PersonCardProps> = ({ node, isHome = false }) => {
 
         <div className={styles.info}>
           <span className={styles.name} title={name}>{name}</span>
-          <span className={styles.dates}>
-            {formatDates(person.birth_date, person.death_date, person.is_living)}
+          <span
+            className={styles.dates}
+            style={dateLabel === null ? { visibility: 'hidden' } : undefined}
+          >
+            {dateLabel ?? ' '}
           </span>
         </div>
       </div>
