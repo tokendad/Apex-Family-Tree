@@ -255,7 +255,13 @@ treeRouter.get('/', (req, res) => {
     const personRepo = new PersonRepository();
 
     const user = userRepo.findById(req.user!.userId);
-    const homePersonId = user?.home_person_id ?? null;
+    let homePersonId = user?.home_person_id ?? null;
+
+    if (!homePersonId) {
+      const db = getDatabase();
+      const first = db.prepare('SELECT id FROM persons ORDER BY created_at ASC LIMIT 1').get() as { id: string } | undefined;
+      homePersonId = first?.id ?? null;
+    }
 
     if (!homePersonId) {
       res.json({ persons: [], families: [], home_person_id: null });
