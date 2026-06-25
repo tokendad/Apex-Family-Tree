@@ -33,6 +33,7 @@ const TreePage: React.FC = () => {
   const setTotalCount = useSearchStore((s) => s.setTotalCount);
   const filtersActive = hasActiveFilters(searchFilters);
   const highlightDebounce = useRef<ReturnType<typeof setTimeout>>();
+  const prevFilterRef = useRef<TreeFilter>('all');
 
   // Highlight matching tree nodes when search is active
   useEffect(() => {
@@ -87,9 +88,13 @@ const TreePage: React.FC = () => {
 
   useEffect(() => {
     if (treeFilter === 'all') {
-      void refetch();
+      if (prevFilterRef.current !== 'all') {
+        void refetch();
+      }
+      prevFilterRef.current = 'all';
       return;
     }
+    prevFilterRef.current = treeFilter;
 
     if (treeFilter === 'unconnected-people') {
       void (async () => {
@@ -158,17 +163,20 @@ const TreePage: React.FC = () => {
               rootPersonId: rootId,
             });
 
-            // Segment bounding width
-            const maxX = nodes.reduce((m, n) => Math.max(m, n.x), 0);
-            const segW = maxX + CARD_W;
+            if (nodes.length === 0) continue;
 
-            // Offset all nodes and connectors horizontally
-            const shiftedNodes = nodes.map(n => ({ ...n, x: n.x + xOffset }));
+            // Compute true bounds (layoutTree centers, so minX can be negative)
+            const minX = nodes.reduce((m, n) => Math.min(m, n.x), Infinity);
+            const maxX = nodes.reduce((m, n) => Math.max(m, n.x), -Infinity);
+            const segW = maxX - minX + CARD_W;
+            const shift = xOffset - minX; // align left edge to xOffset
+
+            const shiftedNodes = nodes.map(n => ({ ...n, x: n.x + shift }));
             const shiftedConnectors = connectors.map(c => ({
               ...c,
-              from: { ...c.from, x: c.from.x + xOffset },
-              to: { ...c.to, x: c.to.x + xOffset },
-              midPoint: c.midPoint ? { ...c.midPoint, x: c.midPoint.x + xOffset } : undefined,
+              from: { ...c.from, x: c.from.x + shift },
+              to: { ...c.to, x: c.to.x + shift },
+              midPoint: c.midPoint ? { ...c.midPoint, x: c.midPoint.x + shift } : undefined,
             }));
 
             allNodes.push(...shiftedNodes);
@@ -201,8 +209,10 @@ const TreePage: React.FC = () => {
     setWizardOpen(false);
     setEditPersonId(null);
     setPreLink(null);
-    refetch();
-  }, [refetch]);
+    if (treeFilter === 'all') {
+      refetch();
+    }
+  }, [refetch, treeFilter]);
 
   const wizard = usePersonWizard({
     editPersonId,
