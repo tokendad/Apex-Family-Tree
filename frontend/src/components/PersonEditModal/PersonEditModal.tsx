@@ -4,6 +4,7 @@ import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import Select from '@/components/Form/Select';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
+import { useModal } from '@/components/modals/useModal';
 import styles from './PersonEditModal.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -277,6 +278,8 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
   const [addEventForm, setAddEventForm] = useState({ ...DEFAULT_EVENT_FORM });
   const [addEventSaving, setAddEventSaving] = useState(false);
   const [addEventError, setAddEventError] = useState<string | null>(null);
+
+  const { openModal } = useModal();
 
   // ── Notes ──
   const [notesValue, setNotesValue] = useState('');
@@ -744,6 +747,18 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
     } finally {
       setAddEventSaving(false);
     }
+  };
+
+  const handleAddMarriage = async () => {
+    if (!personId) return;
+    await openModal('MarriageEditor', {
+      personId,
+      personName: displayName,
+      onSaved: () => {
+        refreshPersonData();
+        onSaved();
+      },
+    });
   };
 
   // ─── Notes save ────────────────────────────────────────────────────────────
@@ -1397,61 +1412,95 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
                 ))}
               </Select>
             </label>
-            <label className={styles.formLabel}>
-              Date
-              <Input
-                value={addEventForm.event_date}
-                onChange={(e) => setAddEventForm((f) => ({ ...f, event_date: e.target.value }))}
-                placeholder="e.g. 1 JAN 1900"
-              />
-            </label>
-            <label className={styles.formLabel}>
-              Place
-              <Input
-                value={addEventForm.event_place}
-                onChange={(e) => setAddEventForm((f) => ({ ...f, event_place: e.target.value }))}
-                placeholder="City, State, Country"
-              />
-            </label>
-            <label className={[styles.formLabel, styles.fullWidth].join(' ')}>
-              Description
-              <textarea
-                className={styles.notesTextarea}
-                value={addEventForm.description}
-                onChange={(e) =>
-                  setAddEventForm((f) => ({ ...f, description: e.target.value }))
-                }
-                placeholder="Additional details…"
-                rows={2}
-              />
-            </label>
+            {addEventForm.event_type === 'marriage' ? (
+              <div className={styles.fullWidth}>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  type="button"
+                  onClick={() => {
+                    setShowAddEvent(false);
+                    handleAddMarriage();
+                  }}
+                >
+                  Add Marriage →
+                </Button>
+              </div>
+            ) : (
+              <>
+                <label className={styles.formLabel}>
+                  Date
+                  <Input
+                    value={addEventForm.event_date}
+                    onChange={(e) => setAddEventForm((f) => ({ ...f, event_date: e.target.value }))}
+                    placeholder="e.g. 1 JAN 1900"
+                  />
+                </label>
+                <label className={styles.formLabel}>
+                  Place
+                  <Input
+                    value={addEventForm.event_place}
+                    onChange={(e) => setAddEventForm((f) => ({ ...f, event_place: e.target.value }))}
+                    placeholder="City, State, Country"
+                  />
+                </label>
+                <label className={[styles.formLabel, styles.fullWidth].join(' ')}>
+                  Description
+                  <textarea
+                    className={styles.notesTextarea}
+                    value={addEventForm.description}
+                    onChange={(e) =>
+                      setAddEventForm((f) => ({ ...f, description: e.target.value }))
+                    }
+                    placeholder="Additional details…"
+                    rows={2}
+                  />
+                </label>
+              </>
+            )}
           </div>
           {addEventError && (
             <span className={styles.saveError} role="alert">
               {addEventError}
             </span>
           )}
-          <div className={styles.saveRow}>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleAddEvent}
-              loading={addEventSaving}
-            >
-              Add Event
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setShowAddEvent(false);
-                setAddEventError(null);
-              }}
-              disabled={addEventSaving}
-            >
-              Cancel
-            </Button>
-          </div>
+          {addEventForm.event_type !== 'marriage' && (
+            <div className={styles.saveRow}>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleAddEvent}
+                loading={addEventSaving}
+              >
+                Add Event
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowAddEvent(false);
+                  setAddEventError(null);
+                }}
+                disabled={addEventSaving}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
+          {addEventForm.event_type === 'marriage' && (
+            <div className={styles.saveRow}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowAddEvent(false);
+                  setAddEventError(null);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </>
