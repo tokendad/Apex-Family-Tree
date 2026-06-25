@@ -209,4 +209,13 @@ export class FamilyRepository extends BaseRepository {
   getMembers(familyId: string): FamilyMember[] {
     return this.db.prepare('SELECT * FROM family_members WHERE family_id = ? ORDER BY sort_order ASC').all(familyId) as FamilyMember[];
   }
+
+  findActiveByPerson(personId: string): { id: string; spouse1_id: string | null; spouse2_id: string | null; marriage_date: string | null }[] {
+    return this.db.prepare(
+      `SELECT id, spouse1_id, spouse2_id, marriage_date
+       FROM families
+       WHERE (spouse1_id = ? OR spouse2_id = ?)
+         AND divorce_date IS NULL`
+    ).all(personId, personId) as { id: string; spouse1_id: string | null; spouse2_id: string | null; marriage_date: string | null }[];
+  }
 }

@@ -69,6 +69,18 @@ familiesRouter.post(
   },
 );
 
+// GET /families/person/:personId/active — Get active (non-divorced) marriages for a person
+familiesRouter.get('/person/:personId/active', (req, res) => {
+  try {
+    const repo = new FamilyRepository();
+    const personId = paramStr(req.params.personId);
+    const activeMarriages = repo.findActiveByPerson(personId);
+    res.json({ activeMarriages });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get active marriages' });
+  }
+});
+
 // GET /families/:id — Get family with members
 familiesRouter.get('/:id', (req, res) => {
   try {
