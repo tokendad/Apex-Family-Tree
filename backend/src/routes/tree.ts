@@ -319,6 +319,58 @@ treeRouter.get('/:personId/descendants', (req, res) => {
   }
 });
 
+// GET /tree/unconnected-people — People with no family connections
+treeRouter.get('/unconnected-people', (_req, res) => {
+  try {
+    const db = getDatabase();
+    const personRepo = new PersonRepository();
+
+    const rows = db.prepare(`
+      SELECT p.id FROM persons p
+      WHERE NOT EXISTS (SELECT 1 FROM families WHERE spouse1_id = p.id)
+        AND NOT EXISTS (SELECT 1 FROM families WHERE spouse2_id = p.id)
+        AND NOT EXISTS (SELECT 1 FROM family_members WHERE person_id = p.id)
+      ORDER BY p.created_at ASC
+    `).all() as { id: string }[];
+
+    const people = rows
+      .map(r => personRepo.findById(r.id))
+      .filter(Boolean)
+      .map(person => {
+        const birthEvent = db.prepare(
+          "SELECT event_date FROM events WHERE person_id = ? AND event_type = 'birth' LIMIT 1"
+        ).get(person!.id) as { event_date: string | null } | undefined;
+
+        const deathEvent = db.prepare(
+          "SELECT event_date FROM events WHERE person_id = ? AND event_type = 'death' LIMIT 1"
+        ).get(person!.id) as { event_date: string | null } | undefined;
+
+        const primaryPhoto = db.prepare(
+          'SELECT mi.id FROM media_items mi INNER JOIN person_media pm ON mi.id = pm.media_id WHERE pm.person_id = ? AND pm.is_primary = 1 LIMIT 1'
+        ).get(person!.id) as { id: string } | undefined;
+
+        return {
+          id: person!.id,
+          displayName: person!.displayName ?? null,
+          display_name: person!.display_name ?? null,
+          given_name: person!.primary_name?.given_name ?? null,
+          middle_name: person!.primary_name?.middle_name ?? null,
+          surname: person!.primary_name?.surname ?? null,
+          sex: person!.sex,
+          birth_date: birthEvent?.event_date ?? null,
+          death_date: deathEvent?.event_date ?? null,
+          is_living: person!.is_living === 1,
+          is_private: person!.is_private === 1,
+          photo_url: primaryPhoto ? `/api/v1/media/${primaryPhoto.id}` : null,
+        };
+      });
+
+    res.json({ people });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get unconnected people' });
+  }
+});
+
 // GET /tree/:personId — Flat tree centered on a specific person
 treeRouter.get('/:personId', (req, res) => {
   try {
