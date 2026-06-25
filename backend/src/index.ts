@@ -38,8 +38,18 @@ app.use('/api', apiRouter);
 // Serve frontend static files in production
 if (process.env.NODE_ENV === 'production') {
   const frontendDist = path.join(__dirname, '../../frontend/dist');
-  app.use(express.static(frontendDist));
+  // Hashed assets (e.g. /assets/PeoplePage-abc123.js) are safe to cache long-term.
+  // index.html must never be cached — it references those hashed filenames and must
+  // always be fresh so stale chunk errors don't occur after a redeploy.
+  app.use(express.static(frontendDist, {
+    setHeaders(res, filePath) {
+      if (filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      }
+    },
+  }));
   app.get('*', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(frontendDist, 'index.html'));
   });
 }
