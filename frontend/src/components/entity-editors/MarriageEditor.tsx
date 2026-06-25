@@ -109,6 +109,23 @@ const MarriageEditor: React.FC<MarriageEditorProps> = ({
           setError(`Marriage event saved, but failed to create family record: ${message}`);
           return;
         }
+
+        // Best-effort: also record the marriage event on the spouse's timeline
+        try {
+          await fetch(`/api/v1/events/people/${spouse.id}/events`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              event_type: 'marriage',
+              event_date: marriageDate || null,
+              event_place: marriagePlace || null,
+              description: notes || null,
+            }),
+          });
+        } catch {
+          console.warn('MarriageEditor: failed to record marriage event on spouse timeline');
+        }
       }
 
       onSaved?.();
