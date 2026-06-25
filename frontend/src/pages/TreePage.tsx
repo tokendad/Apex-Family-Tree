@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+import styles from './TreePage.module.css';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
 import Sidebar from '@/components/Sidebar/Sidebar';
@@ -19,8 +20,11 @@ import { usePersonWizard } from '@/hooks/usePersonWizard';
 import { useSearchStore, hasActiveFilters, filtersToParams } from '@/stores/searchStore';
 import type { PreLinkedRelationship } from '@/hooks/usePersonWizard';
 
+type TreeFilter = 'all' | 'unconnected-people' | 'unconnected-trees';
+
 const TreePage: React.FC = () => {
   const { refetch } = useTreeData();
+  const [treeFilter, setTreeFilter] = useState<TreeFilter>('all');
   const { selectedPersonId, setHighlightedPersonIds } = useCanvasStore();
   const searchFilters = useSearchStore();
   const setTotalCount = useSearchStore((s) => s.setTotalCount);
@@ -161,7 +165,24 @@ const TreePage: React.FC = () => {
       showDetail={selectedPersonId !== null}
       context="tree"
     >
-      <CanvasToolbar onAddPerson={openCreateWizard} />
+      <CanvasToolbar
+        onAddPerson={openCreateWizard}
+        treeFilter={treeFilter}
+        onTreeFilterChange={setTreeFilter}
+      />
+      {treeFilter !== 'all' && (
+        <div className={styles.filterBanner}>
+          <span className={styles.filterBannerLabel}>
+            Showing: {treeFilter === 'unconnected-people' ? 'Unconnected People' : 'Unconnected Trees'}
+          </span>
+          <button
+            className={styles.filterBannerClear}
+            onClick={() => setTreeFilter('all')}
+          >
+            Clear filter
+          </button>
+        </div>
+      )}
       <TreeCanvas onAddPerson={openCreateWizard} />
       <CanvasLegend />
       <ContextMenu

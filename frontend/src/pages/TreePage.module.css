@@ -1,0 +1,37 @@
+.filterBanner {
+  position: absolute;
+  top: calc(var(--space-3) + 52px); /* below the toolbar */
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-warning-bg, #fef9c3);
+  border: 1px solid var(--color-warning-border, #fde047);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  z-index: var(--z-sticky);
+  white-space: nowrap;
+}
+
+.filterBannerLabel {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.filterBannerClear {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.filterBannerClear:hover {
+  opacity: 0.8;
+}

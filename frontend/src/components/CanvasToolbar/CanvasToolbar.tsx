@@ -4,11 +4,15 @@ import Button from '@/components/Button/Button';
 import { useCanvasStore } from '@/stores/canvasStore';
 import styles from './CanvasToolbar.module.css';
 
+type TreeFilter = 'all' | 'unconnected-people' | 'unconnected-trees';
+
 interface CanvasToolbarProps {
   onAddPerson?: () => void;
+  treeFilter?: TreeFilter;
+  onTreeFilterChange?: (filter: TreeFilter) => void;
 }
 
-const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ onAddPerson }) => {
+const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ onAddPerson, treeFilter = 'all', onTreeFilterChange }) => {
   const navigate = useNavigate();
   const { zoom, zoomIn, zoomOut, resetView, fitToScreen } = useCanvasStore();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -74,6 +78,19 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ onAddPerson }) => {
       >
         ⊞
       </button>
+
+      <div className={styles.separator} />
+
+      <select
+        className={styles.filterSelect}
+        value={treeFilter}
+        aria-label="Filter tree"
+        onChange={(e) => onTreeFilterChange?.(e.target.value as TreeFilter)}
+      >
+        <option value="all">All</option>
+        <option value="unconnected-people">Unconnected People</option>
+        <option value="unconnected-trees">Unconnected Trees</option>
+      </select>
     </div>
   );
 };

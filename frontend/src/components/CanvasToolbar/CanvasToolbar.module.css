@@ -73,3 +73,26 @@
   background-color: var(--color-gray-100);
   color: var(--color-text-primary);
 }
+
+.filterSelect {
+  height: 28px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-primary);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.filterSelect:hover {
+  border-color: var(--color-gray-400);
+  color: var(--color-text-primary);
+}
+
+.filterSelect:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
