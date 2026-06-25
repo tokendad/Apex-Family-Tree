@@ -19,7 +19,8 @@ import { useTreeData } from '@/hooks/useTreeData';
 import { usePersonWizard } from '@/hooks/usePersonWizard';
 import { useSearchStore, hasActiveFilters, filtersToParams } from '@/stores/searchStore';
 import type { PreLinkedRelationship } from '@/hooks/usePersonWizard';
-import type { TreeNode, TreePerson } from '@/stores/canvasStore';
+import { layoutTree } from '@/utils/treeLayout';
+import type { TreeNode, TreePerson, TreeFamily, ConnectorLine } from '@/stores/canvasStore';
 
 type TreeFilter = 'all' | 'unconnected-people' | 'unconnected-trees';
 
@@ -27,7 +28,7 @@ const TreePage: React.FC = () => {
   const { refetch } = useTreeData();
   const [treeFilter, setTreeFilter] = useState<TreeFilter>('all');
   const { selectedPersonId, setHighlightedPersonIds } = useCanvasStore();
-  const { setNodes, setFamilies, setConnectors, setLoading, fitToScreen } = useCanvasStore();
+  const { nodes, isLoading, setNodes, setFamilies, setConnectors, setLoading, fitToScreen } = useCanvasStore();
   const searchFilters = useSearchStore();
   const setTotalCount = useSearchStore((s) => s.setTotalCount);
   const filtersActive = hasActiveFilters(searchFilters);
@@ -114,6 +115,72 @@ const TreePage: React.FC = () => {
           setNodes(nodes);
           setFamilies([]);
           setConnectors([]);
+          fitToScreen(window.innerWidth, window.innerHeight);
+        } catch {
+          setNodes([]);
+          setFamilies([]);
+          setConnectors([]);
+        } finally {
+          setLoading(false);
+        }
+      })();
+    }
+
+    if (treeFilter === 'unconnected-trees') {
+      void (async () => {
+        setLoading(true);
+        try {
+          const res = await fetch('/api/v1/tree/unconnected-segments', { credentials: 'include' });
+          if (!res.ok) throw new Error('Failed to fetch');
+          const data = await res.json() as { segments: Array<{ persons: TreePerson[]; families: TreeFamily[] }> };
+
+          if (data.segments.length === 0) {
+            setNodes([]);
+            setFamilies([]);
+            setConnectors([]);
+            setLoading(false);
+            return;
+          }
+
+          const CARD_W = 260;
+          const SEG_GAP = 120;
+
+          let xOffset = 0;
+          const allNodes: TreeNode[] = [];
+          const allFamilies: TreeFamily[] = [];
+          const allConnectors: ConnectorLine[] = [];
+
+          for (const segment of data.segments) {
+            const rootId = segment.persons[0]?.id ?? null;
+            const { nodes, connectors } = layoutTree({
+              persons: segment.persons,
+              families: segment.families,
+              rootPersonId: rootId,
+            });
+
+            // Segment bounding width
+            const maxX = nodes.reduce((m, n) => Math.max(m, n.x), 0);
+            const segW = maxX + CARD_W;
+
+            // Offset all nodes and connectors horizontally
+            const shiftedNodes = nodes.map(n => ({ ...n, x: n.x + xOffset }));
+            const shiftedConnectors = connectors.map(c => ({
+              ...c,
+              from: { ...c.from, x: c.from.x + xOffset },
+              to: { ...c.to, x: c.to.x + xOffset },
+              midPoint: c.midPoint ? { ...c.midPoint, x: c.midPoint.x + xOffset } : undefined,
+            }));
+
+            allNodes.push(...shiftedNodes);
+            allFamilies.push(...segment.families);
+            allConnectors.push(...shiftedConnectors);
+
+            xOffset += segW + SEG_GAP;
+          }
+
+          setNodes(allNodes);
+          setFamilies(allFamilies);
+          setConnectors(allConnectors);
           fitToScreen(window.innerWidth, window.innerHeight);
         } catch {
           setNodes([]);
@@ -225,6 +292,13 @@ const TreePage: React.FC = () => {
           >
             Clear filter
           </button>
+        </div>
+      )}
+      {treeFilter !== 'all' && nodes.length === 0 && !isLoading && (
+        <div className={styles.emptyState}>
+          {treeFilter === 'unconnected-people'
+            ? 'No unconnected people found.'
+            : 'No unconnected branches found — everyone is connected to the home person.'}
         </div>
       )}
       <TreeCanvas onAddPerson={openCreateWizard} />

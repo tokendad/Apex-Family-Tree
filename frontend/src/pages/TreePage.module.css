@@ -35,3 +35,14 @@
 .filterBannerClear:hover {
   opacity: 0.8;
 }
+
+.emptyState {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+  text-align: center;
+  pointer-events: none;
+}
