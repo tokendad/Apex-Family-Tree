@@ -1,14 +1,15 @@
 import React from 'react';
+import { useState } from 'react';
 import { FormGroup, Label, Input } from '@/components/Form';
 import TagPicker from '@/components/TagPicker/TagPicker';
 import type { EventData } from '@/components/TagPicker/TagPicker';
 import type { WizardFormData } from '@/hooks/usePersonWizard';
+import { useModal } from '@/components/modals/useModal';
 import styles from './VitalEventsStep.module.css';
 
 const ADDITIONAL_EVENT_TYPES = [
   'Baptism',
   'Christening',
-  'Marriage',
   'Burial',
   'Cremation',
   'Immigration',
@@ -21,9 +22,14 @@ const ADDITIONAL_EVENT_TYPES = [
 interface VitalEventsStepProps {
   data: WizardFormData;
   onChange: <K extends keyof WizardFormData>(field: K, value: WizardFormData[K]) => void;
+  editPersonId?: string | null;
+  personDisplayName?: string;
 }
 
-const VitalEventsStep: React.FC<VitalEventsStepProps> = ({ data, onChange }) => {
+const VitalEventsStep: React.FC<VitalEventsStepProps> = ({ data, onChange, editPersonId, personDisplayName }) => {
+  const { openModal } = useModal();
+  const [marriageChips, setMarriageChips] = useState<string[]>([]);
+
   const handleToggle = (tag: string) => {
     const exists = data.additionalEvents.find((e) => e.type === tag);
     if (exists) {
@@ -50,6 +56,20 @@ const VitalEventsStep: React.FC<VitalEventsStepProps> = ({ data, onChange }) => 
       'additionalEvents',
       data.additionalEvents.filter((e) => e.type !== tag),
     );
+  };
+
+  const handleAddMarriage = async () => {
+    if (!editPersonId) return;
+    const result = await openModal('MarriageEditor', {
+      personId: editPersonId,
+      personName: personDisplayName ?? 'this person',
+      onSaved: () => {/* parent refreshes after wizard complete */},
+    });
+    if (result.action === 'created') {
+      const { spouseName, marriageDate } = result.entity as { spouseName: string | null; marriageDate: string | null };
+      const parts = ['Married', spouseName, marriageDate].filter(Boolean);
+      setMarriageChips((prev) => [...prev, parts.join(' · ')]);
+    }
   };
 
   return (
@@ -111,6 +131,25 @@ const VitalEventsStep: React.FC<VitalEventsStepProps> = ({ data, onChange }) => 
         onEventChange={handleEventChange}
         onRemoveEvent={handleRemoveEvent}
       />
+      <div className={styles.marriageSection}>
+        <div className={styles.marriageSectionHeader}>
+          <h4 className={styles.sectionTitle}>Marriage</h4>
+          <button
+            type="button"
+            className={styles.addMarriageBtn}
+            onClick={handleAddMarriage}
+            disabled={!editPersonId}
+            title={!editPersonId ? 'Save the person first, then add the marriage' : undefined}
+          >
+            + Add Marriage
+          </button>
+        </div>
+        {marriageChips.map((chip, i) => (
+          <span key={i} className={styles.marriageChip}>
+            {chip}
+          </span>
+        ))}
+      </div>
     </div>
   );
 };

@@ -266,7 +266,16 @@ const TreePage: React.FC = () => {
       case 1:
         return <PersonalInfoStep data={wizard.data} onChange={wizard.updateField} />;
       case 2:
-        return <VitalEventsStep data={wizard.data} onChange={wizard.updateField} />;
+        return (
+          <VitalEventsStep
+            data={wizard.data}
+            onChange={wizard.updateField}
+            editPersonId={editPersonId}
+            personDisplayName={
+              [wizard.data.givenName, wizard.data.surname].filter(Boolean).join(' ') || undefined
+            }
+          />
+        );
       case 3:
         return <RelationshipsStep data={wizard.data} onChange={wizard.updateField} />;
       case 4:
