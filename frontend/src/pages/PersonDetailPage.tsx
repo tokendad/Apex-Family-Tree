@@ -200,7 +200,7 @@ interface MediaThumbProps {
 
 const MediaThumb: React.FC<MediaThumbProps> = ({ item }) => {
   const [imgError, setImgError] = useState(false);
-  const src = item.thumbnail_url ?? item.url;
+  const src = item.thumbnail_url ?? item.url ?? (item.id ? `/api/v1/media/${item.id}` : undefined);
 
   if (src && !imgError) {
     return (
