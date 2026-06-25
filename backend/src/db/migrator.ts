@@ -42,38 +42,48 @@ export function runMigrations(db: Database.Database, migrationsDir: string, logg
 
   let migrationsRun = 0;
 
-  for (const file of files) {
-    const version = file.replace('.sql', '');
-    const filePath = path.join(migrationsDir, file);
-    const sql = fs.readFileSync(filePath, 'utf-8');
-    const checksum = crypto.createHash('sha256').update(sql).digest('hex');
+  // FK enforcement cannot be changed inside a transaction. Disable it for the
+  // migration run so DDL table-rebuild patterns (rename/copy/drop) work cleanly,
+  // then restore it after all migrations complete.
+  const fkWasOn = db.pragma('foreign_keys', { simple: true }) === 1;
+  if (fkWasOn) db.pragma('foreign_keys = OFF');
 
-    const existing = applied.get(version);
-    if (existing) {
-      // Verify checksum hasn't changed
-      if (existing.checksum !== checksum) {
-        throw new Error(
-          `Migration ${file} checksum mismatch! Expected ${existing.checksum}, got ${checksum}. ` +
-          'Applied migrations must not be modified.'
-        );
+  try {
+    for (const file of files) {
+      const version = file.replace('.sql', '');
+      const filePath = path.join(migrationsDir, file);
+      const sql = fs.readFileSync(filePath, 'utf-8');
+      const checksum = crypto.createHash('sha256').update(sql).digest('hex');
+
+      const existing = applied.get(version);
+      if (existing) {
+        // Verify checksum hasn't changed
+        if (existing.checksum !== checksum) {
+          throw new Error(
+            `Migration ${file} checksum mismatch! Expected ${existing.checksum}, got ${checksum}. ` +
+            'Applied migrations must not be modified.'
+          );
+        }
+        continue; // Already applied
       }
-      continue; // Already applied
+
+      // Run migration in a transaction
+      logger.info(`Running migration: ${file}`);
+      const start = Date.now();
+
+      const runMigration = db.transaction(() => {
+        db.exec(sql);
+        db.prepare(
+          'INSERT INTO schema_migrations (version, filename, checksum, execution_time_ms) VALUES (?, ?, ?, ?)'
+        ).run(version, file, checksum, Date.now() - start);
+      });
+
+      runMigration();
+      migrationsRun++;
+      logger.info(`Migration ${file} applied in ${Date.now() - start}ms`);
     }
-
-    // Run migration in a transaction
-    logger.info(`Running migration: ${file}`);
-    const start = Date.now();
-
-    const runMigration = db.transaction(() => {
-      db.exec(sql);
-      db.prepare(
-        'INSERT INTO schema_migrations (version, filename, checksum, execution_time_ms) VALUES (?, ?, ?, ?)'
-      ).run(version, file, checksum, Date.now() - start);
-    });
-
-    runMigration();
-    migrationsRun++;
-    logger.info(`Migration ${file} applied in ${Date.now() - start}ms`);
+  } finally {
+    if (fkWasOn) db.pragma('foreign_keys = ON');
   }
 
   logger.info(`Migrations complete: ${migrationsRun} new, ${applied.size} already applied`);
