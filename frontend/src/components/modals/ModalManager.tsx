@@ -4,6 +4,7 @@ import FocusTrap from '@/components/FocusTrap/FocusTrap';
 import PersonEditor from '@/components/entity-editors/PersonEditor';
 import FamilyEditor from '@/components/entity-editors/FamilyEditor';
 import MediaEditor from '@/components/entity-editors/MediaEditor';
+import MarriageEditor from '@/components/entity-editors/MarriageEditor';
 import { useModalStore } from './modalStore';
 import type { ModalEditorProps, ModalResult } from './modalTypes';
 import styles from './ModalManager.module.css';
@@ -19,6 +20,7 @@ export const REGISTRY: ModalRegistry = {
   PersonEditor: PersonEditor as unknown as React.ComponentType<ModalEditorProps & Record<string, unknown>>,
   FamilyEditor: FamilyEditor as unknown as React.ComponentType<ModalEditorProps & Record<string, unknown>>,
   MediaEditor: MediaEditor as unknown as React.ComponentType<ModalEditorProps & Record<string, unknown>>,
+  MarriageEditor: MarriageEditor as unknown as React.ComponentType<ModalEditorProps & Record<string, unknown>>,
 };
 
 interface ModalManagerProps {
