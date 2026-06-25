@@ -84,6 +84,52 @@ function seedMinimal(database: Database.Database) {
   `);
 }
 
+describe('GET /api/v1/tree/unconnected-segments', () => {
+  beforeAll(() => {
+    db = new Database(':memory:');
+    seedMinimal(db);
+
+    // User with home_person_id = 'home'
+    db.prepare(`INSERT INTO users (id, email, display_name, password_hash, role, home_person_id)
+      VALUES ('user-1', 'a@b.com', 'Test', 'x', 'admin', 'home')`).run();
+
+    // Master tree: home → spouse (family f-home)
+    db.prepare(`INSERT INTO persons (id, sex) VALUES ('home', 'M'), ('spouse', 'F')`).run();
+    db.prepare(`INSERT INTO families (id, spouse1_id, spouse2_id) VALUES ('f-home', 'home', 'spouse')`).run();
+
+    // Disconnected segment: p1 + p2 in family f-disc
+    db.prepare(`INSERT INTO persons (id, sex) VALUES ('p1', 'M'), ('p2', 'F')`).run();
+    db.prepare(`INSERT INTO families (id, spouse1_id, spouse2_id) VALUES ('f-disc', 'p1', 'p2')`).run();
+  });
+
+  it('returns segments not connected to the home person', async () => {
+    const app = buildApp();
+    const res = await request(app).get('/api/v1/tree/unconnected-segments');
+    expect(res.status).toBe(200);
+    expect(res.body.segments).toHaveLength(1);
+    const segPersonIds = res.body.segments[0].persons.map((p: { id: string }) => p.id);
+    expect(segPersonIds).toContain('p1');
+    expect(segPersonIds).toContain('p2');
+    expect(segPersonIds).not.toContain('home');
+    expect(segPersonIds).not.toContain('spouse');
+  });
+
+  it('returns empty segments when all people are connected to home', async () => {
+    // Fresh db with only home person
+    const localDb = new Database(':memory:');
+    seedMinimal(localDb);
+    localDb.prepare(`INSERT INTO users (id, email, display_name, password_hash, role, home_person_id)
+      VALUES ('user-1', 'a@b.com', 'Test', 'x', 'admin', 'solo')`).run();
+    localDb.prepare(`INSERT INTO persons (id, sex) VALUES ('solo', 'M')`).run();
+    db = localDb;
+
+    const app = buildApp();
+    const res = await request(app).get('/api/v1/tree/unconnected-segments');
+    expect(res.status).toBe(200);
+    expect(res.body.segments).toHaveLength(0);
+  });
+});
+
 describe('GET /api/v1/tree/unconnected-people', () => {
   beforeAll(() => {
     db = new Database(':memory:');
