@@ -30,7 +30,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await fetch('/api/auth/me', { credentials: 'include' });
 
       if (res.status === 401) {
-        setUser(null);
+        // Access token expired — attempt silent refresh before logging out
+        const refreshRes = await fetch('/api/auth/refresh', {
+          method: 'POST',
+          credentials: 'include',
+        });
+        if (refreshRes.ok) {
+          const refreshData = await refreshRes.json() as { user: User };
+          setUser(refreshData.user);
+          setNeedsSetup(false);
+        } else {
+          setUser(null);
+        }
         return;
       }
 
