@@ -11,9 +11,9 @@ import Navbar from '@/components/Navbar/Navbar';
 import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
-import MediaPersonTagger from '@/components/MediaPersonTagger/MediaPersonTagger';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useSearchStore } from '@/stores/searchStore';
+import { useModal } from '@/components/modals/useModal';
 import styles from './MediaPage.module.css';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -39,13 +39,6 @@ interface LinkOption {
   label: string;
 }
 
-interface MediaLinks {
-  persons: { person_id: string; name: string; is_primary: number }[];
-  families: { family_id: string; label: string }[];
-  events: { event_id: string; label: string }[];
-}
-
-type EditableField = 'title' | 'description' | 'date_taken';
 type MediaFilter = 'all' | 'unlinked';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -99,20 +92,6 @@ const CloseIcon: React.FC<{ size?: number }> = ({ size = 16 }) => (
     aria-hidden="true"
   >
     <path d="M6 18L18 6M6 6l12 12" />
-  </svg>
-);
-
-const PencilIcon: React.FC = () => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-  >
-    <path d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
   </svg>
 );
 
@@ -222,119 +201,12 @@ const ThumbCard: React.FC<ThumbCardProps> = ({ item, onClick }) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// EditableDetailField sub-component
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface EditableDetailFieldProps {
-  label: string;
-  value: string | null;
-  emptyText: string;
-  fieldKey: EditableField;
-  canEdit: boolean;
-  isEditing: boolean;
-  editValue: string;
-  isSaving: boolean;
-  multiline?: boolean;
-  inputType?: string;
-  onStartEdit: () => void;
-  onChangeValue: (v: string) => void;
-  onSave: () => void;
-  onCancel: () => void;
-}
-
-const EditableDetailField: React.FC<EditableDetailFieldProps> = ({
-  label,
-  value,
-  emptyText,
-  canEdit,
-  isEditing,
-  editValue,
-  isSaving,
-  multiline = false,
-  inputType = 'text',
-  onStartEdit,
-  onChangeValue,
-  onSave,
-  onCancel,
-}) => (
-  <div className={styles.detailField}>
-    <span className={styles.detailFieldLabel}>{label}</span>
-    {isEditing ? (
-      <div className={styles.editInputWrap}>
-        {multiline ? (
-          <textarea
-            className={styles.formTextarea}
-            value={editValue}
-            onChange={(e) => onChangeValue(e.target.value)}
-            placeholder={`Enter ${label.toLowerCase()}…`}
-            rows={3}
-            // eslint-disable-next-line jsx-a11y/no-autofocus
-            autoFocus
-            disabled={isSaving}
-          />
-        ) : (
-          <Input
-            type={inputType}
-            value={editValue}
-            onChange={(e) => onChangeValue(e.target.value)}
-            placeholder={`Enter ${label.toLowerCase()}…`}
-            // eslint-disable-next-line jsx-a11y/no-autofocus
-            autoFocus
-            disabled={isSaving}
-          />
-        )}
-        <div className={styles.editActions}>
-          <Button variant="primary" size="sm" onClick={onSave} loading={isSaving}>
-            Save
-          </Button>
-          <Button variant="ghost" size="sm" onClick={onCancel} disabled={isSaving}>
-            Cancel
-          </Button>
-        </div>
-      </div>
-    ) : (
-      <div className={styles.editableRow}>
-        <span
-          className={[
-            styles.detailFieldValue,
-            !value ? styles.detailFieldEmpty : '',
-            canEdit ? styles.editableValue : '',
-          ]
-            .filter(Boolean)
-            .join(' ')}
-          onClick={canEdit ? onStartEdit : undefined}
-          role={canEdit ? 'button' : undefined}
-          tabIndex={canEdit ? 0 : undefined}
-          onKeyDown={
-            canEdit
-              ? (e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    onStartEdit();
-                  }
-                }
-              : undefined
-          }
-          aria-label={canEdit ? `Edit ${label.toLowerCase()}` : undefined}
-        >
-          {value ?? emptyText}
-        </span>
-        {canEdit && (
-          <span className={styles.editPencilWrap} aria-hidden="true">
-            <PencilIcon />
-          </span>
-        )}
-      </div>
-    )}
-  </div>
-);
-
-// ─────────────────────────────────────────────────────────────────────────────
 // MediaPage
 // ─────────────────────────────────────────────────────────────────────────────
 
 const MediaPage: React.FC = () => {
-  const { canCreate, canEdit, canDelete } = usePermissions();
+  const { canCreate, canEdit } = usePermissions();
+  const { openModal } = useModal();
 
   // ── Gallery state ──────────────────────────────────────────────────────────
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
@@ -366,23 +238,6 @@ const MediaPage: React.FC = () => {
   const [mediaFilter, setMediaFilter] = useState<MediaFilter>('all');
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<string | null>(null);
-
-  // ── Detail panel state ────────────────────────────────────────────────────
-  const [selectedItem, setSelectedItem] = useState<MediaItem | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [editingField, setEditingField] = useState<EditableField | null>(null);
-  const [editValue, setEditValue] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-
-  // ── Detail entity links state ─────────────────────────────────────────────
-  const [detailLinks, setDetailLinks] = useState<MediaLinks>({ persons: [], families: [], events: [] });
-  const [addLinkType, setAddLinkType] = useState<'person' | 'family' | 'event'>('person');
-  const [addLinkId, setAddLinkId] = useState('');
-  const [isLinking, setIsLinking] = useState(false);
-  const [linkError, setLinkError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
@@ -613,157 +468,27 @@ const MediaPage: React.FC = () => {
     }
   };
 
-  // ── Detail panel handlers ──────────────────────────────────────────────────
+  // ── Open detail modal ──────────────────────────────────────────────────────
 
-  const fetchDetailLinks = async (mediaId: string) => {
-    try {
-      const res = await fetch(`/api/v1/media/${mediaId}/links`, { credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json() as MediaLinks;
-        setDetailLinks(data);
-      }
-    } catch {
-      // Non-critical — fail silently
-    }
-  };
+  const handleOpenDetail = useCallback(async (item: MediaItem) => {
+    await openModal('MediaEditor', {
+      mediaId: item.id,
+      initialItem: item,
+      onMediaDeleted: () => setMediaItems((prev) => prev.filter((m) => m.id !== item.id)),
+      onMediaUpdated: (updated: MediaItem) =>
+        setMediaItems((prev) => prev.map((m) => (m.id === updated.id ? updated : m))),
+    });
+  }, [openModal]);
 
-  const openDetail = (item: MediaItem) => {
-    setSelectedItem(item);
-    setDeleteConfirm(false);
-    setDeleteError(null);
-    setEditingField(null);
-    setSaveError(null);
-    setDetailLinks({ persons: [], families: [], events: [] });
-    setAddLinkId('');
-    setLinkError(null);
-    fetchDetailLinks(item.id);
-    fetchLinkOptions();
-  };
-
-  const closeDetail = () => {
-    if (isDeleting || isSaving || isLinking) return;
-    setSelectedItem(null);
-    setDeleteConfirm(false);
-    setEditingField(null);
-  };
-
-  const startEdit = (field: EditableField) => {
-    if (!selectedItem) return;
-    setEditingField(field);
-    setEditValue(selectedItem[field] ?? '');
-    setSaveError(null);
-  };
-
-  const cancelEdit = () => {
-    setEditingField(null);
-    setSaveError(null);
-  };
-
-  const handleSaveEdit = async () => {
-    if (!selectedItem || !editingField) return;
-    setIsSaving(true);
-    setSaveError(null);
-    try {
-      const body: Record<string, string | null> = {
-        [editingField]: editValue.trim() || null,
-      };
-      const res = await fetch(`/api/v1/media/${selectedItem.id}`, {
-        method: 'PUT',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({})) as { message?: string };
-        throw new Error(errData.message ?? `Failed to save (${res.status})`);
-      }
-      const updated: MediaItem = await res.json();
-      setSelectedItem(updated);
-      setMediaItems((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
-      setEditingField(null);
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Failed to save');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!selectedItem) return;
-    setIsDeleting(true);
-    setDeleteError(null);
-    try {
-      const res = await fetch(`/api/v1/media/${selectedItem.id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      if (!res.ok) {
-        throw new Error(`Failed to delete (${res.status})`);
-      }
-      setMediaItems((prev) => prev.filter((m) => m.id !== selectedItem.id));
-      setSelectedItem(null);
-    } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : 'Failed to delete');
-      setIsDeleting(false);
-      setDeleteConfirm(false);
-    }
-  };
-
-  const handleAddLink = async () => {
-    if (!selectedItem || !addLinkId) return;
-    setIsLinking(true);
-    setLinkError(null);
-    try {
-      const res = await fetch(
-        `/api/v1/media/${selectedItem.id}/links/${addLinkType}/${addLinkId}`,
-        { method: 'POST', credentials: 'include' },
-      );
-      if (!res.ok) throw new Error(`Failed to add link (${res.status})`);
-      setAddLinkId('');
-      await fetchDetailLinks(selectedItem.id);
-    } catch (err) {
-      setLinkError(err instanceof Error ? err.message : 'Failed to add link');
-    } finally {
-      setIsLinking(false);
-    }
-  };
-
-  const handleRemoveLink = async (type: 'person' | 'family' | 'event', targetId: string) => {
-    if (!selectedItem) return;
-    setIsLinking(true);
-    setLinkError(null);
-    try {
-      const res = await fetch(
-        `/api/v1/media/${selectedItem.id}/links/${type}/${targetId}`,
-        { method: 'DELETE', credentials: 'include' },
-      );
-      if (!res.ok) throw new Error(`Failed to remove link (${res.status})`);
-      await fetchDetailLinks(selectedItem.id);
-    } catch (err) {
-      setLinkError(err instanceof Error ? err.message : 'Failed to remove link');
-    } finally {
-      setIsLinking(false);
-    }
-  };
-
-  const handleTagsChanged = async () => {
-    if (selectedItem) {
-      await fetchDetailLinks(selectedItem.id);
-    }
-  };
-
-  // ── Keyboard: close detail drawer on Escape ────────────────────────────────
+  // ── Keyboard: close upload panel on Escape ─────────────────────────────────
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (showUpload) closeUpload();
-        else if (selectedItem) closeDetail();
-      }
+      if (e.key === 'Escape' && showUpload) closeUpload();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showUpload, selectedItem, isUploading, isDeleting, isSaving]);
+  }, [showUpload, isUploading]);
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const showSkeleton = isLoading && mediaItems.length === 0;
@@ -840,7 +565,7 @@ const MediaPage: React.FC = () => {
         ) : (
           <div className={styles.gallery}>
             {mediaItems.map((item) => (
-              <ThumbCard key={item.id} item={item} onClick={() => openDetail(item)} />
+              <ThumbCard key={item.id} item={item} onClick={() => { void handleOpenDetail(item); }} />
             ))}
           </div>
         )}
@@ -1105,329 +830,6 @@ const MediaPage: React.FC = () => {
         </div>
       )}
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          Detail Drawer
-      ══════════════════════════════════════════════════════════════════════ */}
-      {selectedItem && (
-        <>
-          <div
-            className={styles.drawerBackdrop}
-            onClick={closeDetail}
-            aria-hidden="true"
-          />
-          <div
-            className={styles.detailDrawer}
-            role="dialog"
-            aria-modal="true"
-            aria-label={`Media detail: ${displayTitle(selectedItem)}`}
-          >
-            {/* Drawer header */}
-            <div className={styles.drawerHeader}>
-              <h2 className={styles.drawerTitle}>Media Detail</h2>
-              <button
-                className={styles.drawerClose}
-                type="button"
-                onClick={closeDetail}
-                disabled={isDeleting || isSaving}
-                aria-label="Close detail panel"
-              >
-                <CloseIcon />
-              </button>
-            </div>
-
-            {/* Drawer body */}
-            <div className={styles.drawerBody}>
-              {/* Image / PDF preview */}
-              {isPdf(selectedItem.mime_type) ? (
-                <div className={styles.detailPdfWrap}>
-                  <DocIcon className={styles.detailPdfIcon} />
-                  <span className={styles.detailPdfName}>{selectedItem.original_filename}</span>
-                  <a
-                    href={`/api/v1/media/${selectedItem.id}`}
-                    className={styles.detailPdfDownload}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    download={selectedItem.original_filename}
-                  >
-                    Download PDF
-                  </a>
-                </div>
-              ) : (
-                <div className={styles.detailImgWrap}>
-                  <img
-                    src={`/api/v1/media/${selectedItem.id}`}
-                    alt={displayTitle(selectedItem)}
-                    className={styles.detailImg}
-                  />
-                </div>
-              )}
-
-              {!isPdf(selectedItem.mime_type) && (
-                <MediaPersonTagger
-                  mediaId={selectedItem.id}
-                  mediaSrc={`/api/v1/media/${selectedItem.id}`}
-                  canEdit={canEdit}
-                  onChanged={handleTagsChanged}
-                />
-              )}
-
-              {/* Detail content */}
-              <div className={styles.detailContent}>
-                {/* Title */}
-                <EditableDetailField
-                  label="Title"
-                  value={selectedItem.title}
-                  emptyText="No title"
-                  fieldKey="title"
-                  canEdit={canEdit}
-                  isEditing={editingField === 'title'}
-                  editValue={editValue}
-                  isSaving={isSaving}
-                  onStartEdit={() => startEdit('title')}
-                  onChangeValue={setEditValue}
-                  onSave={handleSaveEdit}
-                  onCancel={cancelEdit}
-                />
-
-                {/* Description */}
-                <EditableDetailField
-                  label="Description"
-                  value={selectedItem.description}
-                  emptyText="No description"
-                  fieldKey="description"
-                  canEdit={canEdit}
-                  isEditing={editingField === 'description'}
-                  editValue={editValue}
-                  isSaving={isSaving}
-                  multiline
-                  onStartEdit={() => startEdit('description')}
-                  onChangeValue={setEditValue}
-                  onSave={handleSaveEdit}
-                  onCancel={cancelEdit}
-                />
-
-                {/* Date taken */}
-                <EditableDetailField
-                  label="Date Taken"
-                  value={
-                    selectedItem.date_taken ? formatDate(selectedItem.date_taken) : null
-                  }
-                  emptyText="Unknown date"
-                  fieldKey="date_taken"
-                  canEdit={canEdit}
-                  isEditing={editingField === 'date_taken'}
-                  editValue={editValue}
-                  isSaving={isSaving}
-                  inputType="date"
-                  onStartEdit={() => startEdit('date_taken')}
-                  onChangeValue={setEditValue}
-                  onSave={handleSaveEdit}
-                  onCancel={cancelEdit}
-                />
-
-                {/* Save error */}
-                {saveError && (
-                  <div className={styles.saveError} role="alert">
-                    {saveError}
-                  </div>
-                )}
-
-                <div className={styles.divider} />
-
-                {/* ── Connections section ──────────────────────────── */}
-                <div className={styles.detailField}>
-                  <span className={styles.detailFieldLabel}>Connections</span>
-
-                  {/* Existing links */}
-                  <div className={styles.linkChips}>
-                    {detailLinks.persons.map((p) => (
-                      <span key={p.person_id} className={`${styles.linkChip} ${styles.linkChipPerson}`}>
-                        {p.name.trim() || p.person_id}
-                        {canEdit && (
-                          <button
-                            type="button"
-                            className={styles.linkChipRemove}
-                            onClick={() => handleRemoveLink('person', p.person_id)}
-                            disabled={isLinking}
-                            aria-label={`Remove link to ${p.name.trim()}`}
-                          >
-                            ×
-                          </button>
-                        )}
-                      </span>
-                    ))}
-                    {detailLinks.families.map((f) => (
-                      <span key={f.family_id} className={`${styles.linkChip} ${styles.linkChipFamily}`}>
-                        {f.label.trim() || f.family_id}
-                        {canEdit && (
-                          <button
-                            type="button"
-                            className={styles.linkChipRemove}
-                            onClick={() => handleRemoveLink('family', f.family_id)}
-                            disabled={isLinking}
-                            aria-label={`Remove link to family ${f.label.trim()}`}
-                          >
-                            ×
-                          </button>
-                        )}
-                      </span>
-                    ))}
-                    {detailLinks.events.map((ev) => (
-                      <span key={ev.event_id} className={`${styles.linkChip} ${styles.linkChipEvent}`}>
-                        {ev.label.trim() || ev.event_id}
-                        {canEdit && (
-                          <button
-                            type="button"
-                            className={styles.linkChipRemove}
-                            onClick={() => handleRemoveLink('event', ev.event_id)}
-                            disabled={isLinking}
-                            aria-label={`Remove link to event ${ev.label.trim()}`}
-                          >
-                            ×
-                          </button>
-                        )}
-                      </span>
-                    ))}
-                    {detailLinks.persons.length === 0 &&
-                     detailLinks.families.length === 0 &&
-                     detailLinks.events.length === 0 && (
-                      <span className={styles.emptyLinks}>No connections</span>
-                    )}
-                  </div>
-
-                  {/* Add link controls */}
-                  {canEdit && (
-                    <div className={styles.addLinkRow}>
-                      <select
-                        className={styles.formSelect}
-                        value={addLinkType}
-                        onChange={(e) => {
-                          setAddLinkType(e.target.value as 'person' | 'family' | 'event');
-                          setAddLinkId('');
-                        }}
-                        aria-label="Link type"
-                      >
-                        <option value="person">Person</option>
-                        <option value="family">Family</option>
-                        <option value="event">Event</option>
-                      </select>
-                      <select
-                        className={styles.formSelect}
-                        value={addLinkId}
-                        onChange={(e) => setAddLinkId(e.target.value)}
-                        aria-label="Select entity to link"
-                      >
-                        <option value="">Select…</option>
-                        {addLinkType === 'person' &&
-                          personOptions.map((o) => (
-                            <option key={o.id} value={o.id}>{o.label}</option>
-                          ))}
-                        {addLinkType === 'family' &&
-                          familyOptions.map((o) => (
-                            <option key={o.id} value={o.id}>{o.label}</option>
-                          ))}
-                        {addLinkType === 'event' &&
-                          eventOptions.map((o) => (
-                            <option key={o.id} value={o.id}>{o.label}</option>
-                          ))}
-                      </select>
-                      <button
-                        type="button"
-                        className={styles.addLinkBtn}
-                        onClick={handleAddLink}
-                        disabled={!addLinkId || isLinking}
-                      >
-                        {isLinking ? '…' : '+'}
-                      </button>
-                    </div>
-                  )}
-                  {linkError && (
-                    <div className={styles.saveError} role="alert">
-                      {linkError}
-                    </div>
-                  )}
-                </div>
-
-                <div className={styles.divider} />
-
-                {/* File info grid */}
-                <div className={styles.detailField}>
-                  <span className={styles.detailFieldLabel}>File Info</span>
-                  <div className={styles.fileInfoGrid}>
-                    <div className={styles.fileInfoItem}>
-                      <span className={styles.fileInfoKey}>Filename</span>
-                      <span className={styles.fileInfoValue} title={selectedItem.original_filename}>
-                        {selectedItem.original_filename}
-                      </span>
-                    </div>
-                    <div className={styles.fileInfoItem}>
-                      <span className={styles.fileInfoKey}>Size</span>
-                      <span className={styles.fileInfoValue}>
-                        {formatBytes(selectedItem.file_size)}
-                      </span>
-                    </div>
-                    <div className={styles.fileInfoItem}>
-                      <span className={styles.fileInfoKey}>Type</span>
-                      <span className={styles.fileInfoValue}>{selectedItem.mime_type}</span>
-                    </div>
-                    <div className={styles.fileInfoItem}>
-                      <span className={styles.fileInfoKey}>Uploaded</span>
-                      <span className={styles.fileInfoValue}>
-                        {formatDate(selectedItem.created_at)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Drawer footer — delete */}
-            {canDelete && (
-              <div className={styles.drawerFooter}>
-                {deleteError && (
-                  <div className={styles.deleteError} role="alert">
-                    {deleteError}
-                  </div>
-                )}
-                {deleteConfirm ? (
-                  <div className={styles.deleteConfirm}>
-                    <p className={styles.deleteConfirmText}>
-                      Permanently delete this media item? This cannot be undone.
-                    </p>
-                    <div className={styles.deleteConfirmActions}>
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        onClick={handleDelete}
-                        loading={isDeleting}
-                      >
-                        Delete permanently
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setDeleteConfirm(false)}
-                        disabled={isDeleting}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => setDeleteConfirm(true)}
-                    fullWidth
-                  >
-                    Delete Media
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-        </>
-      )}
     </AppShell>
   );
 };

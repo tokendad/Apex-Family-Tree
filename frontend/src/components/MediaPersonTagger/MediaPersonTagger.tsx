@@ -34,6 +34,7 @@ interface MediaPersonTaggerProps {
   mediaId: string;
   mediaSrc: string;
   canEdit: boolean;
+  autoEnable?: boolean;
   onChanged?: () => Promise<void> | void;
 }
 
@@ -126,6 +127,7 @@ export default function MediaPersonTagger({
   mediaId,
   mediaSrc,
   canEdit,
+  autoEnable = false,
   onChanged,
 }: MediaPersonTaggerProps) {
   const imageRef = useRef<HTMLImageElement>(null);
@@ -137,7 +139,7 @@ export default function MediaPersonTagger({
   const [regions, setRegions] = useState<MediaRegion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [taggingEnabled, setTaggingEnabled] = useState(false);
+  const [taggingEnabled, setTaggingEnabled] = useState(autoEnable);
   const [isDrawing, setIsDrawing] = useState(false);
   const [draftRect, setDraftRect] = useState<DraftRect | null>(null);
   const [regionEdits, setRegionEdits] = useState<Record<string, DraftRect>>({});
@@ -191,11 +193,11 @@ export default function MediaPersonTagger({
     setShowCreatePerson(false);
     setNewGivenName('');
     setNewSurname('');
-    setTaggingEnabled(false);
+    setTaggingEnabled(autoEnable);
     setIsDrawing(false);
     movingRegionRef.current = null;
     resizingRegionRef.current = null;
-  }, [mediaId]);
+  }, [mediaId, autoEnable]);
 
   const pointerPosition = (clientX: number, clientY: number) => {
     const stage = stageRef.current;
