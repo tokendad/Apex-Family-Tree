@@ -19,6 +19,7 @@ import { useTreeData } from '@/hooks/useTreeData';
 import { usePersonWizard } from '@/hooks/usePersonWizard';
 import { useSearchStore, hasActiveFilters, filtersToParams } from '@/stores/searchStore';
 import type { PreLinkedRelationship } from '@/hooks/usePersonWizard';
+import type { TreeNode, TreePerson } from '@/stores/canvasStore';
 
 type TreeFilter = 'all' | 'unconnected-people' | 'unconnected-trees';
 
@@ -26,6 +27,7 @@ const TreePage: React.FC = () => {
   const { refetch } = useTreeData();
   const [treeFilter, setTreeFilter] = useState<TreeFilter>('all');
   const { selectedPersonId, setHighlightedPersonIds } = useCanvasStore();
+  const { setNodes, setFamilies, setConnectors, setLoading, fitToScreen } = useCanvasStore();
   const searchFilters = useSearchStore();
   const setTotalCount = useSearchStore((s) => s.setTotalCount);
   const filtersActive = hasActiveFilters(searchFilters);
@@ -81,6 +83,48 @@ const TreePage: React.FC = () => {
   useEffect(() => {
     return () => setHighlightedPersonIds(new Set());
   }, [setHighlightedPersonIds]);
+
+  useEffect(() => {
+    if (treeFilter === 'all') {
+      void refetch();
+      return;
+    }
+
+    if (treeFilter === 'unconnected-people') {
+      void (async () => {
+        setLoading(true);
+        try {
+          const res = await fetch('/api/v1/tree/unconnected-people', { credentials: 'include' });
+          if (!res.ok) throw new Error('Failed to fetch');
+          const data = await res.json() as { people: TreePerson[] };
+
+          const CARD_W = 260;
+          const CARD_H = 180;
+          const COLS = 4;
+          const GAP_X = 20;
+          const GAP_Y = 40;
+
+          const nodes: TreeNode[] = data.people.map((person, i) => ({
+            person,
+            x: (i % COLS) * (CARD_W + GAP_X),
+            y: Math.floor(i / COLS) * (CARD_H + GAP_Y),
+            generation: 0,
+          }));
+
+          setNodes(nodes);
+          setFamilies([]);
+          setConnectors([]);
+          fitToScreen(window.innerWidth, window.innerHeight);
+        } catch {
+          setNodes([]);
+          setFamilies([]);
+          setConnectors([]);
+        } finally {
+          setLoading(false);
+        }
+      })();
+    }
+  }, [treeFilter, refetch, setNodes, setFamilies, setConnectors, setLoading, fitToScreen]);
 
   const [wizardOpen, setWizardOpen] = useState(false);
   const [editPersonId, setEditPersonId] = useState<string | null>(null);
