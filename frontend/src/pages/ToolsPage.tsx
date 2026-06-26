@@ -34,8 +34,9 @@ const TOOL_CARDS: ToolCard[] = [
   },
   {
     title: 'Tree Integrity Checks',
-    description: 'Planned checks for disconnected people, impossible dates, circular relationships, and missing core facts.',
-    status: 'planned',
+    description: 'Track unresolved tree issues such as unlinked people, broken branches, missing core facts, and relationship conflicts.',
+    status: 'available',
+    href: '/tools/tree-issues',
   },
   {
     title: 'Import/Export Utilities',

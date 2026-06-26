@@ -1,6 +1,6 @@
-# Future Feature: Data Quality Issues Tracking
+# Feature: Tree Issues Tracking
 
-**Status:** Deferred — to be designed in a separate session
+**Status:** Implemented v1 — manual scan and persistent issue tracking
 
 ---
 
@@ -16,27 +16,45 @@ Currently there is no way to:
 
 ---
 
-## Desired Outcome
+## Implemented v1
 
-A persistent issues panel (accessible from the tree or admin area) that:
-- Lists outstanding data-quality warnings tree-wide (e.g. "John Doe has 2 active marriages")
-- Links directly to the affected person or family record
-- Allows the user to mark an issue resolved (or dismiss it as intentional)
-- Generates new issues automatically when problematic data patterns are detected (e.g. on marriage creation, on import)
+Tree Issues now uses a hybrid model:
+
+- Scanner logic detects current data-quality warning patterns.
+- Persistent issue rows store status decisions such as `open`, `resolved`, and `dismissed`.
+- Stable fingerprints prevent duplicate issue rows across repeated scans.
+- Resolved issues reopen if the same problem is detected again.
+- Dismissed issues stay dismissed and require a note.
+
+The main UI lives at `/tools/tree-issues`, with a compact unresolved-count entry point on the Tree page toolbar.
+
+Access model:
+
+- All signed-in users can view issue summaries and issue lists.
+- Editor/admin users can run scans and change issue status.
 
 ---
 
-## Known Issue Types to Track (initial list)
+## Initial Issue Types
 
-- Person has more than one active marriage (no divorce/death/annulment between them)
-- Marriage event exists with no corresponding family record (or vice versa)
-- Person has a death event but is listed as a spouse in a family with no divorce date
-- GEDCOM import conflicts (duplicate persons, unresolved references)
+- Person has more than one active marriage.
+- Person has a death event but is listed as a spouse in an active family.
+- Marriage event exists with no corresponding family record.
+- Family marriage record exists with no corresponding spouse timeline event.
+- Person is missing core data: usable name, birth event, or death event for deceased records.
+- Person is unconnected to any family.
+- Connected branch is disconnected from the main tree.
+- GEDCOM import conflict remains unresolved.
 
 ---
 
-## Notes for the Design Session
+## UX Placement
 
-- Consider whether issues are stored in the database (persistent) or computed on-the-fly (derived)
-- Consider a badge count in the navbar or sidebar indicating unresolved issues
-- The MarriageEditor warning (2026-06-25 spec) is the first consumer of this concept — the inline warning is a short-term solution; the issues panel is the long-term home
+The Tree page remains focused on browsing and editing the visual tree. It only shows a compact "Tree Issues: N" control when unresolved issues exist.
+
+The full review workflow lives in Tools:
+
+1. Open Tools.
+2. Select Tree Integrity Checks.
+3. Run Scan tree if the user has editor/admin access.
+4. Review issues, follow affected record links, fix data in existing pages, then resolve or dismiss.

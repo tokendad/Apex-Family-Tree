@@ -10,9 +10,10 @@ interface CanvasToolbarProps {
   onAddPerson?: () => void;
   treeFilter?: TreeFilter;
   onTreeFilterChange?: (filter: TreeFilter) => void;
+  treeIssueCount?: number | null;
 }
 
-const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ onAddPerson, treeFilter = 'all', onTreeFilterChange }) => {
+const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ onAddPerson, treeFilter = 'all', onTreeFilterChange, treeIssueCount }) => {
   const navigate = useNavigate();
   const { zoom, zoomIn, zoomOut, resetView, fitToScreen } = useCanvasStore();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -91,6 +92,21 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ onAddPerson, treeFilter =
         <option value="unconnected-people">Unconnected People</option>
         <option value="unconnected-trees">Unconnected Trees</option>
       </select>
+
+      {typeof treeIssueCount === 'number' && treeIssueCount > 0 && (
+        <>
+          <div className={styles.separator} />
+          <button
+            className={styles.issueButton}
+            type="button"
+            onClick={() => navigate('/tools/tree-issues')}
+            aria-label={`Tree Issues: ${treeIssueCount}`}
+            title="Open tree issues"
+          >
+            Tree Issues: <span>{treeIssueCount}</span>
+          </button>
+        </>
+      )}
     </div>
   );
 };

@@ -27,6 +27,7 @@ type TreeFilter = 'all' | 'unconnected-people' | 'unconnected-trees';
 const TreePage: React.FC = () => {
   const { refetch } = useTreeData();
   const [treeFilter, setTreeFilter] = useState<TreeFilter>('all');
+  const [treeIssueCount, setTreeIssueCount] = useState<number | null>(null);
   const { selectedPersonId, setHighlightedPersonIds } = useCanvasStore();
   const { nodes, isLoading, setNodes, setFamilies, setConnectors, setLoading, fitToScreen } = useCanvasStore();
   const searchFilters = useSearchStore();
@@ -34,6 +35,24 @@ const TreePage: React.FC = () => {
   const filtersActive = hasActiveFilters(searchFilters);
   const highlightDebounce = useRef<ReturnType<typeof setTimeout>>();
   const prevFilterRef = useRef<TreeFilter>('all');
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch('/api/v1/tools/tree-issues/summary', { credentials: 'include' });
+        if (!response.ok) return;
+        const data = await response.json() as { open?: number };
+        if (!cancelled) setTreeIssueCount(typeof data.open === 'number' ? data.open : null);
+      } catch {
+        if (!cancelled) setTreeIssueCount(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Highlight matching tree nodes when search is active
   useEffect(() => {
@@ -299,6 +318,7 @@ const TreePage: React.FC = () => {
         onAddPerson={openCreateWizard}
         treeFilter={treeFilter}
         onTreeFilterChange={setTreeFilter}
+        treeIssueCount={treeIssueCount}
       />
       {treeFilter !== 'all' && (
         <div className={styles.filterBanner}>

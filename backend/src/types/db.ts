@@ -253,6 +253,26 @@ export interface ImportAuditLog {
   created_at: string;
 }
 
+// ─── Data Quality ──────────────────────────────────────────────────────────
+
+export interface DataQualityIssue {
+  id: string;
+  type: string;
+  severity: 'high' | 'medium' | 'low';
+  status: 'open' | 'resolved' | 'dismissed';
+  title: string;
+  summary: string;
+  primary_entity_type: string;
+  primary_entity_id: string;
+  related_entities_json: string;
+  fingerprint: string;
+  detected_at: string;
+  last_seen_at: string;
+  resolved_at: string | null;
+  dismissed_at: string | null;
+  note: string | null;
+}
+
 export interface ExportJob {
   id: string;
   user_id: string;

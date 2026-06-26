@@ -96,3 +96,24 @@
   outline: 2px solid var(--color-primary);
   outline-offset: 1px;
 }
+
+.issueButton {
+  height: 28px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-warning, #d97706);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-bg, #fffbeb);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+}
+
+.issueButton span {
+  font-weight: var(--font-weight-semibold);
+}
+
+.issueButton:hover {
+  border-color: var(--color-warning-dark, #b45309);
+  background: #fef3c7;
+}

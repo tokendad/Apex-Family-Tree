@@ -14,7 +14,8 @@ vi.mock('@/stores/canvasStore', () => ({
     zoom: 1, zoomIn: vi.fn(), zoomOut: vi.fn(), resetView: vi.fn(), fitToScreen: vi.fn(),
   })),
 }));
-vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
+const navigateMock = vi.fn();
+vi.mock('react-router-dom', () => ({ useNavigate: () => navigateMock }));
 vi.mock('@/components/Button/Button', () => ({ default: ({ children, onClick }: any) => <button onClick={onClick}>{children}</button> }));
 
 const { default: CanvasToolbar } = await import('./CanvasToolbar');
@@ -38,5 +39,14 @@ describe('CanvasToolbar filter dropdown', () => {
       target: { value: 'unconnected-people' },
     });
     expect(onChange).toHaveBeenCalledWith('unconnected-people');
+  });
+
+  it('links to tree issues when an issue count is provided', () => {
+    render(<CanvasToolbar treeFilter="all" onTreeFilterChange={vi.fn()} treeIssueCount={4} />);
+
+    const issuesButton = screen.getByRole('button', { name: /tree issues: 4/i });
+    fireEvent.click(issuesButton);
+
+    expect(navigateMock).toHaveBeenCalledWith('/tools/tree-issues');
   });
 });

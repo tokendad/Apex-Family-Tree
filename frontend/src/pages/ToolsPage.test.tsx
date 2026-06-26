@@ -10,7 +10,7 @@ vi.mock('@/components/AppShell/AppShell', () => ({
 vi.mock('@/components/Navbar/Navbar', () => ({ default: () => null }));
 
 describe('ToolsPage', () => {
-  it('shows the active People de-duplication tool and future placeholders', () => {
+  it('shows active cleanup tools and future placeholders', () => {
     render(<ToolsPage />, { wrapper: MemoryRouter });
 
     expect(screen.getByRole('heading', { name: 'Tools' })).toBeInTheDocument();
@@ -18,12 +18,16 @@ describe('ToolsPage', () => {
       'href',
       '/tools/people-dedup',
     );
+    expect(screen.getByRole('link', { name: /tree integrity checks/i })).toHaveAttribute(
+      'href',
+      '/tools/tree-issues',
+    );
 
     expect(screen.getByText(/duplicate-family review/i)).toBeInTheDocument();
     expect(screen.getByText(/duplicate-source review/i)).toBeInTheDocument();
     expect(screen.getByText(/unlinked media review/i)).toBeInTheDocument();
-    expect(screen.getByText(/disconnected people/i)).toBeInTheDocument();
     expect(screen.getByText(/GEDCOM import and export helpers/i)).toBeInTheDocument();
-    expect(screen.getAllByText('Planned')).toHaveLength(5);
+    expect(screen.getAllByText('Available')).toHaveLength(2);
+    expect(screen.getAllByText('Planned')).toHaveLength(4);
   });
 });
