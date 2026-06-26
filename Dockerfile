@@ -5,6 +5,12 @@ ARG VERSION=0.0.0
 
 WORKDIR /build
 
+ENV NPM_CONFIG_FETCH_RETRIES=5
+ENV NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=20000
+ENV NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000
+
+RUN apk add --no-cache python3 make g++
+
 # Copy package files first for layer caching
 COPY package.json package-lock.json ./
 COPY frontend/package.json frontend/
@@ -23,23 +29,31 @@ RUN npm run build
 # ---- Production Stage ----
 FROM node:20-alpine AS production
 
+ARG VERSION=0.0.0
+
 LABEL maintainer="tokendad"
 LABEL org.opencontainers.image.title="Apex Family Tree"
 LABEL org.opencontainers.image.description="Self-hosted family genealogy web application"
 LABEL org.opencontainers.image.source="https://github.com/tokendad/Apex-Family-Tree"
 
 ENV APP_VERSION=${VERSION}
+ENV NPM_CONFIG_FETCH_RETRIES=5
+ENV NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=20000
+ENV NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000
 
 WORKDIR /app
 
 # Install su-exec for user remapping
-RUN apk add --no-cache su-exec
+RUN apk add --no-cache su-exec libstdc++
 
 # Install production dependencies only
 COPY package.json package-lock.json ./
 COPY frontend/package.json frontend/
 COPY backend/package.json backend/
-RUN npm ci --omit=dev && npm cache clean --force
+RUN apk add --no-cache --virtual .build-deps python3 make g++ \
+  && npm ci --omit=dev \
+  && npm cache clean --force \
+  && apk del .build-deps
 
 # Copy built artifacts
 COPY --from=builder /build/frontend/dist frontend/dist/
