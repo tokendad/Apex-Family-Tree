@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
+import { EventRepository } from '../repositories/EventRepository.js';
 import { FamilyRepository } from '../repositories/FamilyRepository.js';
 import { PersonRepository } from '../repositories/PersonRepository.js';
 
@@ -20,6 +21,30 @@ function toSpouseSummary(person: ReturnType<PersonRepository['findById']> | null
     middle_name: person.primary_name?.middle_name ?? null,
     surname: person.primary_name?.surname ?? null,
   };
+}
+
+function syncFamilyLifecycleEvents(
+  eventRepo: EventRepository,
+  familyId: string,
+  payload: {
+    marriage_date?: string | null;
+    marriage_place?: string | null;
+    marriage_description?: string | null;
+    divorce_date?: string | null;
+    divorce_place?: string | null;
+    divorce_description?: string | null;
+  },
+) {
+  eventRepo.syncFamilyEvent(familyId, 'marriage', {
+    event_date: payload.marriage_date,
+    event_place: payload.marriage_place,
+    description: payload.marriage_description,
+  });
+  eventRepo.syncFamilyEvent(familyId, 'divorce', {
+    event_date: payload.divorce_date,
+    event_place: payload.divorce_place,
+    description: payload.divorce_description,
+  });
 }
 
 // GET /families — List families (paginated)
@@ -56,10 +81,12 @@ familiesRouter.post(
   (req, res) => {
     try {
       const familyRepo = new FamilyRepository();
+      const eventRepo = new EventRepository();
       const personRepo = new PersonRepository();
-      const { spouse1_id, spouse2_id, marriage_date, marriage_place } = req.body;
+      const { spouse1_id, spouse2_id, marriage_date, marriage_place, marriage_description } = req.body;
 
       const family = familyRepo.create({ spouse1_id, spouse2_id, marriage_date, marriage_place });
+      syncFamilyLifecycleEvents(eventRepo, family.id, { marriage_date, marriage_place, marriage_description });
       const spouse1 = toSpouseSummary(family.spouse1_id ? personRepo.findById(family.spouse1_id) : null);
       const spouse2 = toSpouseSummary(family.spouse2_id ? personRepo.findById(family.spouse2_id) : null);
       res.status(201).json({ ...family, spouse1, spouse2 });
@@ -114,8 +141,18 @@ familiesRouter.put(
   (req, res) => {
     try {
       const familyRepo = new FamilyRepository();
+      const eventRepo = new EventRepository();
       const personRepo = new PersonRepository();
-      const { spouse1_id, spouse2_id, marriage_date, marriage_place, divorce_date, divorce_place } = req.body;
+      const {
+        spouse1_id,
+        spouse2_id,
+        marriage_date,
+        marriage_place,
+        marriage_description,
+        divorce_date,
+        divorce_place,
+        divorce_description,
+      } = req.body;
 
       const family = familyRepo.update(paramStr(req.params.id), {
         spouse1_id, spouse2_id, marriage_date, marriage_place, divorce_date, divorce_place,
@@ -124,6 +161,15 @@ familiesRouter.put(
         res.status(404).json({ error: 'Family not found' });
         return;
       }
+
+      syncFamilyLifecycleEvents(eventRepo, family.id, {
+        marriage_date: family.marriage_date,
+        marriage_place: family.marriage_place,
+        marriage_description,
+        divorce_date: family.divorce_date,
+        divorce_place: family.divorce_place,
+        divorce_description,
+      });
 
       const spouse1 = toSpouseSummary(family.spouse1_id ? personRepo.findById(family.spouse1_id) : null);
       const spouse2 = toSpouseSummary(family.spouse2_id ? personRepo.findById(family.spouse2_id) : null);

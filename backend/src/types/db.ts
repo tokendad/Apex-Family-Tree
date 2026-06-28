@@ -91,6 +91,7 @@ export interface Family {
 export interface Event {
   id: string;
   person_id: string;
+  family_id: string | null;
   event_type: string;
   event_date: string | null;
   event_date_qualifier: string | null;

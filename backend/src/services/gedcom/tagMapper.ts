@@ -34,6 +34,7 @@ export interface MappedFamily {
   spouse1Xref: string | null;
   spouse2Xref: string | null;
   childXrefs: string[];
+  events: MappedEvent[];
   marriageDate: string | null;
   marriagePlace: string | null;
   divorceDate: string | null;
@@ -95,6 +96,20 @@ const INDIVIDUAL_EVENT_TAGS: Record<string, string> = {
   RELI: 'religion',
   SSN: 'ssn',
   TITL: 'title',
+};
+
+const FAMILY_EVENT_TAGS: Record<string, string> = {
+  MARR: 'marriage',
+  DIV: 'divorce',
+  ANUL: 'annulment',
+  ENGA: 'engagement',
+  MARB: 'marriage_bann',
+  MARC: 'marriage_contract',
+  MARL: 'marriage_license',
+  MARS: 'marriage_settlement',
+  CENS: 'census',
+  RESI: 'residence',
+  EVEN: 'other',
 };
 
 const NAME_TYPE_MAP: Record<string, MappedName['nameType']> = {
@@ -218,6 +233,7 @@ function mapFamily(record: GedcomRecord): MappedFamily {
   const husbRec = findChildByTag(record, 'HUSB');
   const wifeRec = findChildByTag(record, 'WIFE');
   const childRecs = findChildrenByTag(record, 'CHIL');
+  const events: MappedEvent[] = [];
 
   let marriageDate: string | null = null;
   let marriagePlace: string | null = null;
@@ -236,11 +252,19 @@ function mapFamily(record: GedcomRecord): MappedFamily {
     divorcePlace = findChildByTag(divRec, 'PLAC')?.value || null;
   }
 
+  for (const [tag, eventType] of Object.entries(FAMILY_EVENT_TAGS)) {
+    const eventRecords = findChildrenByTag(record, tag);
+    for (const er of eventRecords) {
+      events.push(extractEvent(er, eventType));
+    }
+  }
+
   return {
     xref,
     spouse1Xref: husbRec?.value || null,
     spouse2Xref: wifeRec?.value || null,
     childXrefs: childRecs.map(c => c.value || '').filter(Boolean),
+    events,
     marriageDate,
     marriagePlace,
     divorceDate,

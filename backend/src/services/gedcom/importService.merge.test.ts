@@ -41,13 +41,16 @@ CREATE TABLE IF NOT EXISTS names (
 
 CREATE TABLE IF NOT EXISTS events (
   id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-  person_id TEXT NOT NULL REFERENCES persons(id) ON DELETE CASCADE,
+  person_id TEXT REFERENCES persons(id) ON DELETE CASCADE,
+  family_id TEXT REFERENCES families(id) ON DELETE CASCADE,
   event_type TEXT NOT NULL CHECK (event_type IN (
     'birth', 'death', 'burial', 'cremation', 'baptism', 'christening',
     'bar_mitzvah', 'bat_mitzvah', 'confirmation', 'first_communion',
     'graduation', 'immigration', 'emigration', 'naturalization',
     'census', 'residence', 'occupation', 'retirement',
-    'military_service', 'medical', 'custom'
+    'military_service', 'medical', 'custom',
+    'probate', 'will', 'other', 'education', 'religion', 'ssn', 'title',
+    'marriage', 'divorce', 'annulment', 'engagement'
   )),
   event_date TEXT,
   event_date_qualifier TEXT CHECK (event_date_qualifier IN ('exact', 'about', 'before', 'after', 'between', 'calculated', 'estimated')),
@@ -477,5 +480,53 @@ describe('gap-fill blank fields on merge', () => {
     // given_name was non-blank ('Bob') — must NOT be overwritten
     expect(nameRow.given_name).toBe('Bob');
     expect(nameRow.surname).toBe('Smith');
+  });
+});
+
+describe('family event import', () => {
+  it('creates a family-backed marriage event from a GEDCOM FAM block', () => {
+    const ged = `0 HEAD
+1 GEDC
+2 VERS 5.5.1
+0 @I1@ INDI
+1 NAME John /Smith/
+1 SEX M
+1 FAMS @F1@
+0 @I2@ INDI
+1 NAME Jane /Doe/
+1 SEX F
+1 FAMS @F1@
+0 @F1@ FAM
+1 HUSB @I1@
+1 WIFE @I2@
+1 MARR
+2 DATE 14 JUN 1910
+2 PLAC Boston, MA
+0 TRLR
+`;
+
+    const importRepo = new ImportRepository();
+    const job = importRepo.createJob({ user_id: 'u1', filename: 'family.ged', file_size: ged.length });
+
+    processImport(job.id, ged, 'u1', 'new');
+
+    const family = db.prepare('SELECT id, marriage_date, marriage_place FROM families WHERE gedcom_id = ?').get('@F1@') as { id: string; marriage_date: string | null; marriage_place: string | null } | undefined;
+    expect(family).toBeTruthy();
+    expect(family?.marriage_date).toBe('14 JUN 1910');
+    expect(family?.marriage_place).toBe('Boston, MA');
+
+    const familyEvent = db.prepare(
+      `SELECT event_type, event_date, event_place, family_id, person_id
+       FROM events
+       WHERE family_id = ? AND event_type = 'marriage'`
+    ).get(family!.id) as { event_type: string; event_date: string | null; event_place: string | null; family_id: string; person_id: string | null } | undefined;
+
+    expect(familyEvent).toMatchObject({
+      event_type: 'marriage',
+      event_date: '14 JUN 1910',
+      event_place: 'Boston, MA',
+      family_id: family!.id,
+      person_id: null,
+    });
   });
 });

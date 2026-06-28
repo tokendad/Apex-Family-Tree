@@ -63,30 +63,6 @@ const MarriageEditor: React.FC<MarriageEditorProps> = ({
     setIsLoading(true);
 
     try {
-      // Always create the marriage event
-      const eventRes = await fetch(`/api/v1/events/people/${personId}/events`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          event_type: 'marriage',
-          event_date: marriageDate || null,
-          event_place: marriagePlace || null,
-          description: notes || null,
-        }),
-      });
-
-      if (!eventRes.ok) {
-        let message = `HTTP ${eventRes.status}`;
-        try {
-          const err = await eventRes.json();
-          message = err.error ?? message;
-        } catch { /* non-JSON */ }
-        setError(`Failed to save marriage event: ${message}`);
-        return;
-      }
-
-      // Create the family record only when a spouse is selected
       if (spouse) {
         const familyRes = await fetch('/api/v1/families', {
           method: 'POST',
@@ -97,6 +73,7 @@ const MarriageEditor: React.FC<MarriageEditorProps> = ({
             spouse2_id: spouse.id,
             marriage_date: marriageDate || null,
             marriage_place: marriagePlace || null,
+            marriage_description: notes || null,
           }),
         });
 
@@ -106,25 +83,30 @@ const MarriageEditor: React.FC<MarriageEditorProps> = ({
             const err = await familyRes.json();
             message = err.error ?? message;
           } catch { /* non-JSON */ }
-          setError(`Marriage event saved, but failed to create family record: ${message}`);
+          setError(`Failed to save marriage family: ${message}`);
           return;
         }
+      } else {
+        const eventRes = await fetch(`/api/v1/events/people/${personId}/events`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event_type: 'marriage',
+            event_date: marriageDate || null,
+            event_place: marriagePlace || null,
+            description: notes || null,
+          }),
+        });
 
-        // Best-effort: also record the marriage event on the spouse's timeline
-        try {
-          await fetch(`/api/v1/events/people/${spouse.id}/events`, {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              event_type: 'marriage',
-              event_date: marriageDate || null,
-              event_place: marriagePlace || null,
-              description: notes || null,
-            }),
-          });
-        } catch {
-          console.warn('MarriageEditor: failed to record marriage event on spouse timeline');
+        if (!eventRes.ok) {
+          let message = `HTTP ${eventRes.status}`;
+          try {
+            const err = await eventRes.json();
+            message = err.error ?? message;
+          } catch { /* non-JSON */ }
+          setError(`Failed to save marriage event: ${message}`);
+          return;
         }
       }
 

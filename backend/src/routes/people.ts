@@ -165,7 +165,7 @@ peopleRouter.get('/:id', (req, res) => {
       return;
     }
 
-    const events = eventRepo.findByPerson(person.id);
+    const events = eventRepo.findTimelineByPerson(person.id);
     res.json({ ...person, events });
   } catch (error) {
     res.status(500).json({ error: 'Failed to get person' });

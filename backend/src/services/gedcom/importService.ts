@@ -604,6 +604,40 @@ export function processImport(jobId: string, content: string, userId: string, mo
         }
       }
 
+      const familyEventKey = (eventType: string, date: string | null, place: string | null, description: string | null) =>
+        [eventType, date ?? '', place ?? '', description ?? ''].join('|');
+
+      const syncFamilyLifecycleEvent = (
+        familyId: string,
+        eventType: 'marriage' | 'divorce',
+        date: string | null,
+        place: string | null,
+      ) => {
+        const existing = eventRepo.findByFamilyAndType(familyId, eventType);
+        const event = eventRepo.syncFamilyEvent(familyId, eventType, { event_date: date, event_place: place });
+        if (event && !existing) eventCount++;
+      };
+
+      const syncFamilyEvents = (familyId: string, familyEvents: typeof mapped.families[number]['events']) => {
+        const existingEvents = eventRepo.findByFamily(familyId);
+        const existingKeys = new Set(
+          existingEvents.map((event) => familyEventKey(event.event_type, event.event_date, event.event_place, event.description))
+        );
+        for (const event of familyEvents) {
+          const key = familyEventKey(event.eventType, event.date, event.place, event.description);
+          if (existingKeys.has(key)) continue;
+          eventRepo.create({
+            family_id: familyId,
+            event_type: event.eventType,
+            event_date: event.date || undefined,
+            event_place: event.place || undefined,
+            description: event.description || undefined,
+          });
+          eventCount++;
+          existingKeys.add(key);
+        }
+      };
+
       for (const family of mapped.families) {
         const spouse1Id = family.spouse1Xref ? xrefMap.get(family.spouse1Xref) : undefined;
         const spouse2Id = family.spouse2Xref ? xrefMap.get(family.spouse2Xref) : undefined;
@@ -625,6 +659,14 @@ export function processImport(jobId: string, content: string, userId: string, mo
                 familyRepo.addMember(existingFamilyId, childId, 'child');
               }
             }
+
+            if (family.marriageDate || family.marriagePlace) {
+              syncFamilyLifecycleEvent(existingFamilyId, 'marriage', family.marriageDate, family.marriagePlace);
+            }
+            if (family.divorceDate || family.divorcePlace) {
+              syncFamilyLifecycleEvent(existingFamilyId, 'divorce', family.divorceDate, family.divorcePlace);
+            }
+            syncFamilyEvents(existingFamilyId, family.events);
 
             importRepo.logAction({
               import_job_id: jobId,
@@ -653,6 +695,15 @@ export function processImport(jobId: string, content: string, userId: string, mo
             divorce_place: family.divorcePlace || undefined,
           });
         }
+
+        if (family.marriageDate || family.marriagePlace) {
+          syncFamilyLifecycleEvent(created.id, 'marriage', family.marriageDate, family.marriagePlace);
+        }
+        if (family.divorceDate || family.divorcePlace) {
+          syncFamilyLifecycleEvent(created.id, 'divorce', family.divorceDate, family.divorcePlace);
+        }
+
+        syncFamilyEvents(created.id, family.events);
 
         // Add children
         for (const childXref of family.childXrefs) {
