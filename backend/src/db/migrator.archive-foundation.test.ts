@@ -2,14 +2,12 @@ import Database from 'better-sqlite3';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { registerCustomFunctions } from './connection.js';
 import { runMigrations } from './migrator.js';
 import type { Logger } from '../services/logger.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const migrationsDir = path.resolve(__dirname, '../migrations');
+const migrationsDir = path.resolve(process.cwd(), 'src/migrations');
 
 const logger: Logger = {
   info: () => {},
