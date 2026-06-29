@@ -1,219 +1,114 @@
 # Product Vision: An Interactive Genealogy Workspace
 
-## Beyond a Genealogy Database
+# Apex Family Tree
 
-While reviewing Apex Family Tree, one realization became increasingly clear:
+## A Digital Family Archive
 
-**Apex should not aspire to be another genealogy database.**
-
-There are already many excellent genealogy applications that excel at storing records, importing GEDCOM files, and presenting countless forms for entering data. Most of them are feature-rich, but many also feel like database front-ends.
-
-Apex has the opportunity to become something different.
-
-Instead of asking:
-
-> "How do users edit genealogy records?"
-
-Apex should ask:
-
-> **"How do people naturally explore, understand, and preserve their family's story?"**
-
-This distinction changes nearly every design decision.
+> *Preserve the people, relationships, stories, and artifacts that define your family's legacy.*
 
 ---
 
-# The Workspace Philosophy
+# Our Vision
 
-The family tree should not simply be another page within the application.
+Every family has a story.
 
-It should become **the application itself.**
+Some of that story is written in birth records and family trees. Much more of it is found in handwritten recipes, faded photographs, report cards, letters, home movies, military medals, newspaper clippings, and the memories passed from one generation to the next.
 
-Rather than navigating between disconnected pages and modal dialogs, the tree becomes the user's primary workspace.
+Unfortunately, these pieces of family history are often scattered across boxes in attics, photo albums on shelves, hard drives, cloud storage, and the memories of relatives. Over time, they become disconnected from the people and events that gave them meaning.
 
-Everything else exists to support that workspace.
+Apex Family Tree exists to bring those pieces back together.
 
-Just as architects work from blueprints and designers work from canvases, genealogists should work from the living structure of their family.
+Our goal is not simply to build another genealogy application.
 
-The tree is always visible.
+Our goal is to create **a digital family archive**—a place where people, relationships, events, stories, photographs, documents, and family artifacts can live together in context.
 
-The context changes.
+The family tree is the foundation of that archive.
 
-The workspace remains.
+It is not the destination.
 
----
-
-# The Canvas is Alive
-
-Today's interaction model often looks like this:
-
-```
-Tree
-   ↓
-Click
-   ↓
-Modal
-   ↓
-Edit
-   ↓
-Close
-```
-
-Instead, the interaction should feel more like this:
-
-```
-Canvas
-    ├── Person Inspector
-    ├── Relationship Inspector
-    ├── Timeline
-    ├── Sources
-    ├── Media
-    ├── Search
-    └── Activity
-```
-
-Nothing disappears.
-
-Nothing interrupts the user's train of thought.
-
-The workspace simply adapts to whatever the user is currently exploring.
+It is the map that connects every piece of your family's history.
 
 ---
 
-# Tell Stories, Not Records
+# Beyond Genealogy
 
-The database stores records.
+Traditional genealogy software answers questions like:
 
-People remember stories.
+* Who were my ancestors?
+* When were they born?
+* How are we related?
 
-A genealogist rarely thinks:
+These are important questions.
 
-> "I need to edit Family Record #23."
+But they are only part of the story.
 
-Instead they think:
+Apex also asks:
 
-* John married Mary.
-* They had three children.
-* John remarried Susan.
-* Susan adopted John's youngest son.
-* Their family moved from Vermont to Massachusetts.
-
-The interface should reinforce this natural way of thinking.
-
-Every interaction should make the family story easier to understand.
-
----
-
-# Inspect, Don't Edit
-
-Instead of presenting an "Edit Person" dialog, selecting a person should feel like inspecting an object inside a workspace.
-
-The inspector might summarize:
-
-**John Smith**
-
-* Born 1931
-* Married twice
-* Five children
-* Twelve documented events
-* Three photographs
-* Last updated yesterday
-
-The user can then make edits naturally without leaving the workspace.
-
-Likewise, selecting a marriage or family union should shift the inspector to describe that relationship rather than opening an entirely separate editing experience.
+* What did they create?
+* Where did they live?
+* What traditions did they pass down?
+* What photographs survive?
+* What letters did they write?
+* What stories do we remember?
+* What artifacts remain?
+* What legacy will we leave to the next generation?
 
 ---
 
-# The Workspace Evolves Around the User
+# The Family Archive
 
-The canvas remains fixed.
+Within Apex, every piece of family history has value.
 
-Only the context changes.
+A photograph is more than an image.
 
-Selecting different objects changes the available tools.
+A letter is more than a document.
 
-Selecting a person reveals person tools.
+A report card is more than a school record.
 
-Selecting a relationship reveals relationship tools.
+A Christmas photograph is more than a holiday snapshot.
 
-Selecting a source reveals citation tools.
+Each artifact provides context, preserves memory, and strengthens the understanding of the people connected to it.
 
-Selecting a photograph reveals media tools.
-
-The application feels intelligent because it responds to what the user is currently investigating.
+Our archive is designed to preserve not only facts, but also meaning.
 
 ---
 
-# Hide the Database
+# A Living Workspace
 
-Internally, the application will always contain people, families, events, media, places, and sources.
+The family tree is not simply a diagram.
 
-The user does not need to think about these tables.
+It is the primary workspace for exploring family history.
 
-Instead they should experience:
+From the tree, users can naturally navigate to people, relationships, events, places, photographs, stories, documents, and artifacts.
 
-* A family tree
-* A timeline
-* A collection of memories
-* A collection of photographs
-* Historical places
-* Documents
-* Stories
-
-The database becomes an implementation detail.
-
-The workspace becomes the product.
+Every interaction should deepen the user's understanding of the family's story without exposing the complexity of the underlying data.
 
 ---
 
-# A Living Family Archive
+# Preserve Legacy
 
-The long-term vision for Apex extends beyond genealogy.
+History records what happened.
 
-It becomes a digital family archive.
+Legacy preserves what mattered.
 
-The family tree acts as the entry point into a much richer collection of knowledge.
+Our mission is not simply to document lineage.
 
-Every person connects naturally to:
+Our mission is to preserve legacy.
 
-* Events
-* Photographs
-* Documents
-* Audio recordings
-* Video
-* Maps
-* Military records
-* Census records
-* Letters
-* Personal stories
-* Source citations
+By connecting people with the stories, artifacts, and memories that shaped their lives, Apex Family Tree becomes more than genealogy software.
 
-Rather than navigating separate modules, users discover these artifacts organically while exploring the tree.
+It becomes a living archive that families can continue to build, explore, and pass on for generations.
 
 ---
 
-# Guiding Design Principle
+## Guiding Principle
 
-Every design decision should answer one question:
+**Every design decision should strengthen a family's understanding of its own story.**
 
-> **Does this help someone better understand their family's story?**
+If a feature helps preserve, discover, or share that story, it belongs in Apex.
 
-If the answer is yes, it probably belongs in Apex.
-
-If the answer is simply "it exposes another database record," then the interaction should be reconsidered.
-
-This principle provides a consistent compass for future development and helps ensure that the application grows into a cohesive workspace instead of an increasingly complex collection of forms.
+If it merely exposes another database record, it should be reconsidered.
 
 ---
 
-# Vision Statement
-
-**Apex Family Tree is not a genealogy database.**
-
-It is an interactive genealogy workspace designed to help families explore, document, preserve, and share their history.
-
-The tree is not merely a visualization.
-
-It is the center of the experience.
-
-Everything else exists to enrich the story that grows from it.
+*"Every family eventually becomes an archive. Apex helps preserve it."*
