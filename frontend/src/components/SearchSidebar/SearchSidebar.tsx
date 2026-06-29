@@ -3,12 +3,12 @@ import CollapsibleSection from '@/components/CollapsibleSection/CollapsibleSecti
 import Input from '@/components/Form/Input';
 import Select from '@/components/Form/Select';
 import { useSearchStore, hasActiveFilters } from '@/stores/searchStore';
-import type { DateMode } from '@/stores/searchStore';
+import type { DateMode, SidebarContext } from '@/stores/searchStore';
 import styles from './SearchSidebar.module.css';
 
 interface SearchSidebarProps {
   /** Which page context we're on — controls which filters are visible */
-  context?: 'tree' | 'people' | 'families' | 'sources' | 'media';
+  context?: SidebarContext;
 }
 
 const SearchSidebar: React.FC<SearchSidebarProps> = ({ context = 'people' }) => {

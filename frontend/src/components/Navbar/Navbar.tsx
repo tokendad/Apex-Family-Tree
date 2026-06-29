@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { label: 'Tree', path: '/' },
   { label: 'People', path: '/people' },
   { label: 'Families', path: '/families' },
+  { label: 'Artifacts', path: '/artifacts' },
   { label: 'Sources', path: '/sources' },
   { label: 'Media', path: '/media' },
 ];

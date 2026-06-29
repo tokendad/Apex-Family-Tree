@@ -55,6 +55,8 @@ describe('archive foundation migration', () => {
       runMigrations(db, migrationsDir, logger);
 
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'archive_objects'").get()).toBeTruthy();
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'artifacts'").get()).toBeTruthy();
+      expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'artifact_files'").get()).toBeTruthy();
       expect(db.prepare('SELECT COUNT(*) AS count FROM artifact_types').get()).toEqual({ count: 12 });
       expect(db.prepare('SELECT COUNT(*) AS count FROM evidence_classifications').get()).toEqual({ count: 8 });
       expect(db.prepare('SELECT COUNT(*) AS count FROM confidence_levels').get()).toEqual({ count: 6 });
