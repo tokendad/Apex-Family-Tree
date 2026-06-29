@@ -35,16 +35,19 @@ If that works cleanly, the rest of the system has a strong foundation.
 This roadmap assumes the following design documents exist:
 
 ```text
-Docs/ChatGPTReview/
+Docs/Apex_Family_Legacy_2.0/
 ├── Product_Vision.md
 ├── Architecture_of_Ideas.md
 ├── Artifact_Model.md
 ├── Relationship_Model.md
 ├── Data_Model_2.0.md
-└── Database_Schema_2.0.md
+├── Database_Schema_2.0.md
+└── Model_Decisions_Before_Code.md
 ```
 
 These documents should guide implementation decisions.
+
+`Model_Decisions_Before_Code.md` resolves model-contract ambiguities and supersedes conflicting wording in earlier planning docs.
 
 If a coding decision conflicts with the design documents, pause and update the design first.
 
@@ -166,14 +169,17 @@ Introduce the core database foundation for Apex Family Legacy 2.0.
 * `evidence_classifications`
 * `event_types`
 * `relationship_types`
+* `relationship_type_roles`
 
 ## Tasks
 
-* Create the first 2.0 migration.
+* Create the first additive 2.0 migration.
 * Add the shared `archive_objects` table.
 * Add lookup tables.
 * Seed system values.
 * Add indexes.
+* Do not create replacement `people` or `person_names` tables in Phase 1.
+* Do not rename or destroy existing tables in Phase 1.
 * Add basic migration tests if practical.
 * Confirm migration works on a clean database.
 * Confirm migration works on an existing development database.
@@ -185,6 +191,8 @@ The `archive_objects` table is the identity layer.
 Every major object should eventually have a row in `archive_objects`.
 
 Lookup tables should include stable system values but allow future user-defined values where appropriate.
+
+The first migration should be additive and backward-compatible. Existing `persons` and `names` remain the physical person tables during this phase.
 
 ## Acceptance Criteria
 
@@ -291,6 +299,7 @@ This phase proves the central idea of Apex Family Legacy:
 * `relationships`
 * `relationship_members`
 * `relationship_types`
+* `relationship_type_roles`
 * `confidence_levels`
 
 ## Backend Tasks
@@ -299,7 +308,7 @@ This phase proves the central idea of Apex Family Legacy:
 * Add `RelationshipService`.
 * Add relationship create/read/update/delete endpoints.
 * Add ability to connect any archive object to any other archive object.
-* Add relationship member validation.
+* Add relationship member validation using `relationship_type_roles` before exposing creation APIs.
 * Add helper queries:
 
   * Get relationships for an object.
@@ -340,12 +349,12 @@ Walter appears in Christmas Morning 1989 photo.
 
 ## Goal
 
-Adapt people to the new archive object model.
+Adapt existing `persons` and `names` records to the new archive object model.
 
 ## Primary Tables
 
-* `people`
-* `person_names`
+* existing `persons`
+* existing `names`
 * `archive_objects`
 * `relationships`
 
@@ -353,7 +362,7 @@ Adapt people to the new archive object model.
 
 * Ensure every person has a corresponding `archive_objects` row.
 * Add migration path for existing people.
-* Add `person_names` support.
+* Adapt existing `names` support to the archive profile experience.
 * Update person repository/service as needed.
 * Update person detail/profile view.
 * Add “Connected Artifacts” section to person profile.
@@ -748,7 +757,8 @@ As a user, I want to add a family artifact and connect it to a person so that th
 ## Technical Scope
 
 * `archive_objects`
-* `people`
+* existing `persons`
+* existing `names`
 * `artifacts`
 * `artifact_types`
 * `evidence_classifications`
@@ -801,6 +811,8 @@ These should not be destroyed.
 4. Map existing family structures to relationships gradually.
 5. Keep compatibility views or adapters during the transition.
 6. Remove obsolete tables only after the new model is proven.
+
+Existing `persons` and `names` are not obsolete in early phases. They are the transitional physical implementation of conceptual Person and person names.
 
 ## Important Rule
 

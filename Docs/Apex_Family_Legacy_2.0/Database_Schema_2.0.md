@@ -8,6 +8,8 @@ This document proposes the foundational SQLite database schema for Apex Family L
 
 Apex Family Legacy is a digital family archive. The database should support people, artifacts, events, places, stories, collections, relationships, claims, evidence, provenance, and future intelligent exploration.
 
+Before implementation, read `Model_Decisions_Before_Code.md`. That document resolves physical implementation decisions that supersede any ambiguity in this conceptual schema.
+
 The schema should not be optimized only for a family tree.
 
 The tree is one view of the archive.
@@ -199,6 +201,23 @@ Domain-specific details belong in extension tables.
 
 # People
 
+## Transitional Implementation Decision
+
+Do not create new `people` or `person_names` tables during Phase 1.
+
+During the transition, the existing `persons` and `names` tables are the physical person-domain extension tables.
+
+Phase 1 should backfill archive object rows for existing people using:
+
+```text
+archive_objects.id = persons.id
+archive_objects.object_type = 'person'
+```
+
+The SQL below describes the conceptual target shape for person data. It is not the Phase 1 migration plan unless a deliberate future refactor replaces or renames the existing tables.
+
+Any later schema examples that reference `people` or `person_names` should be read as conceptual target references. During the transition, use the existing `persons` and `names` tables instead.
+
 ## people
 
 ```sql
@@ -248,6 +267,8 @@ CREATE TABLE person_names (
 A person should store identity-level information only.
 
 Birth, death, marriage, residence, military service, and education should be modeled as events, claims, or relationships rather than being trapped as fixed person columns.
+
+For the initial implementation, apply this principle to the existing `persons` and `names` tables rather than creating new person tables.
 
 ---
 
@@ -671,6 +692,66 @@ CREATE TABLE relationship_types (
 );
 ```
 
+## relationship_type_roles
+
+```sql
+CREATE TABLE relationship_type_roles (
+  id TEXT PRIMARY KEY,
+  relationship_type_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  allowed_object_type TEXT NOT NULL,
+  min_count INTEGER NOT NULL DEFAULT 0,
+  max_count INTEGER,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  is_required INTEGER NOT NULL DEFAULT 0,
+
+  FOREIGN KEY (relationship_type_id) REFERENCES relationship_types(id) ON DELETE CASCADE,
+
+  CHECK (allowed_object_type IN (
+    'person',
+    'artifact',
+    'event',
+    'place',
+    'story',
+    'collection',
+    'claim',
+    'relationship'
+  )),
+
+  CHECK (min_count >= 0),
+  CHECK (max_count IS NULL OR max_count >= min_count),
+  CHECK (is_required IN (0, 1)),
+
+  UNIQUE (relationship_type_id, role, allowed_object_type)
+);
+```
+
+## Relationship Type Role Contract
+
+`relationship_members.role` is not uncontrolled free text in practice.
+
+The service layer must validate relationship members against `relationship_type_roles` before creating or updating a relationship.
+
+This contract defines allowed roles, allowed archive object types, minimum and maximum member counts, and required roles for each relationship type.
+
+Examples:
+
+```text
+family_union:
+  partner -> person, min 1, max 2, required
+  child   -> person, min 0, max null
+
+appears_in:
+  subject  -> person
+  artifact -> artifact
+
+occurred_at:
+  event -> event
+  place -> place
+```
+
+This prevents invalid relationships such as a place as spouse, a claim as child, or an artifact as biological parent.
+
 ## Suggested Seed Values
 
 ```text
@@ -679,9 +760,8 @@ adoptive_parent_of
 foster_parent_of
 step_parent_of
 guardian_of
-spouse_of
-partner_of
 sibling_of
+family_union
 child_in_union
 appears_in
 created_by
@@ -692,8 +772,6 @@ identified_by
 occurred_at
 depicts_event
 documents
-supports_claim
-contradicts_claim
 belongs_to_collection
 describes
 associated_with
@@ -709,6 +787,10 @@ Relationship types should be extensible.
 The system needs built-in types for common behavior, especially tree generation.
 
 Users should eventually be able to define custom relationship types for archive-specific needs.
+
+`family_union` is the canonical stored relationship type for tree family structure. Pairwise spouse, partner, and parent-child edges may be derived views for UI and tree rendering, but should not become competing canonical stored tree relationships.
+
+Claim evidence should not use generic `supports_claim` or `contradicts_claim` relationships as a second canonical path. Use `claim_evidence`, or a future `citations` table, for artifact-to-claim evidence.
 
 ---
 
@@ -761,7 +843,9 @@ Apex should use the second pattern.
 
 This allows relationships to be more than hidden joins.
 
-A relationship can carry its own dates, notes, confidence, provenance, and supporting evidence.
+A relationship can carry its own dates, notes, confidence, and provenance.
+
+Claim evidence is handled separately through `claim_evidence` or future citations.
 
 ## relationships
 
@@ -820,14 +904,14 @@ Members:
 - artifact: Christmas 1989 Photo, role: artifact
 ```
 
-### Example: Marriage
+### Example: Family union
 
 ```text
-Relationship type: spouse_of
+Relationship type: family_union
 
 Members:
-- person: John Smith, role: spouse
-- person: Mary Jones, role: spouse
+- person: John Smith, role: partner
+- person: Mary Jones, role: partner
 ```
 
 ### Example: Family union with children
@@ -842,14 +926,11 @@ Members:
 - person: Robert Smith, role: child
 ```
 
-### Example: Artifact supports claim
+### Evidence links are specialized
 
 ```text
-Relationship type: supports_claim
-
-Members:
-- artifact: WWII Draft Letter, role: evidence
-- claim: John served in WWII, role: claim
+Artifact-to-claim evidence is represented through claim_evidence or future citations,
+not through a generic relationship record.
 ```
 
 This pattern keeps the model flexible without creating endless special-case tables.
@@ -892,7 +973,10 @@ CREATE TABLE claim_evidence (
   evidence_object_id TEXT NOT NULL,
   evidence_role TEXT NOT NULL DEFAULT 'supports',
   evidence_classification_id TEXT,
+  excerpt TEXT,
+  locator TEXT,
   weight_score INTEGER,
+  confidence_contribution INTEGER,
   notes TEXT,
 
   FOREIGN KEY (claim_id) REFERENCES claims(id) ON DELETE CASCADE,
@@ -901,6 +985,7 @@ CREATE TABLE claim_evidence (
 
   CHECK (evidence_role IN ('supports', 'contradicts', 'mentions', 'uncertain')),
   CHECK (weight_score IS NULL OR weight_score BETWEEN 0 AND 100),
+  CHECK (confidence_contribution IS NULL OR confidence_contribution BETWEEN 0 AND 100),
 
   UNIQUE (claim_id, evidence_object_id, evidence_role)
 );
@@ -925,6 +1010,10 @@ CREATE TABLE claim_subjects (
 ## Design Notes
 
 Claims separate evidence from conclusions.
+
+`claim_evidence`, or a future `citations` table, is the canonical path between artifacts and claims.
+
+Do not duplicate artifact-to-claim support with generic `supports_claim` relationships.
 
 Example claim:
 
@@ -1165,6 +1254,7 @@ CREATE INDEX idx_places_parent ON places(parent_place_id);
 
 CREATE INDEX idx_relationships_type ON relationships(relationship_type_id);
 CREATE INDEX idx_relationships_confidence ON relationships(confidence_level_id);
+CREATE INDEX idx_relationship_type_roles_type ON relationship_type_roles(relationship_type_id);
 CREATE INDEX idx_relationship_members_relationship ON relationship_members(relationship_id);
 CREATE INDEX idx_relationship_members_object ON relationship_members(object_id);
 CREATE INDEX idx_relationship_members_role ON relationship_members(role);
@@ -1260,8 +1350,6 @@ adoptive_parent_of
 foster_parent_of
 step_parent_of
 guardian_of
-spouse_of
-partner_of
 sibling_of
 family_union
 child_in_union
@@ -1274,8 +1362,6 @@ identified_by
 occurred_at
 depicts_event
 documents
-supports_claim
-contradicts_claim
 belongs_to_collection
 describes
 associated_with
@@ -1293,18 +1379,12 @@ The family tree should be generated from selected relationship types.
 Tree-relevant relationship types include:
 
 ```text
-biological_parent_of
-adoptive_parent_of
-foster_parent_of
-step_parent_of
-guardian_of
-spouse_of
-partner_of
 family_union
-child_in_union
 ```
 
-This allows Apex to preserve genealogy while avoiding the mistake of making the tree the entire data model.
+`family_union` is the canonical stored tree shape. Partner and child membership within the union generates derived parent-child, spouse, partner, sibling, and tree edge views.
+
+This allows Apex to preserve genealogy while avoiding the mistake of making the tree the entire data model or storing competing tree structures.
 
 ---
 
@@ -1334,14 +1414,15 @@ claims:
   confidence: Probable or Confirmed
 ```
 
-## Relationship
+## Claim Evidence
 
 ```text
-relationship type: supports_claim
-
-members:
-  artifact: Grandpa's WWII Draft Letter, role: evidence
-  claim: John Smith served in World War II, role: claim
+claim_evidence:
+  artifact: Grandpa's WWII Draft Letter
+  claim: John Smith served in World War II
+  evidence_role: supports
+  locator: Draft notice text
+  notes: Supports military draft status; service conclusion depends on additional evidence.
 ```
 
 ## Provenance
@@ -1464,7 +1545,7 @@ Shows parent-child and spouse relationships used by the tree.
 
 ## artifact_claims_view
 
-Shows claims supported or contradicted by an artifact.
+Shows claims supported or contradicted by an artifact through `claim_evidence` or future citations.
 
 ## collection_contents_view
 
@@ -1482,7 +1563,7 @@ Recommended migration sequence:
 2. `archive_objects`
 3. Lookup tables
 4. Core domain tables
-5. Relationship tables
+5. Relationship tables and `relationship_type_roles`
 6. Claims and evidence tables
 7. Provenance tables
 8. Tags and collections

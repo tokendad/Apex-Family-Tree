@@ -18,7 +18,7 @@ Assessment target:
 ```text
 Repository: tokendad/Apex-Family-Tree
 Branch: apex-family-legacy-2.0
-Area: Docs/ChatGPTReview planning and current implementation review
+Area: Docs/Apex_Family_Legacy_2.0 planning and current implementation review
 ```
 
 Primary implementation target:
@@ -44,19 +44,28 @@ This assessment focuses on:
 The current 2.0 design stack now includes:
 
 ```text
-Docs/ChatGPTReview/
+Docs/Apex_Family_Legacy_2.0/
 ├── Product_Vision.md
 ├── Architecture_of_Ideas.md
 ├── Artifact_Model.md
 ├── Relationship_Model.md
 ├── Data_Model_2.0.md
 ├── Database_Schema_2.0.md
-└── Implementation_Roadmap_2.0.md
+├── Implementation_Roadmap_2.0.md
+└── Model_Decisions_Before_Code.md
 ```
 
 These documents should guide implementation.
 
 If code decisions conflict with these documents, update the design documents before proceeding.
+
+## Model Contract Cleanup Note
+
+A documentation review before Phase 1 identified model-contract ambiguities around physical person tables, relationship role validation, claim evidence, tree relationships, naming, and filenames.
+
+`Model_Decisions_Before_Code.md` resolves those ambiguities and supersedes conflicting wording in earlier planning docs.
+
+Implementation should follow that decision document before creating migrations or runtime code.
 
 ---
 

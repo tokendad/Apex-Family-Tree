@@ -72,6 +72,8 @@ A person's life should be assembled from linked relationships, events, artifacts
 
 A person should not directly own the archive.
 
+During the transition from Apex Family Tree to Apex Family Legacy, the conceptual `Person` maps to the existing physical `persons` table, with names in the existing `names` table. Do not create new `people` or `person_names` tables during Phase 1.
+
 ---
 
 # Artifact
@@ -179,7 +181,15 @@ Examples:
 * Sarah is the biological daughter of James and Anna.
 * This recipe was written by Grandma Ruth.
 
-Claims may be supported by artifacts, stories, relationships, or other records.
+Claims may be supported by artifacts, stories, citations, or other records.
+
+The canonical evidence path is:
+
+```text
+Artifact -> claim_evidence/citation -> Claim
+```
+
+Generic relationships should not duplicate artifact-to-claim evidence links.
 
 Claims should support:
 
@@ -223,7 +233,6 @@ Relationships should support:
 * Confidence level
 * Notes
 * Provenance
-* Supporting artifacts or claims
 
 The relationship model is the grammar of the archive.
 
@@ -363,8 +372,11 @@ This section describes conceptual tables, not final implementation details.
 
 ## Identity
 
-* people
-* person_names
+* archive_objects
+* existing `persons` table for conceptual Person during transition
+* existing `names` table for person names during transition
+
+Future docs may describe conceptual `people` and `person_names` shapes, but Phase 1 implementation should not create replacement person tables.
 
 ## Artifacts
 
@@ -396,6 +408,7 @@ This section describes conceptual tables, not final implementation details.
 
 * relationships
 * relationship_types
+* relationship_type_roles
 
 ## Claims and Evidence
 
@@ -467,13 +480,9 @@ Grandpa appears in a photograph.
 * relationship: appears_in
 * target: artifact:christmas-1989-photo
 
-Example:
+Artifact-to-claim support is not a generic relationship pattern.
 
-Draft letter supports military service claim.
-
-* source: artifact:draft-letter-1942
-* relationship: supports_claim
-* target: claim:john-served-in-wwii
+Use `claim_evidence`, or a future `citations` table, for evidence links because those links require specialized fields such as evidence role, locator, excerpt, contradiction status, confidence contribution, and citation notes.
 
 ---
 
@@ -495,6 +504,8 @@ Supporting evidence:
 * Oral history interview
 
 Each evidence link may have its own weight, notes, and confidence.
+
+Evidence links should be stored through `claim_evidence` or a future `citations` table, not through generic `supports_claim` relationships.
 
 The claim itself should have an overall confidence level.
 

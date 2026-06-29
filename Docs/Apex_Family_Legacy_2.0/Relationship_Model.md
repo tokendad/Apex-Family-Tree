@@ -51,6 +51,34 @@ This allows the archive to preserve not only that two things are connected, but 
 
 ---
 
+# Relationship Type Contracts
+
+Relationship roles must be validated by an explicit type-role contract.
+
+The implementation should use `relationship_type_roles` to define which member roles are allowed for each relationship type and which archive object type may fill each role.
+
+Examples:
+
+```text
+family_union:
+  partner -> person
+  child -> person
+
+appears_in:
+  subject -> person
+  artifact -> artifact
+
+occurred_at:
+  event -> event
+  place -> place
+```
+
+This prevents invalid relationships such as a place as spouse, a claim as child, or an artifact as biological parent.
+
+`relationship_members.role` may be stored as text, but it must not be treated as uncontrolled free text by APIs or services.
+
+---
+
 # Relationship Scope
 
 Relationships can connect many kinds of objects.
@@ -141,8 +169,7 @@ Examples:
 * Adoptive parent-child
 * Foster parent-child
 * Step-parent relationship
-* Marriage
-* Divorce
+* Family union
 * Common-law partnership
 * Unknown parent
 * Half sibling
@@ -185,15 +212,13 @@ Examples of system types:
 
 * parent_of
 * child_of
-* spouse_of
-* partner_of
+* family_union
 * appeared_in
 * created_by
 * owned_by
 * donated_by
 * occurred_at
 * documents
-* supports_claim
 * belongs_to_collection
 * describes
 * associated_with
@@ -283,13 +308,13 @@ This makes the archive more trustworthy over time.
 
 # Claims
 
-Some relationships support historical claims.
+Claims and evidence use a specialized evidence path rather than generic relationships.
 
 Example claim:
 
 > John Smith served in World War II.
 
-Supporting relationships:
+Supporting evidence links:
 
 * John Smith ↔ WWII Draft Letter
 * John Smith ↔ Military Discharge Record
@@ -299,6 +324,14 @@ Supporting relationships:
 Each supporting artifact may carry a different evidence level.
 
 The claim becomes stronger as more evidence is connected.
+
+The canonical implementation path is:
+
+```text
+Artifact -> claim_evidence/citation -> Claim
+```
+
+Do not duplicate artifact-to-claim evidence as generic `supports_claim` relationships.
 
 ---
 
@@ -326,14 +359,21 @@ The family tree should not be treated as the entire archive.
 
 It is one view generated from specific relationship types.
 
-The tree primarily uses relationships such as:
+The canonical stored relationship shape for tree generation is:
 
-* parent-child
-* spouse-partner
-* adoptive parent-child
-* step-parent
-* unknown parent
-* sibling
+```text
+relationship_type: family_union
+
+members:
+  partner -> person
+  partner -> person
+  child -> person
+  child -> person
+```
+
+Parent-child, spouse, partner, sibling, and tree edge records may be derived from `family_union` for display or compatibility views.
+
+They should not be stored as competing canonical tree structures.
 
 Other relationships remain discoverable elsewhere in the archive.
 

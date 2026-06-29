@@ -2,6 +2,10 @@
 
 # Apex Family Tree
 
+## Naming Note
+
+`Apex Family Tree` is the current repository and application name. `Apex Family Legacy` is the 2.0 product direction and future user-facing experience described by these planning documents.
+
 ## A Digital Family Archive
 
 > *Preserve the people, relationships, stories, and artifacts that define your family's legacy.*
