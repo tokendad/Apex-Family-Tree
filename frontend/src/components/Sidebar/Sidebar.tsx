@@ -6,7 +6,7 @@ import styles from './Sidebar.module.css';
 
 type ViewMode = 'ancestry' | 'descendants' | 'full';
 
-export type SidebarContext = 'tree' | 'people' | 'families' | 'sources' | 'media' | 'artifacts' | 'claims' | 'collections' | 'events' | 'places';
+export type SidebarContext = 'tree' | 'people' | 'families' | 'sources' | 'media' | 'artifacts' | 'claims' | 'collections' | 'stories' | 'events' | 'places';
 
 interface SidebarProps {
   context?: SidebarContext;

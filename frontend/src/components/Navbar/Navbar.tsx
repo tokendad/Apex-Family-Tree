@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { label: 'Artifacts', path: '/artifacts' },
   { label: 'Claims', path: '/claims' },
   { label: 'Collections', path: '/collections' },
+  { label: 'Stories', path: '/stories' },
   { label: 'Events', path: '/events' },
   { label: 'Places', path: '/places' },
   { label: 'Sources', path: '/sources' },

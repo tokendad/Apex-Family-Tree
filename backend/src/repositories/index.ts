@@ -5,6 +5,7 @@ export { ClaimRepository } from './ClaimRepository.js';
 export { CollectionRepository } from './CollectionRepository.js';
 export { PlaceRepository } from './PlaceRepository.js';
 export { RelationshipRepository } from './RelationshipRepository.js';
+export { StoryRepository } from './StoryRepository.js';
 export { PersonRepository } from './PersonRepository.js';
 export { FamilyRepository } from './FamilyRepository.js';
 export { EventRepository } from './EventRepository.js';

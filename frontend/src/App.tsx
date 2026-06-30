@@ -27,6 +27,8 @@ const EventDetailPage = React.lazy(() => import('./pages/EventDetailPage'));
 const PlacesPage = React.lazy(() => import('./pages/PlacesPage'));
 const PlaceDetailPage = React.lazy(() => import('./pages/PlaceDetailPage'));
 const SourcesPage = React.lazy(() => import('./pages/SourcesPage'));
+const StoriesPage = React.lazy(() => import('./pages/StoriesPage'));
+const StoryDetailPage = React.lazy(() => import('./pages/StoryDetailPage'));
 const ImportPage = React.lazy(() => import('./pages/ImportPage'));
 const ExportPage = React.lazy(() => import('./pages/ExportPage'));
 const ToolsPage = React.lazy(() => import('./pages/ToolsPage'));
@@ -98,6 +100,8 @@ function App() {
               <Route path="/places" element={<ProtectedRoute><PlacesPage /></ProtectedRoute>} />
               <Route path="/places/:id" element={<ProtectedRoute><PlaceDetailPage /></ProtectedRoute>} />
               <Route path="/sources" element={<ProtectedRoute><SourcesPage /></ProtectedRoute>} />
+              <Route path="/stories" element={<ProtectedRoute><StoriesPage /></ProtectedRoute>} />
+              <Route path="/stories/:id" element={<ProtectedRoute><StoryDetailPage /></ProtectedRoute>} />
               <Route path="/media" element={<ProtectedRoute><MediaPage /></ProtectedRoute>} />
 
               {/* Import/Export (protected) */}
