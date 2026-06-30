@@ -119,4 +119,83 @@ describe('archive foundation migration', () => {
       db.close();
     }
   });
+
+  it('backfills existing media as artifacts without replacing legacy media rows', () => {
+    const db = createDatabase();
+
+    try {
+      runMigrations(db, createMigrationDir(44), logger);
+
+      db.prepare(`
+        INSERT INTO media_items (
+          id, filename, original_filename, mime_type, file_size, file_path,
+          thumbnail_path, title, description, date_taken, uploaded_by, is_external,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        'media-photo-1',
+        'photo.jpg',
+        'christmas.jpg',
+        'image/jpeg',
+        2048,
+        '/data/media/photo.jpg',
+        '/data/media/thumb-photo.jpg',
+        'Christmas Photo',
+        'Family around the tree',
+        '25 DEC 1989',
+        null,
+        0,
+        '2026-02-01 00:00:00',
+        '2026-02-02 00:00:00',
+      );
+      db.prepare(`
+        INSERT INTO media_items (
+          id, filename, original_filename, mime_type, file_size, file_path,
+          thumbnail_path, title, description, date_taken, uploaded_by, is_external,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        'media-doc-1',
+        'letter.pdf',
+        'draft-letter.pdf',
+        'application/pdf',
+        4096,
+        '/data/media/letter.pdf',
+        null,
+        null,
+        'Draft notice scan',
+        null,
+        null,
+        1,
+        '2026-02-03 00:00:00',
+        '2026-02-04 00:00:00',
+      );
+
+      runMigrations(db, createMigrationDir(45), logger);
+
+      expect(db.prepare('SELECT COUNT(*) AS count FROM media_items').get()).toEqual({ count: 2 });
+      expect(db.prepare('SELECT title, summary FROM archive_objects WHERE id = ?').get('media-photo-1')).toEqual({
+        title: 'Christmas Photo',
+        summary: 'Family around the tree',
+      });
+      expect(db.prepare('SELECT title, summary FROM archive_objects WHERE id = ?').get('media-doc-1')).toEqual({
+        title: 'draft-letter.pdf',
+        summary: 'Draft notice scan',
+      });
+      expect(db.prepare('SELECT artifact_type_id, original_date_text, original_format FROM artifacts WHERE id = ?').get('media-photo-1')).toEqual({
+        artifact_type_id: 'artifact_type_photo',
+        original_date_text: '25 DEC 1989',
+        original_format: 'image/jpeg',
+      });
+      expect(db.prepare('SELECT artifact_type_id FROM artifacts WHERE id = ?').get('media-doc-1')).toEqual({
+        artifact_type_id: 'artifact_type_document',
+      });
+      expect(db.prepare('SELECT file_role, storage_path, size_bytes FROM artifact_files WHERE artifact_id = ? ORDER BY file_role ASC').all('media-photo-1')).toEqual([
+        { file_role: 'primary', storage_path: '/data/media/photo.jpg', size_bytes: 2048 },
+        { file_role: 'thumbnail', storage_path: '/data/media/thumb-photo.jpg', size_bytes: null },
+      ]);
+    } finally {
+      db.close();
+    }
+  });
 });
