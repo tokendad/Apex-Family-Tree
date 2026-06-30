@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Apex Family Legacy — Actions Nav Person Profile Prototype</title>
+  <style>
+    :root {
+      --bg: #f6f4ef;
+      --surface: #ffffff;
+      --surface-soft: #fbfaf7;
+      --ink: #213033;
+      --muted: #66777b;
+      --line: #e4ded2;
+      --brand: #0f766e;
+      --brand-dark: #115e59;
+      --accent: #c0841a;
+      --good: #1f7a4d;
+      --shadow: 0 12px 34px rgba(37,45,49,.11);
+      --radius: 20px;
+      --radius-sm: 13px;
+      --font: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: var(--font);
+      color: var(--ink);
+      background: var(--bg);
+    }
+
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+
+    .app-shell {
+      min-height: 100vh;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: #143236;
+      color: white;
+      box-shadow: 0 2px 12px rgba(0,0,0,.18);
+    }
+
+    .topline {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      padding: 14px 22px;
+    }
+
+    .brand {
+      min-width: 220px;
+      display: flex;
+      flex-direction: column;
+      line-height: 1.08;
+    }
+
+    .brand strong { font-size: 17px; letter-spacing: .2px; }
+    .brand span { font-size: 12px; color: #b8d5d1; margin-top: 3px; }
+
+    .mobile-menu {
+      display: none;
+      border: 1px solid rgba(255,255,255,.25);
+      background: transparent;
+      color: white;
+      border-radius: 12px;
+      padding: 9px 11px;
+    }
+
+    .search {
+      flex: 1;
+      max-width: 520px;
+      position: relative;
+      margin-left: auto;
+    }
+
+    .search input {
+      width: 100%;
+      border: 1px solid rgba(255,255,255,.25);
+      background: rgba(255,255,255,.12);
+      color: white;
+      border-radius: 999px;
+      padding: 10px 14px 10px 38px;
+      outline: none;
+    }
+
+    .search input::placeholder { color: rgba(255,255,255,.72); }
+    .search::before {
+      content: "⌕";
+      position: absolute;
+      left: 15px;
+      top: 7px;
+      font-size: 22px;
+      color: rgba(255,255,255,.8);
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-left: auto;
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 14px;
+      background: var(--surface);
+      color: var(--ink);
+      box-shadow: 0 1px 0 rgba(0,0,0,.06);
+    }
+
+    .btn.primary { background: var(--brand); color: white; }
+    .btn.secondary { background: #eef7f5; color: var(--brand-dark); border: 1px solid #cde7e2; }
+    .btn.ghost { background: transparent; color: white; border: 1px solid rgba(255,255,255,.25); }
+    .btn.plain { background: transparent; color: var(--brand-dark); box-shadow: none; padding: 0; font-weight: 800; }
+
+    .actions-wrap { position: relative; }
+
+    .actions-menu {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 10px);
+      width: 300px;
+      background: var(--surface);
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 8px;
+      display: none;
+    }
+
+    .actions-menu.open { display: block; }
+
+    .actions-menu h3 {
+      margin: 8px 10px 6px;
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .action-item {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      padding: 11px 12px;
+      border-radius: 12px;
+      text-align: left;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--ink);
+    }
+
+    .action-item:hover { background: #f6f3ea; }
+    .action-item span { color: var(--muted); font-size: 12px; display: block; margin-top: 2px; }
+
+    .navline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      background: var(--surface);
+      color: var(--ink);
+      border-bottom: 1px solid var(--line);
+      padding: 0 22px;
+    }
+
+    .nav-left, .nav-right {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .nav-left { overflow-x: auto; }
+
+    .navline button.nav-link {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      padding: 13px 14px;
+      border-bottom: 3px solid transparent;
+      white-space: nowrap;
+    }
+
+    .navline button.nav-link.active {
+      color: var(--brand-dark);
+      border-bottom-color: var(--brand);
+      font-weight: 800;
+    }
+
+    main {
+      width: min(1180px, calc(100vw - 28px));
+      margin: 22px auto 48px;
+    }
+
+    .profile-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .identity {
+      display: grid;
+      grid-template-columns: 128px minmax(0, 1fr) auto;
+      gap: 20px;
+      padding: 24px;
+      align-items: center;
+      background: linear-gradient(135deg, #ffffff 0%, #fbf7ed 100%);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .portrait {
+      width: 128px;
+      height: 128px;
+      border-radius: 26px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(145deg, #d8e8e5, #fff7e6);
+      border: 1px solid #d6d2c8;
+      color: var(--brand-dark);
+      font-size: 42px;
+      font-weight: 900;
+    }
+
+    .crumb { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+    h1 { margin: 0; font-size: clamp(34px, 5vw, 54px); letter-spacing: -1.4px; }
+    .subtitle { color: var(--muted); margin: 8px 0 0; font-size: 17px; }
+    .summary { margin: 16px 0 0; color: #425256; line-height: 1.55; max-width: 720px; }
+
+    .identity-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: stretch;
+      min-width: 170px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+    }
+
+    .stat {
+      padding: 15px 18px;
+      border-right: 1px solid var(--line);
+    }
+
+    .stat:last-child { border-right: 0; }
+    .stat strong { display: block; font-size: 21px; color: var(--brand-dark); }
+    .stat span { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+    .tabs {
+      display: flex;
+      background: #f7f4ed;
+      border-bottom: 1px solid var(--line);
+      overflow-x: auto;
+    }
+
+    .tab {
+      border: 0;
+      background: transparent;
+      padding: 15px 18px;
+      color: var(--muted);
+      border-bottom: 3px solid transparent;
+      white-space: nowrap;
+    }
+
+    .tab.active {
+      background: white;
+      color: var(--brand-dark);
+      border-bottom-color: var(--brand);
+      font-weight: 900;
+    }
+
+    .body-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      gap: 18px;
+      padding: 22px;
+      align-items: start;
+    }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .panel {
+      border: 1px solid var(--line);
+      background: var(--surface-soft);
+      border-radius: 18px;
+      padding: 18px;
+    }
+
+    .panel.white { background: white; }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .section-header h2 { margin: 0; font-size: 21px; }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 13px;
+    }
+
+    .artifact {
+      border: 1px solid var(--line);
+      background: white;
+      border-radius: 16px;
+      overflow: hidden;
+      text-align: left;
+      padding: 0;
+      transition: transform .14s ease, box-shadow .14s ease;
+    }
+
+    .artifact:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(30,42,46,.12); }
+    .thumb {
+      height: 96px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(145deg, #f2ead9, #dcebe8);
+      color: var(--brand-dark);
+      font-size: 38px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .artifact div:last-child { padding: 12px; }
+    .artifact strong { display: block; }
+    .artifact span { display: block; color: var(--muted); font-size: 13px; margin-top: 5px; line-height: 1.35; }
+
+    .timeline { display: grid; gap: 12px; }
+    .event {
+      display: grid;
+      grid-template-columns: 80px minmax(0, 1fr);
+      gap: 12px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: white;
+      padding: 13px;
+    }
+
+    .year { color: var(--brand-dark); font-weight: 900; font-size: 18px; }
+    .event h3 { margin: 0 0 4px; font-size: 16px; }
+    .event p { margin: 0; color: var(--muted); line-height: 1.45; }
+
+    .connected {
+      position: sticky;
+      top: 128px;
+    }
+
+    .connected h2 { margin: 0 0 14px; font-size: 19px; }
+    .group { border-top: 1px solid var(--line); padding: 13px 0; }
+    .group:first-of-type { border-top: 0; padding-top: 0; }
+    .group h3 { margin: 0 0 8px; font-size: 12px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+
+    .row-link {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      padding: 9px 8px;
+      border-radius: 11px;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .row-link:hover { background: #f6f3ea; }
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      background: #e0f2ef;
+      color: var(--brand-dark);
+      font-weight: 900;
+      font-size: 13px;
+      flex: 0 0 auto;
+    }
+
+    .row-link small { display: block; color: var(--muted); margin-top: 2px; }
+
+    .callout {
+      border: 1px dashed #c9bea9;
+      background: #fffaf0;
+      border-radius: 16px;
+      padding: 14px;
+      color: #65523a;
+      line-height: 1.45;
+      margin-bottom: 18px;
+    }
+
+    .drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(13,24,27,.42);
+      display: none;
+      justify-content: flex-end;
+      z-index: 100;
+    }
+
+    .drawer-backdrop.open { display: flex; }
+    .drawer {
+      width: min(480px, calc(100vw - 26px));
+      height: 100%;
+      background: white;
+      box-shadow: -20px 0 50px rgba(0,0,0,.2);
+      overflow: auto;
+      padding: 22px;
+    }
+
+    .drawer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      gap: 16px;
+      margin-bottom: 22px;
+    }
+
+    .drawer-header h2 { margin: 0; font-size: 24px; }
+    .hint { color: var(--muted); font-size: 13px; line-height: 1.4; }
+    .close {
+      border: 0;
+      background: #f1eee7;
+      border-radius: 999px;
+      width: 36px;
+      height: 36px;
+      font-size: 18px;
+    }
+
+    .field { display: grid; gap: 7px; margin-bottom: 16px; }
+    .field label { font-weight: 900; font-size: 14px; }
+    .field input, .field select, .field textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 11px 12px;
+      background: white;
+      color: var(--ink);
+    }
+    .field textarea { min-height: 100px; resize: vertical; }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      transform: translateX(-50%) translateY(20px);
+      opacity: 0;
+      pointer-events: none;
+      transition: .18s ease;
+      background: #143236;
+      color: white;
+      border-radius: 999px;
+      box-shadow: var(--shadow);
+      padding: 12px 16px;
+      z-index: 140;
+    }
+
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    @media (max-width: 980px) {
+      .identity { grid-template-columns: 100px minmax(0, 1fr); }
+      .portrait { width: 100px; height: 100px; border-radius: 22px; font-size: 34px; }
+      .identity-actions { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; }
+      .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .stat { border-bottom: 1px solid var(--line); }
+      .body-grid { grid-template-columns: 1fr; }
+      .connected { position: static; }
+    }
+
+    @media (max-width: 740px) {
+      .topline { gap: 10px; padding: 12px 14px; }
+      .mobile-menu { display: inline-flex; }
+      .brand { min-width: 0; flex: 1; }
+      .brand strong { font-size: 15px; }
+      .search { display: none; }
+      .navline { display: none; }
+      main { width: min(100vw - 18px, 1180px); margin-top: 12px; }
+      .profile-card { border-radius: 16px; }
+      .identity { grid-template-columns: 78px minmax(0, 1fr); gap: 13px; padding: 16px; }
+      .portrait { width: 78px; height: 78px; border-radius: 18px; font-size: 26px; }
+      h1 { font-size: 30px; }
+      .subtitle { font-size: 14px; }
+      .summary { font-size: 14px; }
+      .identity-actions .btn { flex: 1; }
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .tabs { scrollbar-width: none; }
+      .body-grid { padding: 14px; }
+      .cards { grid-template-columns: 1fr; }
+      .event { grid-template-columns: 1fr; }
+      .actions-menu {
+        position: fixed;
+        left: 10px;
+        right: 10px;
+        bottom: 10px;
+        top: auto;
+        width: auto;
+        border-radius: 22px;
+        box-shadow: 0 -18px 50px rgba(0,0,0,.22);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="topline">
+        <button class="mobile-menu" onclick="showToast('Mobile menu placeholder')">☰</button>
+        <div class="brand">
+          <strong>Apex Family Legacy</strong>
+          <span>A Digital Family Archive</span>
+        </div>
+        <div class="search"><input id="search" placeholder="Search the archive..." /></div>
+        <div class="top-actions">
+          <div class="actions-wrap">
+            <button class="btn primary" onclick="toggleActions(event)">Actions ▾</button>
+            <div id="actionsMenu" class="actions-menu" role="menu" aria-label="Context actions">
+              <h3>Actions for John LeFort</h3>
+              <button class="action-item" onclick="openDrawer('connect')"><strong>Connect Artifact<span>Add or link a preserved item</span></strong><b>+</b></button>
+              <button class="action-item" onclick="openDrawer('story')"><strong>Add Story<span>Preserve a memory or explanation</span></strong><b>+</b></button>
+              <button class="action-item" onclick="showToast('Add event placeholder')"><strong>Add Event<span>Birth, residence, service, reunion...</span></strong><b>+</b></button>
+              <button class="action-item" onclick="showToast('Add relationship placeholder')"><strong>Add Relationship<span>Connect to another person or object</span></strong><b>+</b></button>
+              <button class="action-item" onclick="showToast('Add claim placeholder')"><strong>Add Claim<span>Track belief, evidence, confidence</span></strong><b>+</b></button>
+              <h3>Manage</h3>
+              <button class="action-item" onclick="showToast('Edit person placeholder')"><strong>Edit Person<span>Names, privacy, notes, identity</span></strong><b>›</b></button>
+              <button class="action-item" onclick="showToast('Set as home person')"><strong>Set as Home Person<span>Use as default tree anchor</span></strong><b>⌂</b></button>
+            </div>
+          </div>
+          <button class="btn ghost" onclick="showToast('User menu placeholder')">Walter</button>
+        </div>
+      </div>
+      <div class="navline">
+        <div class="nav-left">
+          <button class="nav-link" onclick="showToast('Tree remains one view of the archive')">Tree</button>
+          <button class="nav-link active" onclick="showToast('Current view: People')">People</button>
+          <button class="nav-link" onclick="showToast('Artifacts view placeholder')">Artifacts</button>
+          <button class="nav-link" onclick="showToast('Collections view placeholder')">Collections</button>
+          <button class="nav-link" onclick="showToast('Stories view placeholder')">Stories</button>
+          <button class="nav-link" onclick="showToast('Places view placeholder')">Places</button>
+          <button class="nav-link" onclick="showToast('Timeline view placeholder')">Timeline</button>
+        </div>
+        <div class="nav-right">
+          <button class="nav-link" onclick="showToast('The Actions button is intentionally separated from navigation')">Actions are contextual →</button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="profile-card">
+        <div class="identity">
+          <div class="portrait">JL</div>
+          <div>
+            <div class="crumb">People / LeFort Family / Archive Profile</div>
+            <h1>John LeFort</h1>
+            <p class="subtitle">1931–2008 • Married twice • 5 children • WWII Veteran</p>
+            <p class="summary">
+              This prototype tests a narrower layout: actions live in the top-right command menu, and the profile summary is merged into the main detail area. The page should adapt more naturally to tablet and mobile while keeping the archive idea visible.
+            </p>
+          </div>
+          <div class="identity-actions">
+            <button class="btn primary" onclick="openDrawer('connect')">+ Connect Artifact</button>
+            <button class="btn secondary" onclick="showToast('Open tree centered on John')">View in Tree</button>
+          </div>
+        </div>
+
+        <div class="stats">
+          <div class="stat"><strong>14</strong><span>Artifacts</span></div>
+          <div class="stat"><strong>3</strong><span>Stories</span></div>
+          <div class="stat"><strong>12</strong><span>Events</span></div>
+          <div class="stat"><strong>2</strong><span>Evidence claims</span></div>
+          <div class="stat"><strong>4</strong><span>Collections</span></div>
+        </div>
+
+        <div class="tabs" role="tablist">
+          <button class="tab active" data-tab="overview">Overview</button>
+          <button class="tab" data-tab="timeline">Timeline</button>
+          <button class="tab" data-tab="artifacts">Artifacts</button>
+          <button class="tab" data-tab="stories">Stories</button>
+          <button class="tab" data-tab="claims">Claims</button>
+        </div>
+
+        <div class="body-grid">
+          <section>
+            <div id="overview" class="tab-panel active">
+              <div class="callout">
+                Design question being tested: can the page drop the Quick Actions sidebar, keep one strong primary action, and move the rest to a context-aware Actions menu? This should reduce horizontal pressure and help mobile.
+              </div>
+              <div class="panel">
+                <div class="section-header"><h2>Recent Artifacts</h2><button class="btn plain" data-tab-link="artifacts">View all</button></div>
+                <div class="cards">
+                  <button class="artifact" onclick="openArtifact('WWII Draft Letter')"><div class="thumb">✉</div><div><strong>WWII Draft Letter</strong><span>Letter • 1942 • Official Record</span></div></button>
+                  <button class="artifact" onclick="openArtifact('Christmas Morning 1989')"><div class="thumb">▧</div><div><strong>Christmas Morning 1989</strong><span>Photo • Appears in • Family Memory</span></div></button>
+                  <button class="artifact" onclick="openArtifact('School Award Certificate')"><div class="thumb">▤</div><div><strong>School Award Certificate</strong><span>Certificate • 1948 • Personal Artifact</span></div></button>
+                </div>
+              </div>
+              <div class="panel" style="margin-top:18px">
+                <div class="section-header"><h2>Key Life Context</h2><button class="btn plain" data-tab-link="timeline">Timeline</button></div>
+                <div class="timeline">
+                  <div class="event"><div class="year">1942</div><div><h3>Draft registration</h3><p>Connected to the WWII Draft Letter and military service claim.</p></div></div>
+                  <div class="event"><div class="year">1954</div><div><h3>Marriage to Mary Smith</h3><p>Future tree generation should derive this from canonical family_union relationships.</p></div></div>
+                </div>
+              </div>
+            </div>
+
+            <div id="timeline" class="tab-panel">
+              <div class="panel"><div class="section-header"><h2>Timeline</h2><button class="btn plain" onclick="showToast('Add event from Actions menu or page button')">+ Add event</button></div><div class="timeline">
+                <div class="event"><div class="year">1931</div><div><h3>Birth</h3><p>Core life event. Later connects to birth certificate, place, and claim.</p></div></div>
+                <div class="event"><div class="year">1942</div><div><h3>Draft Registration</h3><p>Connected artifact: WWII Draft Letter.</p></div></div>
+                <div class="event"><div class="year">1954</div><div><h3>Marriage</h3><p>Relationship-derived event from union data.</p></div></div>
+                <div class="event"><div class="year">1989</div><div><h3>Christmas Morning</h3><p>Connected to photo, story, place, and collection.</p></div></div>
+              </div></div>
+            </div>
+
+            <div id="artifacts" class="tab-panel">
+              <div class="panel"><div class="section-header"><h2>Connected Artifacts</h2><button class="btn primary" onclick="openDrawer('connect')">+ Connect Artifact</button></div><div class="cards">
+                <button class="artifact" onclick="openArtifact('WWII Draft Letter')"><div class="thumb">✉</div><div><strong>WWII Draft Letter</strong><span>Subject of • Supports service claim</span></div></button>
+                <button class="artifact" onclick="openArtifact('Discharge Record')"><div class="thumb">▤</div><div><strong>Discharge Record</strong><span>Official Record • High evidence value</span></div></button>
+                <button class="artifact" onclick="openArtifact('Photo in Uniform')"><div class="thumb">▧</div><div><strong>Photo in Uniform</strong><span>Appears in • Supporting evidence</span></div></button>
+                <button class="artifact" onclick="openArtifact('Christmas Morning 1989')"><div class="thumb">▧</div><div><strong>Christmas Morning 1989</strong><span>Appears in • Family Memory</span></div></button>
+                <button class="artifact" onclick="openArtifact('Handwritten Recipe')"><div class="thumb">⌁</div><div><strong>Handwritten Recipe</strong><span>Owned by • Personal Artifact</span></div></button>
+                <button class="artifact" onclick="openArtifact('School Award Certificate')"><div class="thumb">▤</div><div><strong>School Award Certificate</strong><span>Subject of • 1948</span></div></button>
+              </div></div>
+            </div>
+
+            <div id="stories" class="tab-panel">
+              <div class="panel"><div class="section-header"><h2>Stories</h2><button class="btn primary" onclick="openDrawer('story')">+ Add Story</button></div><div class="timeline">
+                <div class="event"><div class="year">1</div><div><h3>The Story of Grandpa’s Service</h3><p>Connects John, the draft letter, discharge record, and photo in uniform.</p></div></div>
+                <div class="event"><div class="year">2</div><div><h3>Christmas at the Old House</h3><p>Connects family photo, place, and collection.</p></div></div>
+                <div class="event"><div class="year">3</div><div><h3>The Recipe Box</h3><p>Preserves the family context around a handwritten recipe.</p></div></div>
+              </div></div>
+            </div>
+
+            <div id="claims" class="tab-panel">
+              <div class="panel"><div class="section-header"><h2>Claims and Evidence</h2><button class="btn primary" onclick="showToast('Add claim placeholder')">+ Add Claim</button></div><div class="timeline">
+                <div class="event"><div class="year">High</div><div><h3>John LeFort served in World War II.</h3><p>Supported by Draft Letter, Discharge Record, and Photo in Uniform.</p></div></div>
+                <div class="event"><div class="year">High</div><div><h3>John LeFort lived at 12 Maple Street in 1942.</h3><p>Supported directly by the address on the draft letter.</p></div></div>
+              </div></div>
+            </div>
+          </section>
+
+          <aside class="connected panel white">
+            <div class="section-header"><h2>Connected To</h2><button class="btn plain" onclick="openDrawer('connect')">+ Connect</button></div>
+            <div class="group"><h3>Family</h3>
+              <button class="row-link" onclick="showToast('Open Mary Smith')"><span class="avatar">MS</span><span><strong>Mary Smith</strong><small>Spouse • married 1954</small></span></button>
+              <button class="row-link" onclick="showToast('Open Robert LeFort')"><span class="avatar">RL</span><span><strong>Robert LeFort</strong><small>Child</small></span></button>
+              <button class="row-link" onclick="showToast('Open Linda LeFort')"><span class="avatar">LL</span><span><strong>Linda LeFort</strong><small>Child</small></span></button>
+            </div>
+            <div class="group"><h3>Collections</h3>
+              <button class="row-link" onclick="showToast('Open Grandpa’s Military Service')"><span class="avatar">★</span><span><strong>Grandpa’s Military Service</strong><small>6 artifacts • 2 claims</small></span></button>
+              <button class="row-link" onclick="showToast('Open Christmas Through the Years')"><span class="avatar">✦</span><span><strong>Christmas Through the Years</strong><small>12 photos • 4 stories</small></span></button>
+            </div>
+            <div class="group"><h3>Places</h3>
+              <button class="row-link" onclick="showToast('Open 12 Maple Street')"><span class="avatar">⌂</span><span><strong>12 Maple Street</strong><small>Residence • 1954–1968</small></span></button>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="drawerBackdrop" class="drawer-backdrop" onclick="backdropClose(event)">
+    <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+      <div class="drawer-header">
+        <div>
+          <h2 id="drawerTitle">Connect Artifact</h2>
+          <p id="drawerSub" class="hint">Actions are contextual to the current page.</p>
+        </div>
+        <button class="close" onclick="closeDrawer()">×</button>
+      </div>
+      <div id="drawerBody"></div>
+    </aside>
+  </div>
+
+  <div id="toast" class="toast">Saved</div>
+
+  <script>
+    function activateTab(name) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === name));
+    }
+
+    document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => activateTab(tab.dataset.tab)));
+    document.querySelectorAll('[data-tab-link]').forEach(link => link.addEventListener('click', () => activateTab(link.dataset.tabLink)));
+
+    function toggleActions(event) {
+      event.stopPropagation();
+      document.getElementById('actionsMenu').classList.toggle('open');
+    }
+
+    document.addEventListener('click', () => document.getElementById('actionsMenu').classList.remove('open'));
+    document.getElementById('actionsMenu').addEventListener('click', event => event.stopPropagation());
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+      document.getElementById('actionsMenu').classList.remove('open');
+    }
+
+    function openArtifact(title) { openDrawer('artifact', title); }
+
+    function openDrawer(mode, payload) {
+      document.getElementById('actionsMenu').classList.remove('open');
+      const title = document.getElementById('drawerTitle');
+      const sub = document.getElementById('drawerSub');
+      const body = document.getElementById('drawerBody');
+
+      if (mode === 'connect') {
+        title.textContent = 'Connect Artifact';
+        sub.textContent = 'This action came from the context-aware Actions menu or the page primary button.';
+        body.innerHTML = `
+          <div class="field"><label>Artifact</label><select><option>WWII Draft Letter</option><option>Christmas Morning 1989</option><option>Photo in Uniform</option><option>Handwritten Recipe</option></select><div class="hint">Later this should be a searchable picker.</div></div>
+          <div class="field"><label>How is John connected?</label><select><option>Subject of artifact</option><option>Appears in artifact</option><option>Created artifact</option><option>Owned artifact</option><option>Mentioned in artifact</option></select></div>
+          <div class="field"><label>Confidence</label><select><option>Confirmed</option><option>Probable</option><option>Possible</option><option>Unknown</option></select></div>
+          <div class="field"><label>Notes</label><textarea placeholder="Example: Aunt Susan identified John in this photo in 2026."></textarea></div>
+          <button class="btn primary" style="width:100%" onclick="closeDrawer(); showToast('Relationship saved')">Save Connection</button>
+        `;
+      }
+
+      if (mode === 'story') {
+        title.textContent = 'Add Story';
+        sub.textContent = 'Stories preserve memory and context around archive objects.';
+        body.innerHTML = `
+          <div class="field"><label>Story title</label><input value="The Story Behind the Draft Letter" /></div>
+          <div class="field"><label>Connect story to</label><select><option>John LeFort</option><option>John LeFort + WWII Draft Letter</option><option>Grandpa’s Military Service Collection</option></select></div>
+          <div class="field"><label>Story</label><textarea placeholder="Write the memory, explanation, or family context here..."></textarea></div>
+          <button class="btn primary" style="width:100%" onclick="closeDrawer(); showToast('Story saved placeholder')">Save Story</button>
+        `;
+      }
+
+      if (mode === 'artifact') {
+        title.textContent = payload;
+        sub.textContent = 'Artifact preview drawer. A production app would open the artifact detail page.';
+        body.innerHTML = `
+          <div class="thumb" style="height:180px;border-radius:16px;border:1px solid var(--line);margin-bottom:16px;">✉</div>
+          <div class="field"><label>Type</label><input value="Letter / Document" readonly /></div>
+          <div class="field"><label>Connected to</label><input value="John LeFort — Subject of artifact" readonly /></div>
+          <div class="field"><label>Archive meaning</label><textarea readonly>This artifact gains meaning because it is connected to a person, claim, event, place, and collection.</textarea></div>
+          <button class="btn primary" style="width:100%" onclick="showToast('Would open full artifact detail page')">Open Artifact Page</button>
+        `;
+      }
+
+      document.getElementById('drawerBackdrop').classList.add('open');
+    }
+
+    function closeDrawer() { document.getElementById('drawerBackdrop').classList.remove('open'); }
+    function backdropClose(event) { if (event.target.id === 'drawerBackdrop') closeDrawer(); }
+
+    document.getElementById('search').addEventListener('keydown', event => {
+      if (event.key === 'Enter') showToast('Archive search prototype: ' + event.target.value);
+    });
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') closeDrawer();
+    });
+  </script>
+</body>
+</html>
