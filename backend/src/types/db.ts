@@ -90,7 +90,7 @@ export interface Family {
 
 export interface Event {
   id: string;
-  person_id: string;
+  person_id: string | null;
   family_id: string | null;
   event_type: string;
   event_date: string | null;
