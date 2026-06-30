@@ -88,6 +88,18 @@ interface MediaItem {
   thumbnail_url?: string;
 }
 
+interface ConnectedArtifact {
+  relationship_id: string;
+  relationship_type_code: string;
+  relationship_type_name: string;
+  role: string;
+  object_id: string;
+  object_type: string;
+  title: string;
+  summary: string | null;
+  artifact_type_name: string | null;
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SEX_LABELS: Record<SexType, string> = {
@@ -245,6 +257,10 @@ const PersonDetailPage: React.FC = () => {
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [mediaLoading, setMediaLoading] = useState(true);
 
+  // ── Archive connections ──
+  const [connectedArtifacts, setConnectedArtifacts] = useState<ConnectedArtifact[]>([]);
+  const [connectedArtifactsLoading, setConnectedArtifactsLoading] = useState(true);
+
   // ── Delete ──
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -310,11 +326,28 @@ const PersonDetailPage: React.FC = () => {
     }
   }, [id]);
 
+  const fetchConnectedArtifacts = useCallback(async () => {
+    if (!id) return;
+    setConnectedArtifactsLoading(true);
+    try {
+      const res = await fetch(`/api/v1/relationships/objects/${id}/connected?type=appears_in`, { credentials: 'include' });
+      if (res.ok) {
+        const json = await res.json() as { data: ConnectedArtifact[] };
+        setConnectedArtifacts(json.data.filter((object) => object.object_type === 'artifact'));
+      }
+    } catch {
+      // Non-critical — connected artifacts can be empty until Phase 4 data exists.
+    } finally {
+      setConnectedArtifactsLoading(false);
+    }
+  }, [id]);
+
   useEffect(() => {
     fetchPerson();
     fetchRelationships();
     fetchMedia();
-  }, [fetchPerson, fetchRelationships, fetchMedia]);
+    fetchConnectedArtifacts();
+  }, [fetchPerson, fetchRelationships, fetchMedia, fetchConnectedArtifacts]);
 
   // ─── Delete handler ────────────────────────────────────────────────────────
 
@@ -784,6 +817,35 @@ const PersonDetailPage: React.FC = () => {
               )}
             </section>
 
+            {/* ── Connected Artifacts ── */}
+            <section className={styles.section} aria-labelledby="connected-artifacts-heading">
+              <h2 className={styles.sectionTitle} id="connected-artifacts-heading">
+                Connected Artifacts
+                {connectedArtifacts.length > 0 && (
+                  <span className={styles.countBadge}>{connectedArtifacts.length}</span>
+                )}
+              </h2>
+
+              {connectedArtifactsLoading ? (
+                <div className={styles.skeletonLine} aria-hidden="true" />
+              ) : connectedArtifacts.length === 0 ? (
+                <p className={styles.noInfo}>No artifacts connected to this person yet.</p>
+              ) : (
+                <div className={styles.relPersonList}>
+                  {connectedArtifacts.map((artifact) => (
+                    <Link
+                      key={`${artifact.relationship_id}-${artifact.object_id}`}
+                      to={`/artifacts/${artifact.object_id}`}
+                      className={styles.relPersonLink}
+                    >
+                      {artifact.title}
+                      {artifact.artifact_type_name ? ` (${artifact.artifact_type_name})` : ''}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </section>
+
           </div>
           {/* end rightCol */}
         </div>
@@ -801,6 +863,7 @@ const PersonDetailPage: React.FC = () => {
           fetchPerson();
           fetchRelationships();
           fetchMedia();
+          fetchConnectedArtifacts();
         }}
       />
     </AppShell>

@@ -5,6 +5,8 @@ import Navbar from '@/components/Navbar/Navbar';
 import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
+import PersonPicker from '@/components/entity-pickers/PersonPicker';
+import type { PersonResult } from '@/components/PersonSearch/PersonSearch';
 import { usePermissions } from '@/hooks/usePermissions';
 import styles from './ArtifactsPage.module.css';
 
@@ -27,6 +29,18 @@ interface ArtifactRecord {
 
 interface ArtifactType { id: string; name: string }
 interface EvidenceClassification { id: string; name: string }
+
+interface ConnectedObject {
+  relationship_id: string;
+  relationship_type_code: string;
+  relationship_type_name: string;
+  role: string;
+  object_id: string;
+  object_type: string;
+  title: string;
+  summary: string | null;
+  artifact_type_name: string | null;
+}
 
 interface ArtifactForm {
   title: string;
@@ -83,11 +97,15 @@ const ArtifactDetailPage: React.FC = () => {
   const [artifactTypes, setArtifactTypes] = useState<ArtifactType[]>([]);
   const [evidenceClassifications, setEvidenceClassifications] = useState<EvidenceClassification[]>([]);
   const [form, setForm] = useState<ArtifactForm | null>(null);
+  const [connectedPeople, setConnectedPeople] = useState<ConnectedObject[]>([]);
+  const [selectedPerson, setSelectedPerson] = useState<PersonResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [connectError, setConnectError] = useState<string | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
 
   const loadArtifact = useCallback(async () => {
     if (!id) return;
@@ -115,9 +133,21 @@ const ArtifactDetailPage: React.FC = () => {
     }
   }, [id]);
 
+  const loadConnectedPeople = useCallback(async () => {
+    if (!id) return;
+    const res = await fetch(`/api/v1/relationships/objects/${id}/connected?type=appears_in`);
+    if (!res.ok) return;
+    const json = await res.json() as { data: ConnectedObject[] };
+    setConnectedPeople(json.data.filter((object) => object.object_type === 'person'));
+  }, [id]);
+
   useEffect(() => {
     void loadArtifact();
   }, [loadArtifact]);
+
+  useEffect(() => {
+    void loadConnectedPeople();
+  }, [loadConnectedPeople]);
 
   const handleSave = async (event: FormEvent) => {
     event.preventDefault();
@@ -146,6 +176,36 @@ const ArtifactDetailPage: React.FC = () => {
     if (!id || !window.confirm('Delete this artifact metadata?')) return;
     const res = await fetch(`/api/v1/artifacts/${id}`, { method: 'DELETE' });
     if (res.ok) navigate('/artifacts');
+  };
+
+  const handleConnectPerson = async () => {
+    if (!id || !selectedPerson) return;
+    setIsConnecting(true);
+    setConnectError(null);
+    try {
+      const res = await fetch('/api/v1/relationships', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          relationship_type_code: 'appears_in',
+          label: `${selectedPerson.displayName ?? selectedPerson.display_name ?? selectedPerson.given_name ?? 'Person'} appears in ${artifact?.title ?? 'artifact'}`,
+          members: [
+            { object_id: selectedPerson.id, role: 'subject' },
+            { object_id: id, role: 'artifact' },
+          ],
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null) as { error?: string } | null;
+        throw new Error(body?.error ?? 'Failed to connect person');
+      }
+      setSelectedPerson(null);
+      await loadConnectedPeople();
+    } catch (err) {
+      setConnectError(err instanceof Error ? err.message : 'Failed to connect person');
+    } finally {
+      setIsConnecting(false);
+    }
   };
 
   return (
@@ -216,6 +276,38 @@ const ArtifactDetailPage: React.FC = () => {
                 <DetailRow label="Notes" value={artifact.notes} />
               </section>
             )}
+
+            <section className={styles.detailCard}>
+              <div className={styles.sectionTitleRow}>
+                <h2>Connected People</h2>
+                {connectedPeople.length > 0 && <span className={styles.cardType}>{connectedPeople.length}</span>}
+              </div>
+              {connectedPeople.length === 0 ? (
+                <p className={styles.muted}>No people connected to this artifact yet.</p>
+              ) : (
+                <div className={styles.connectedList}>
+                  {connectedPeople.map((person) => (
+                    <Link key={`${person.relationship_id}-${person.object_id}`} to={`/people/${person.object_id}`} className={styles.connectedItem}>
+                      <strong>{person.title}</strong>
+                      <span>{person.relationship_type_name}</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              {canEdit && (
+                <div className={styles.connectBox}>
+                  <PersonPicker
+                    label="Connect a person who appears in this artifact"
+                    value={selectedPerson?.id ?? null}
+                    onSelect={setSelectedPerson}
+                    onClear={() => setSelectedPerson(null)}
+                  />
+                  {connectError && <div className={styles.error}>{connectError}</div>}
+                  <Button onClick={handleConnectPerson} loading={isConnecting} disabled={!selectedPerson}>Connect Person</Button>
+                </div>
+              )}
+            </section>
           </>
         )}
       </div>
