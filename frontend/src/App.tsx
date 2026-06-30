@@ -29,6 +29,7 @@ const PlaceDetailPage = React.lazy(() => import('./pages/PlaceDetailPage'));
 const SourcesPage = React.lazy(() => import('./pages/SourcesPage'));
 const StoriesPage = React.lazy(() => import('./pages/StoriesPage'));
 const StoryDetailPage = React.lazy(() => import('./pages/StoryDetailPage'));
+const SearchPage = React.lazy(() => import('./pages/SearchPage'));
 const ImportPage = React.lazy(() => import('./pages/ImportPage'));
 const ExportPage = React.lazy(() => import('./pages/ExportPage'));
 const ToolsPage = React.lazy(() => import('./pages/ToolsPage'));
@@ -102,6 +103,7 @@ function App() {
               <Route path="/sources" element={<ProtectedRoute><SourcesPage /></ProtectedRoute>} />
               <Route path="/stories" element={<ProtectedRoute><StoriesPage /></ProtectedRoute>} />
               <Route path="/stories/:id" element={<ProtectedRoute><StoryDetailPage /></ProtectedRoute>} />
+              <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
               <Route path="/media" element={<ProtectedRoute><MediaPage /></ProtectedRoute>} />
 
               {/* Import/Export (protected) */}

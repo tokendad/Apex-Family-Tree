@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type SidebarContext = 'tree' | 'people' | 'families' | 'sources' | 'media' | 'artifacts' | 'claims' | 'collections' | 'stories' | 'events' | 'places';
+export type SidebarContext = 'tree' | 'people' | 'families' | 'sources' | 'media' | 'artifacts' | 'claims' | 'collections' | 'stories' | 'search' | 'events' | 'places';
 export type DateMode = 'exact' | 'around5' | 'before' | 'after' | 'between' | 'unknown';
 
 export interface SearchFilters {

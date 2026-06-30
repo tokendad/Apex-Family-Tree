@@ -39,7 +39,8 @@ Status as of 2026-06-30:
 | Phase 7: Collections and Tags | Complete | `047-collections-tags.sql`, `CollectionRepository`, collection/tag API routes, collection list/detail UI, mixed archive-object items, captions/order, and collection tag assignment. |
 | Phase 8: Claims, Evidence, and Confidence | Complete | `048-claims-evidence.sql`, `ClaimRepository`, claim API routes, claim list/detail UI, artifact evidence links through `claim_evidence`, confidence levels, and artifact detail related claims. |
 | Phase 9: Stories and Narrative Context | Complete | `049-stories.sql`, `StoryRepository`, story API routes, story list/detail UI, safe React-rendered Markdown subset, story relationship connections, and collection-add workflow. |
-| Phase 10: Archive-Wide Search and Discovery | Next | Not yet implemented at this checkpoint. |
+| Phase 10: Archive-Wide Search and Discovery | Complete | `050-archive-search.sql`, `SearchRepository`, service-maintained archive FTS rebuild, `/api/v1/search`, privacy/soft-delete filtering, indexed people names, tags, artifacts, stories, places, claims, collections, and `/search` UI. |
+| Phase 11: Tree as Relationship View | Next | Not yet implemented at this checkpoint. |
 
 ---
 
