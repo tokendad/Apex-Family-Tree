@@ -14,6 +14,8 @@ searchRouter.get('/', (req, res) => {
     const q = typeof req.query.q === 'string' ? req.query.q : '';
     const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
     const repo = new SearchRepository();
+    // TODO: Replace this MVP rebuild with admin/manual rebuild, scheduled maintenance,
+    // startup rebuild, or write-through updates as archive object writes mature.
     repo.rebuildIndex();
     res.json(repo.search(q, { limit, allowedPrivacyLevels: privacyForRole(req.user?.role) }));
   } catch (error) {

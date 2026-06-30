@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import styles from './ArchiveObjectLayout.module.css';
 
 export interface ArchiveObjectStat {
@@ -115,7 +116,7 @@ const ArchiveObjectLayout: React.FC<ArchiveObjectLayoutProps> = ({
                 );
 
                 return item.href ? (
-                  <a key={item.id} className={styles.connectedItem} href={item.href}>{content}</a>
+                  <Link key={item.id} className={styles.connectedItem} to={item.href}>{content}</Link>
                 ) : (
                   <div key={item.id} className={styles.connectedItem}>{content}</div>
                 );

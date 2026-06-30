@@ -14,12 +14,13 @@ interface SearchSidebarProps {
 const SearchSidebar: React.FC<SearchSidebarProps> = ({ context = 'people' }) => {
   const store = useSearchStore();
   const isPersonContext = context === 'tree' || context === 'people';
+  const searchLabel = isPersonContext ? 'Search tree' : 'Search archive';
   const active = hasActiveFilters(store, context);
 
   return (
     <div className={styles.searchSidebar}>
       <div className={styles.sectionHeader}>
-        <span className={styles.sectionTitle}>Search tree</span>
+        <span className={styles.sectionTitle}>{searchLabel}</span>
         <span className={styles.persistentBadge} title="Filters are saved between visits">Saved</span>
       </div>
 

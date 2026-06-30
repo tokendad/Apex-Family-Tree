@@ -71,21 +71,26 @@ function renderPage() {
 }
 
 describe('PersonDetailPage — Add Family', () => {
-  it('renders Add Family button in relationships section', async () => {
+  it('renders Add Family only inside the Actions menu', async () => {
     mockOpenModal.mockResolvedValue({ action: 'cancelled' });
     renderPage();
 
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Jane Doe' })).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: /add family/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /add family/i })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /actions/i }));
+
+    expect(screen.getByRole('menuitem', { name: /add family/i })).toBeInTheDocument();
   });
 
   it('opens FamilyEditor pre-populated with current person as spouse1', async () => {
     mockOpenModal.mockResolvedValue({ action: 'cancelled' });
     renderPage();
 
-    await waitFor(() => expect(screen.getByRole('button', { name: /add family/i })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: /actions/i })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: /add family/i }));
+    fireEvent.click(screen.getByRole('button', { name: /actions/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /add family/i }));
     expect(mockOpenModal).toHaveBeenCalledWith('FamilyEditor', {
       mode: 'create',
       defaults: { spouse1_id: 'per-1' },
@@ -108,9 +113,10 @@ describe('PersonDetailPage — Add Family', () => {
     });
     renderPage();
 
-    await waitFor(() => expect(screen.getByRole('button', { name: /add family/i })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('button', { name: /actions/i })).toBeInTheDocument());
 
-    fireEvent.click(screen.getByRole('button', { name: /add family/i }));
+    fireEvent.click(screen.getByRole('button', { name: /actions/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /add family/i }));
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/families/f-789'));
   });
 });

@@ -340,7 +340,7 @@ const PersonDetailPage: React.FC = () => {
     if (!id) return;
     setConnectedArtifactsLoading(true);
     try {
-      const res = await fetch(`/api/v1/relationships/objects/${id}/connected?type=appears_in`, { credentials: 'include' });
+      const res = await fetch(`/api/v1/relationships/objects/${id}/connected`, { credentials: 'include' });
       if (res.ok) {
         const json = await res.json() as { data: ConnectedArtifact[] };
         setConnectedArtifacts(json.data.filter((object) => object.object_type === 'artifact'));
@@ -571,14 +571,7 @@ const PersonDetailPage: React.FC = () => {
           summary={person.notes}
           avatar={<span>{initialsFromName(displayTitle)}</span>}
           headerAction={(
-            <>
-              {canCreate && (
-                <Button variant="ghost" onClick={handleAddFamily}>
-                  Add Family
-                </Button>
-              )}
-              <ContextActionsMenu actions={contextActions} />
-            </>
+            <ContextActionsMenu actions={contextActions} />
           )}
           stats={[
             { label: 'Names', value: person.names.length },
