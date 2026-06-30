@@ -1,0 +1,244 @@
+.shell {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.identity {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-5);
+  align-items: center;
+  padding: var(--space-6);
+  background: linear-gradient(135deg, var(--color-surface), var(--color-bg-secondary));
+  border-bottom: 1px solid var(--color-border);
+}
+
+.avatar {
+  width: 112px;
+  height: 112px;
+  border-radius: var(--radius-xl);
+  display: grid;
+  place-items: center;
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
+  font-size: 2rem;
+  font-weight: 800;
+}
+
+.identityText h1 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  line-height: 1;
+}
+
+.eyebrow {
+  margin: 0 0 var(--space-2);
+  color: var(--color-primary-700);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.subtitle,
+.summary,
+.empty {
+  color: var(--color-text-secondary);
+}
+
+.subtitle {
+  margin: var(--space-2) 0 0;
+}
+
+.summary {
+  margin: var(--space-3) 0 0;
+  max-width: 760px;
+  line-height: 1.55;
+}
+
+.headerAction {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  align-self: start;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  border-bottom: 1px solid var(--color-border);
+}
+
+.stat {
+  padding: var(--space-4);
+  border-right: 1px solid var(--color-border);
+}
+
+.stat:last-child {
+  border-right: 0;
+}
+
+.stat strong {
+  display: block;
+  color: var(--color-primary-700);
+  font-size: 1.35rem;
+}
+
+.stat span {
+  display: block;
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+}
+
+.tabs {
+  display: flex;
+  overflow-x: auto;
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tab {
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--color-text-secondary);
+  padding: var(--space-4) var(--space-5);
+  white-space: nowrap;
+}
+
+.tabActive {
+  background: var(--color-surface);
+  color: var(--color-primary-700);
+  border-bottom-color: var(--color-primary-600);
+  font-weight: 800;
+}
+
+.bodyGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--space-5);
+  padding: var(--space-5);
+  align-items: start;
+}
+
+.mainPanel {
+  min-width: 0;
+}
+
+.connectedPanel {
+  position: sticky;
+  top: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  background: var(--color-surface);
+}
+
+.connectedHeader {
+  margin-bottom: var(--space-3);
+  color: var(--color-text-primary);
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.connectedGroup {
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.connectedGroup:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.connectedGroup h2 {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.connectedItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  color: inherit;
+  text-decoration: none;
+}
+
+.connectedItem:hover {
+  background: var(--color-bg-secondary);
+}
+
+.connectedAvatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  background: var(--color-primary-100);
+  color: var(--color-primary-800);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.connectedItem strong,
+.connectedItem small {
+  display: block;
+}
+
+.connectedItem small {
+  margin-top: 2px;
+  color: var(--color-text-secondary);
+}
+
+.empty {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 980px) {
+  .identity {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .headerAction {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .bodyGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .connectedPanel {
+    position: static;
+  }
+}
+
+@media (max-width: 740px) {
+  .identity {
+    padding: var(--space-4);
+    gap: var(--space-3);
+  }
+
+  .avatar {
+    width: 78px;
+    height: 78px;
+    font-size: 1.5rem;
+  }
+
+  .bodyGrid {
+    padding: var(--space-3);
+  }
+}

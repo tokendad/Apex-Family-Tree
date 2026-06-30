@@ -5,6 +5,9 @@ import Navbar from '@/components/Navbar/Navbar';
 import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import PersonEditModal from '@/components/PersonEditModal/PersonEditModal';
+import ActionDrawer from '@/components/archive-object/ActionDrawer';
+import ArchiveObjectLayout, { type ConnectedGroup } from '@/components/archive-object/ArchiveObjectLayout';
+import ContextActionsMenu, { type ContextActionItem } from '@/components/archive-object/ContextActionsMenu';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useModal } from '@/components/modals/useModal';
 import type { FamilySummary } from '@/types/genealogy';
@@ -192,6 +195,11 @@ function mediaDisplayName(item: MediaItem): string {
   return item.filename ?? item.file_name ?? `Media ${item.id.slice(0, 8)}`;
 }
 
+function initialsFromName(name: string): string {
+  const parts = name.split(/\s+/).filter(Boolean);
+  return (parts[0]?.[0] ?? '?') + (parts[1]?.[0] ?? '');
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 interface InfoRowProps {
@@ -270,6 +278,8 @@ const PersonDetailPage: React.FC = () => {
 
   // ── Edit modal ──
   const [showEditModal, setShowEditModal] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [drawerMode, setDrawerMode] = useState<'connect-artifact' | 'add-story' | null>(null);
 
   // ─── Fetchers ──────────────────────────────────────────────────────────────
 
@@ -447,55 +457,95 @@ const PersonDetailPage: React.FC = () => {
   const sortedEventsList = sortEvents(person.events);
   const childFamilies = relationships.filter((r) => r.type === 'child_family');
   const parentFamilies = relationships.filter((r) => r.type === 'parent_family');
+  const familyConnections = [
+    ...childFamilies.flatMap((rel) => [rel.spouse1, rel.spouse2].filter((p): p is PersonSummary => p !== null)),
+    ...parentFamilies.flatMap((rel) => [rel.role === 'spouse1' ? rel.spouse2 : rel.spouse1].filter((p): p is PersonSummary => p !== null)),
+  ];
+  const uniqueFamilyConnections = Array.from(new Map(familyConnections.map((p) => [p.id, p])).values());
+  const connectedGroups: ConnectedGroup[] = [
+    {
+      id: 'family',
+      label: 'Family',
+      items: uniqueFamilyConnections.slice(0, 8).map((p) => ({
+        id: p.id,
+        title: personName(p),
+        subtitle: 'Family relationship',
+        href: `/people/${p.id}`,
+        initials: initialsFromName(personName(p)),
+      })),
+    },
+    {
+      id: 'artifacts',
+      label: 'Artifacts',
+      items: connectedArtifacts.slice(0, 8).map((artifact) => ({
+        id: artifact.object_id,
+        title: artifact.title,
+        subtitle: artifact.artifact_type_name ?? artifact.relationship_type_name,
+        href: `/artifacts/${artifact.object_id}`,
+        initials: 'A',
+      })),
+    },
+  ];
+  const handleAddFamily = async () => {
+    const result = await openModal<FamilySummary>('FamilyEditor', {
+      mode: 'create',
+      defaults: { spouse1_id: id },
+    });
+    if (result.action === 'created') navigate(`/families/${result.entity.id}`);
+  };
+  const contextActions: ContextActionItem[] = [
+    {
+      id: 'connect-artifact',
+      label: 'Connect Artifact',
+      description: 'Link this person to a preserved item',
+      disabled: !canCreate,
+      onSelect: () => setDrawerMode('connect-artifact'),
+    },
+    {
+      id: 'add-story',
+      label: 'Add Story',
+      description: 'Preserve a memory or explanation',
+      disabled: !canCreate,
+      onSelect: () => setDrawerMode('add-story'),
+    },
+    {
+      id: 'add-family',
+      label: 'Add Family',
+      description: 'Create a family relationship record',
+      disabled: !canCreate,
+      onSelect: handleAddFamily,
+    },
+    {
+      id: 'edit-person',
+      label: 'Edit Person',
+      description: 'Names, privacy, notes, and identity',
+      disabled: !canEdit,
+      onSelect: () => setShowEditModal(true),
+    },
+    {
+      id: 'view-tree',
+      label: 'View in Tree',
+      description: 'Open the tree workspace',
+      onSelect: () => navigate('/'),
+    },
+    {
+      id: 'delete-person',
+      label: 'Delete Person',
+      description: 'Remove this person record',
+      danger: true,
+      disabled: !canDelete,
+      onSelect: () => setDeleteConfirm(true),
+    },
+  ];
 
   // ─── Full render ───────────────────────────────────────────────────────────
 
   return (
     <AppShell navbar={<Navbar />} sidebar={<Sidebar context="people" />}>
       <div className={styles.page}>
-
-        {/* ── Page header ── */}
-        <div className={styles.pageHeader}>
-          <button className={styles.backBtn} onClick={() => navigate('/people')}>
-            ← People
-          </button>
-          <div className={styles.headerRow}>
-            <h1 className={styles.title}>{displayTitle}</h1>
-            <div className={styles.headerActions}>
-              {canEdit && !deleteConfirm && (
-                <Button variant="ghost" size="sm" onClick={() => setShowEditModal(true)}>
-                  Edit Info
-                </Button>
-              )}
-              {canDelete && !deleteConfirm && (
-                <Button variant="danger" size="sm" onClick={() => setDeleteConfirm(true)}>
-                  Delete
-                </Button>
-              )}
-              {deleteConfirm && (
-                <div className={styles.confirmDelete}>
-                  <span className={styles.confirmText}>Delete this person?</span>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={handleDelete}
-                    loading={isDeleting}
-                  >
-                    Confirm Delete
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setDeleteConfirm(false)}
-                    disabled={isDeleting}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <button className={styles.backBtn} onClick={() => navigate('/people')}>
+          ← People
+        </button>
 
         {/* ── Inline error banner ── */}
         {inlineError && (
@@ -504,11 +554,52 @@ const PersonDetailPage: React.FC = () => {
           </div>
         )}
 
-        {/* ── Main 2-column content grid ── */}
-        <div className={styles.contentGrid}>
+        {deleteConfirm && (
+          <div className={styles.errorBanner} role="alert">
+            <div className={styles.confirmDelete}>
+              <span className={styles.confirmText}>Delete this person?</span>
+              <Button variant="danger" size="sm" onClick={handleDelete} loading={isDeleting}>Confirm Delete</Button>
+              <Button variant="ghost" size="sm" onClick={() => setDeleteConfirm(false)} disabled={isDeleting}>Cancel</Button>
+            </div>
+          </div>
+        )}
 
-          {/* ════════════════ LEFT COLUMN ════════════════ */}
-          <div className={styles.leftCol}>
+        <ArchiveObjectLayout
+          eyebrow="Person Archive Profile"
+          title={displayTitle}
+          subtitle={`${person.is_living === 1 ? 'Living' : 'Deceased'} • ${SEX_LABELS[person.sex]}${person.is_private === 1 ? ' • Private' : ''}`}
+          summary={person.notes}
+          avatar={<span>{initialsFromName(displayTitle)}</span>}
+          headerAction={(
+            <>
+              {canCreate && (
+                <Button variant="ghost" onClick={handleAddFamily}>
+                  Add Family
+                </Button>
+              )}
+              <ContextActionsMenu actions={contextActions} />
+            </>
+          )}
+          stats={[
+            { label: 'Names', value: person.names.length },
+            { label: 'Events', value: sortedEventsList.length },
+            { label: 'Media', value: media.length },
+            { label: 'Artifacts', value: connectedArtifacts.length },
+            { label: 'Families', value: relationships.length },
+          ]}
+          tabs={[
+            { id: 'overview', label: 'Overview' },
+            { id: 'timeline', label: 'Timeline', count: sortedEventsList.length },
+            { id: 'artifacts', label: 'Artifacts', count: connectedArtifacts.length + media.length },
+            { id: 'family', label: 'Family', count: relationships.length },
+            { id: 'claims', label: 'Claims' },
+          ]}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          connectedGroups={connectedGroups}
+        >
+          {activeTab === 'overview' && (
+            <div className={styles.tabStack}>
 
             {/* ── Basic Information ── */}
             <section className={styles.section} aria-labelledby="basic-info-heading">
@@ -570,8 +661,8 @@ const PersonDetailPage: React.FC = () => {
                 <p className={styles.noInfo}>No names recorded.</p>
               ) : (
                 <ul className={styles.namesList}>
-                  {person.names.map((name) => (
-                    <li key={name.id} className={styles.nameItem}>
+                  {person.names.map((name, index) => (
+                    <li key={name.id ?? `${name.name_type}-${fullName(name)}-${index}`} className={styles.nameItem}>
                       <div className={styles.nameItemMain}>
                         <span className={styles.nameText}>{fullName(name)}</span>
                         <span
@@ -598,11 +689,11 @@ const PersonDetailPage: React.FC = () => {
                 <p className={styles.notesText}>{person.notes}</p>
               </section>
             )}
-          </div>
+            </div>
+          )}
 
-          {/* ════════════════ RIGHT COLUMN ════════════════ */}
-          <div className={styles.rightCol}>
-
+          {activeTab === 'timeline' && (
+            <div className={styles.tabStack}>
             {/* ── Events timeline ── */}
             <section className={styles.section} aria-labelledby="events-heading">
               <div className={styles.sectionHeader}>
@@ -644,30 +735,17 @@ const PersonDetailPage: React.FC = () => {
                 </ol>
               )}
             </section>
+            </div>
+          )}
 
+          {activeTab === 'family' && (
+            <div className={styles.tabStack}>
             {/* ── Relationships ── */}
             <section className={styles.section} aria-labelledby="relationships-heading">
               <div className={styles.sectionHeader}>
                 <h2 className={styles.sectionTitle} id="relationships-heading">
                   Relationships
                 </h2>
-                {canCreate && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={async () => {
-                      const result = await openModal<FamilySummary>('FamilyEditor', {
-                        mode: 'create',
-                        defaults: { spouse1_id: id },
-                      });
-                      if (result.action === 'created') {
-                        navigate(`/families/${result.entity.id}`);
-                      }
-                    }}
-                  >
-                    + Add Family
-                  </Button>
-                )}
               </div>
 
               {relLoading ? (
@@ -784,7 +862,11 @@ const PersonDetailPage: React.FC = () => {
                 </div>
               )}
             </section>
+            </div>
+          )}
 
+          {activeTab === 'artifacts' && (
+            <div className={styles.tabStack}>
             {/* ── Media ── */}
             <section className={styles.section} aria-labelledby="media-heading">
               <h2 className={styles.sectionTitle} id="media-heading">
@@ -845,13 +927,38 @@ const PersonDetailPage: React.FC = () => {
                 </div>
               )}
             </section>
+            </div>
+          )}
 
-          </div>
-          {/* end rightCol */}
-        </div>
-        {/* end contentGrid */}
-
+          {activeTab === 'claims' && (
+            <section className={styles.section} aria-labelledby="claims-heading">
+              <h2 className={styles.sectionTitle} id="claims-heading">Claims</h2>
+              <p className={styles.noInfo}>Claim summaries for people are not wired into this page yet. Use the Actions menu to add or review claims as the claims UI is expanded.</p>
+            </section>
+          )}
+        </ArchiveObjectLayout>
       </div>
+
+      <ActionDrawer
+        open={drawerMode !== null}
+        title={drawerMode === 'add-story' ? 'Add Story' : 'Connect Artifact'}
+        description="This drawer establishes the shared Actions pattern. Searchable pickers will replace raw IDs in the next UI pass."
+        onClose={() => setDrawerMode(null)}
+      >
+        {drawerMode === 'connect-artifact' ? (
+          <div className={styles.drawerPlaceholder}>
+            <p>Connect an artifact to {displayTitle} using the existing relationship engine.</p>
+            <p className={styles.noInfo}>Next step: replace this placeholder with an artifact picker and relationship role selector.</p>
+            <Button onClick={() => navigate('/artifacts')}>Browse Artifacts</Button>
+          </div>
+        ) : (
+          <div className={styles.drawerPlaceholder}>
+            <p>Preserve a memory, oral history, or explanation connected to {displayTitle}.</p>
+            <p className={styles.noInfo}>Next step: launch a story editor with this person preselected as a connected subject.</p>
+            <Button onClick={() => navigate('/stories')}>Open Stories</Button>
+          </div>
+        )}
+      </ActionDrawer>
 
       {/* ── Edit modal ── */}
       <PersonEditModal
