@@ -23,6 +23,24 @@ The plan uses an ADR-style decision framework and a code-review risk lens. It do
 
 ---
 
+## Current Implementation Status
+
+Status as of 2026-06-30:
+
+| Phase | Status | Implemented Evidence |
+|---|---|---|
+| Phase 0: Baseline and Branch Gate | Complete | Current-state assessment and baseline notes are documented. |
+| Phase 1: Archive Foundation Migration | Complete | `042-archive-foundation.sql`, archive object identity table, lookup seeds, and migration tests. |
+| Phase 2: Archive Object Backend Primitives | Complete | `ArchiveObjectRepository`, archive types, shared create/read/list/update/soft-delete behavior, and repository tests. |
+| Phase 3: Artifact Metadata Vertical Slice | Complete | `043-artifacts.sql`, `ArtifactRepository`, artifact API routes, and artifact list/detail UI. |
+| Phase 4: Relationship Engine and Person-to-Artifact Connection | Complete | `044-relationships.sql`, `RelationshipRepository`, `RelationshipService`, relationship routes, and connected object queries/UI. |
+| Phase 5: Legacy Media to Artifact Bridge | Complete | `045-legacy-media-artifact-bridge.sql` backfills media as artifacts and artifact files without changing legacy media paths. |
+| Phase 6: Events and Places as Archive Objects | Complete | `046-events-places-bridge.sql`, event archive identity, places/place aliases, event/place routes, repositories, and UI pages. |
+| Phase 7: Collections and Tags | Complete | `047-collections-tags.sql`, `CollectionRepository`, collection/tag API routes, collection list/detail UI, mixed archive-object items, captions/order, and collection tag assignment. |
+| Phase 8: Claims, Evidence, and Confidence | Next | Not yet implemented at this checkpoint. |
+
+---
+
 ## Implementation North Star
 
 The first complete slice must prove this workflow:

@@ -18,6 +18,8 @@ const FamilyDetailPage = React.lazy(() => import('./pages/FamilyDetailPage'));
 const PersonDetailPage = React.lazy(() => import('./pages/PersonDetailPage'));
 const ArtifactsPage = React.lazy(() => import('./pages/ArtifactsPage'));
 const ArtifactDetailPage = React.lazy(() => import('./pages/ArtifactDetailPage'));
+const CollectionsPage = React.lazy(() => import('./pages/CollectionsPage'));
+const CollectionDetailPage = React.lazy(() => import('./pages/CollectionDetailPage'));
 const EventsPage = React.lazy(() => import('./pages/EventsPage'));
 const EventDetailPage = React.lazy(() => import('./pages/EventDetailPage'));
 const PlacesPage = React.lazy(() => import('./pages/PlacesPage'));
@@ -85,6 +87,8 @@ function App() {
               <Route path="/families/:id" element={<ProtectedRoute><FamilyDetailPage /></ProtectedRoute>} />
               <Route path="/artifacts" element={<ProtectedRoute><ArtifactsPage /></ProtectedRoute>} />
               <Route path="/artifacts/:id" element={<ProtectedRoute><ArtifactDetailPage /></ProtectedRoute>} />
+              <Route path="/collections" element={<ProtectedRoute><CollectionsPage /></ProtectedRoute>} />
+              <Route path="/collections/:id" element={<ProtectedRoute><CollectionDetailPage /></ProtectedRoute>} />
               <Route path="/events" element={<ProtectedRoute><EventsPage /></ProtectedRoute>} />
               <Route path="/events/:id" element={<ProtectedRoute><EventDetailPage /></ProtectedRoute>} />
               <Route path="/places" element={<ProtectedRoute><PlacesPage /></ProtectedRoute>} />
