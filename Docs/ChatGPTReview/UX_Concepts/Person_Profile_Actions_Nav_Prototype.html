@@ -18,25 +18,13 @@
       --good: #1f7a4d;
       --shadow: 0 12px 34px rgba(37,45,49,.11);
       --radius: 20px;
-      --radius-sm: 13px;
       --font: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
 
     * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      font-family: var(--font);
-      color: var(--ink);
-      background: var(--bg);
-    }
-
+    body { margin: 0; font-family: var(--font); color: var(--ink); background: var(--bg); }
     button, input, select, textarea { font: inherit; }
     button { cursor: pointer; }
-
-    .app-shell {
-      min-height: 100vh;
-    }
 
     .topbar {
       position: sticky;
@@ -138,7 +126,6 @@
     }
 
     .actions-menu.open { display: block; }
-
     .actions-menu h3 {
       margin: 8px 10px 6px;
       font-size: 13px;
@@ -174,13 +161,7 @@
       padding: 0 22px;
     }
 
-    .nav-left, .nav-right {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      min-width: 0;
-    }
-
+    .nav-left, .nav-right { display: flex; align-items: center; gap: 4px; min-width: 0; }
     .nav-left { overflow-x: auto; }
 
     .navline button.nav-link {
@@ -237,15 +218,9 @@
     .crumb { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
     h1 { margin: 0; font-size: clamp(34px, 5vw, 54px); letter-spacing: -1.4px; }
     .subtitle { color: var(--muted); margin: 8px 0 0; font-size: 17px; }
-    .summary { margin: 16px 0 0; color: #425256; line-height: 1.55; max-width: 720px; }
+    .summary { margin: 16px 0 0; color: #425256; line-height: 1.55; max-width: 760px; }
 
-    .identity-actions {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      align-items: stretch;
-      min-width: 170px;
-    }
+    .identity-actions { display: flex; align-items: center; justify-content: flex-end; min-width: 140px; }
 
     .stats {
       display: grid;
@@ -254,11 +229,7 @@
       background: var(--surface);
     }
 
-    .stat {
-      padding: 15px 18px;
-      border-right: 1px solid var(--line);
-    }
-
+    .stat { padding: 15px 18px; border-right: 1px solid var(--line); }
     .stat:last-child { border-right: 0; }
     .stat strong { display: block; font-size: 21px; color: var(--brand-dark); }
     .stat span { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
@@ -362,11 +333,7 @@
     .event h3 { margin: 0 0 4px; font-size: 16px; }
     .event p { margin: 0; color: var(--muted); line-height: 1.45; }
 
-    .connected {
-      position: sticky;
-      top: 128px;
-    }
-
+    .connected { position: sticky; top: 128px; }
     .connected h2 { margin: 0 0 14px; font-size: 19px; }
     .group { border-top: 1px solid var(--line); padding: 13px 0; }
     .group:first-of-type { border-top: 0; padding-top: 0; }
@@ -429,24 +396,10 @@
       padding: 22px;
     }
 
-    .drawer-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: start;
-      gap: 16px;
-      margin-bottom: 22px;
-    }
-
+    .drawer-header { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 22px; }
     .drawer-header h2 { margin: 0; font-size: 24px; }
     .hint { color: var(--muted); font-size: 13px; line-height: 1.4; }
-    .close {
-      border: 0;
-      background: #f1eee7;
-      border-radius: 999px;
-      width: 36px;
-      height: 36px;
-      font-size: 18px;
-    }
+    .close { border: 0; background: #f1eee7; border-radius: 999px; width: 36px; height: 36px; font-size: 18px; }
 
     .field { display: grid; gap: 7px; margin-bottom: 16px; }
     .field label { font-weight: 900; font-size: 14px; }
@@ -481,7 +434,7 @@
     @media (max-width: 980px) {
       .identity { grid-template-columns: 100px minmax(0, 1fr); }
       .portrait { width: 100px; height: 100px; border-radius: 22px; font-size: 34px; }
-      .identity-actions { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; }
+      .identity-actions { grid-column: 1 / -1; justify-content: flex-start; }
       .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .stat { border-bottom: 1px solid var(--line); }
       .body-grid { grid-template-columns: 1fr; }
@@ -502,7 +455,7 @@
       h1 { font-size: 30px; }
       .subtitle { font-size: 14px; }
       .summary { font-size: 14px; }
-      .identity-actions .btn { flex: 1; }
+      .identity-actions .btn { width: 100%; }
       .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .tabs { scrollbar-width: none; }
       .body-grid { padding: 14px; }
@@ -560,7 +513,7 @@
           <button class="nav-link" onclick="showToast('Timeline view placeholder')">Timeline</button>
         </div>
         <div class="nav-right">
-          <button class="nav-link" onclick="showToast('The Actions button is intentionally separated from navigation')">Actions are contextual →</button>
+          <button class="nav-link" onclick="showToast('Actions are contextual and live in the top-right menu')">Actions are contextual →</button>
         </div>
       </div>
     </header>
@@ -574,11 +527,10 @@
             <h1>John LeFort</h1>
             <p class="subtitle">1931–2008 • Married twice • 5 children • WWII Veteran</p>
             <p class="summary">
-              This prototype tests a narrower layout: actions live in the top-right command menu, and the profile summary is merged into the main detail area. The page should adapt more naturally to tablet and mobile while keeping the archive idea visible.
+              This prototype tests a narrower layout: commands live in the top-right context-aware Actions menu, while the page body focuses on profile context and connected archive content.
             </p>
           </div>
           <div class="identity-actions">
-            <button class="btn primary" onclick="openDrawer('connect')">+ Connect Artifact</button>
             <button class="btn secondary" onclick="showToast('Open tree centered on John')">View in Tree</button>
           </div>
         </div>
@@ -603,7 +555,7 @@
           <section>
             <div id="overview" class="tab-panel active">
               <div class="callout">
-                Design question being tested: can the page drop the Quick Actions sidebar, keep one strong primary action, and move the rest to a context-aware Actions menu? This should reduce horizontal pressure and help mobile.
+                Design question being tested: can the page drop the Quick Actions sidebar and rely on a single context-aware Actions menu for creation/edit commands? Content sections should display archive context, not duplicate commands.
               </div>
               <div class="panel">
                 <div class="section-header"><h2>Recent Artifacts</h2><button class="btn plain" data-tab-link="artifacts">View all</button></div>
@@ -623,7 +575,7 @@
             </div>
 
             <div id="timeline" class="tab-panel">
-              <div class="panel"><div class="section-header"><h2>Timeline</h2><button class="btn plain" onclick="showToast('Add event from Actions menu or page button')">+ Add event</button></div><div class="timeline">
+              <div class="panel"><div class="section-header"><h2>Timeline</h2></div><div class="timeline">
                 <div class="event"><div class="year">1931</div><div><h3>Birth</h3><p>Core life event. Later connects to birth certificate, place, and claim.</p></div></div>
                 <div class="event"><div class="year">1942</div><div><h3>Draft Registration</h3><p>Connected artifact: WWII Draft Letter.</p></div></div>
                 <div class="event"><div class="year">1954</div><div><h3>Marriage</h3><p>Relationship-derived event from union data.</p></div></div>
@@ -632,7 +584,7 @@
             </div>
 
             <div id="artifacts" class="tab-panel">
-              <div class="panel"><div class="section-header"><h2>Connected Artifacts</h2><button class="btn primary" onclick="openDrawer('connect')">+ Connect Artifact</button></div><div class="cards">
+              <div class="panel"><div class="section-header"><h2>Connected Artifacts</h2></div><div class="cards">
                 <button class="artifact" onclick="openArtifact('WWII Draft Letter')"><div class="thumb">✉</div><div><strong>WWII Draft Letter</strong><span>Subject of • Supports service claim</span></div></button>
                 <button class="artifact" onclick="openArtifact('Discharge Record')"><div class="thumb">▤</div><div><strong>Discharge Record</strong><span>Official Record • High evidence value</span></div></button>
                 <button class="artifact" onclick="openArtifact('Photo in Uniform')"><div class="thumb">▧</div><div><strong>Photo in Uniform</strong><span>Appears in • Supporting evidence</span></div></button>
@@ -643,7 +595,7 @@
             </div>
 
             <div id="stories" class="tab-panel">
-              <div class="panel"><div class="section-header"><h2>Stories</h2><button class="btn primary" onclick="openDrawer('story')">+ Add Story</button></div><div class="timeline">
+              <div class="panel"><div class="section-header"><h2>Stories</h2></div><div class="timeline">
                 <div class="event"><div class="year">1</div><div><h3>The Story of Grandpa’s Service</h3><p>Connects John, the draft letter, discharge record, and photo in uniform.</p></div></div>
                 <div class="event"><div class="year">2</div><div><h3>Christmas at the Old House</h3><p>Connects family photo, place, and collection.</p></div></div>
                 <div class="event"><div class="year">3</div><div><h3>The Recipe Box</h3><p>Preserves the family context around a handwritten recipe.</p></div></div>
@@ -651,7 +603,7 @@
             </div>
 
             <div id="claims" class="tab-panel">
-              <div class="panel"><div class="section-header"><h2>Claims and Evidence</h2><button class="btn primary" onclick="showToast('Add claim placeholder')">+ Add Claim</button></div><div class="timeline">
+              <div class="panel"><div class="section-header"><h2>Claims and Evidence</h2></div><div class="timeline">
                 <div class="event"><div class="year">High</div><div><h3>John LeFort served in World War II.</h3><p>Supported by Draft Letter, Discharge Record, and Photo in Uniform.</p></div></div>
                 <div class="event"><div class="year">High</div><div><h3>John LeFort lived at 12 Maple Street in 1942.</h3><p>Supported directly by the address on the draft letter.</p></div></div>
               </div></div>
@@ -659,7 +611,7 @@
           </section>
 
           <aside class="connected panel white">
-            <div class="section-header"><h2>Connected To</h2><button class="btn plain" onclick="openDrawer('connect')">+ Connect</button></div>
+            <div class="section-header"><h2>Connected To</h2></div>
             <div class="group"><h3>Family</h3>
               <button class="row-link" onclick="showToast('Open Mary Smith')"><span class="avatar">MS</span><span><strong>Mary Smith</strong><small>Spouse • married 1954</small></span></button>
               <button class="row-link" onclick="showToast('Open Robert LeFort')"><span class="avatar">RL</span><span><strong>Robert LeFort</strong><small>Child</small></span></button>
@@ -729,7 +681,7 @@
 
       if (mode === 'connect') {
         title.textContent = 'Connect Artifact';
-        sub.textContent = 'This action came from the context-aware Actions menu or the page primary button.';
+        sub.textContent = 'This action comes from the context-aware Actions menu.';
         body.innerHTML = `
           <div class="field"><label>Artifact</label><select><option>WWII Draft Letter</option><option>Christmas Morning 1989</option><option>Photo in Uniform</option><option>Handwritten Recipe</option></select><div class="hint">Later this should be a searchable picker.</div></div>
           <div class="field"><label>How is John connected?</label><select><option>Subject of artifact</option><option>Appears in artifact</option><option>Created artifact</option><option>Owned artifact</option><option>Mentioned in artifact</option></select></div>
