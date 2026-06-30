@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { label: 'People', path: '/people' },
   { label: 'Families', path: '/families' },
   { label: 'Artifacts', path: '/artifacts' },
+  { label: 'Claims', path: '/claims' },
   { label: 'Collections', path: '/collections' },
   { label: 'Events', path: '/events' },
   { label: 'Places', path: '/places' },

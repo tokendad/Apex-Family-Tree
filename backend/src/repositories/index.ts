@@ -1,6 +1,7 @@
 export { UserRepository } from './UserRepository.js';
 export { ArchiveObjectRepository } from './ArchiveObjectRepository.js';
 export { ArtifactRepository } from './ArtifactRepository.js';
+export { ClaimRepository } from './ClaimRepository.js';
 export { CollectionRepository } from './CollectionRepository.js';
 export { PlaceRepository } from './PlaceRepository.js';
 export { RelationshipRepository } from './RelationshipRepository.js';

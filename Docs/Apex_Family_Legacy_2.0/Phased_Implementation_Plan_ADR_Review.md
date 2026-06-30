@@ -37,7 +37,8 @@ Status as of 2026-06-30:
 | Phase 5: Legacy Media to Artifact Bridge | Complete | `045-legacy-media-artifact-bridge.sql` backfills media as artifacts and artifact files without changing legacy media paths. |
 | Phase 6: Events and Places as Archive Objects | Complete | `046-events-places-bridge.sql`, event archive identity, places/place aliases, event/place routes, repositories, and UI pages. |
 | Phase 7: Collections and Tags | Complete | `047-collections-tags.sql`, `CollectionRepository`, collection/tag API routes, collection list/detail UI, mixed archive-object items, captions/order, and collection tag assignment. |
-| Phase 8: Claims, Evidence, and Confidence | Next | Not yet implemented at this checkpoint. |
+| Phase 8: Claims, Evidence, and Confidence | Complete | `048-claims-evidence.sql`, `ClaimRepository`, claim API routes, claim list/detail UI, artifact evidence links through `claim_evidence`, confidence levels, and artifact detail related claims. |
+| Phase 9: Stories and Narrative Context | Next | Not yet implemented at this checkpoint. |
 
 ---
 

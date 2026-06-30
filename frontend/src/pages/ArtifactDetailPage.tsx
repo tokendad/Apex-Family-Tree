@@ -42,6 +42,14 @@ interface ConnectedObject {
   artifact_type_name: string | null;
 }
 
+interface RelatedClaim {
+  id: string;
+  statement: string;
+  status: string;
+  confidence_level_name: string | null;
+  evidence_count: number;
+}
+
 interface ArtifactForm {
   title: string;
   summary: string;
@@ -98,6 +106,7 @@ const ArtifactDetailPage: React.FC = () => {
   const [evidenceClassifications, setEvidenceClassifications] = useState<EvidenceClassification[]>([]);
   const [form, setForm] = useState<ArtifactForm | null>(null);
   const [connectedPeople, setConnectedPeople] = useState<ConnectedObject[]>([]);
+  const [relatedClaims, setRelatedClaims] = useState<RelatedClaim[]>([]);
   const [selectedPerson, setSelectedPerson] = useState<PersonResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -141,6 +150,14 @@ const ArtifactDetailPage: React.FC = () => {
     setConnectedPeople(json.data.filter((object) => object.object_type === 'person'));
   }, [id]);
 
+  const loadRelatedClaims = useCallback(async () => {
+    if (!id) return;
+    const res = await fetch(`/api/v1/claims/evidence/${id}`);
+    if (!res.ok) return;
+    const json = await res.json() as { data: RelatedClaim[] };
+    setRelatedClaims(json.data);
+  }, [id]);
+
   useEffect(() => {
     void loadArtifact();
   }, [loadArtifact]);
@@ -148,6 +165,10 @@ const ArtifactDetailPage: React.FC = () => {
   useEffect(() => {
     void loadConnectedPeople();
   }, [loadConnectedPeople]);
+
+  useEffect(() => {
+    void loadRelatedClaims();
+  }, [loadRelatedClaims]);
 
   const handleSave = async (event: FormEvent) => {
     event.preventDefault();
@@ -305,6 +326,25 @@ const ArtifactDetailPage: React.FC = () => {
                   />
                   {connectError && <div className={styles.error}>{connectError}</div>}
                   <Button onClick={handleConnectPerson} loading={isConnecting} disabled={!selectedPerson}>Connect Person</Button>
+                </div>
+              )}
+            </section>
+
+            <section className={styles.detailCard}>
+              <div className={styles.sectionTitleRow}>
+                <h2>Related Claims</h2>
+                {relatedClaims.length > 0 && <span className={styles.cardType}>{relatedClaims.length}</span>}
+              </div>
+              {relatedClaims.length === 0 ? (
+                <p className={styles.muted}>No claims use this artifact as evidence yet.</p>
+              ) : (
+                <div className={styles.connectedList}>
+                  {relatedClaims.map((claim) => (
+                    <Link key={claim.id} to={`/claims/${claim.id}`} className={styles.connectedItem}>
+                      <strong>{claim.statement}</strong>
+                      <span>{claim.status}{claim.confidence_level_name ? `, ${claim.confidence_level_name}` : ''}</span>
+                    </Link>
+                  ))}
                 </div>
               )}
             </section>
