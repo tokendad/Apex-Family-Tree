@@ -15,6 +15,7 @@ const SearchSidebar: React.FC<SearchSidebarProps> = ({ context = 'people' }) => 
   const store = useSearchStore();
   const isPersonContext = context === 'tree' || context === 'people';
   const searchLabel = isPersonContext ? 'Search tree' : 'Search archive';
+  const searchPlaceholder = isPersonContext ? 'Search name, place, date…' : 'Search artifact, story, place, tag…';
   const active = hasActiveFilters(store, context);
 
   return (
@@ -26,7 +27,7 @@ const SearchSidebar: React.FC<SearchSidebarProps> = ({ context = 'people' }) => 
 
       <div className={styles.globalSearch}>
         <Input
-          placeholder="Search name, place, date…"
+          placeholder={searchPlaceholder}
           value={store.globalQuery}
           onChange={(e) => store.setFilter('globalQuery', e.target.value)}
           aria-label="Global search"
@@ -39,7 +40,7 @@ const SearchSidebar: React.FC<SearchSidebarProps> = ({ context = 'people' }) => 
           <span className={styles.activeLabel}>
             {store.totalCount !== null
               ? `${store.totalCount} match${store.totalCount !== 1 ? 'es' : ''}`
-              : 'Searching\u2026'}
+              : 'Searching…'}
           </span>
           <button
             type="button"
