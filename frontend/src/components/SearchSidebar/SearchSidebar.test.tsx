@@ -7,11 +7,13 @@ describe('SearchSidebar', () => {
     render(<SearchSidebar context="people" />);
 
     expect(screen.getByText('Search tree')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search name, place, date…')).toBeInTheDocument();
   });
 
   it('labels archive contexts as archive search', () => {
     render(<SearchSidebar context="artifacts" />);
 
     expect(screen.getByText('Search archive')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search artifact, story, place, tag…')).toBeInTheDocument();
   });
 });
