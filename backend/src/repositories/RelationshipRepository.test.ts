@@ -79,9 +79,11 @@ function seedDB(database: Database.Database) {
 
   database.prepare('INSERT INTO artifact_types (id, name) VALUES (?, ?)').run('artifact_type_photo', 'Photo');
   database.prepare('INSERT INTO archive_objects (id, object_type, title) VALUES (?, ?, ?)').run('person-1', 'person', 'Ruth Apex');
+  database.prepare('INSERT INTO archive_objects (id, object_type, title) VALUES (?, ?, ?)').run('person-2', 'person', 'Aunt Susan');
   database.prepare('INSERT INTO archive_objects (id, object_type, title) VALUES (?, ?, ?)').run('artifact-1', 'artifact', 'Christmas Photo');
   database.prepare('INSERT INTO artifacts (id, artifact_type_id) VALUES (?, ?)').run('artifact-1', 'artifact_type_photo');
   database.prepare('INSERT INTO relationship_types (id, code, name) VALUES (?, ?, ?)').run('rel_type_appears_in', 'appears_in', 'Appears In');
+  database.prepare('INSERT INTO relationship_types (id, code, name) VALUES (?, ?, ?)').run('rel_type_identified_by', 'identified_by', 'Identified By');
   database.prepare(`
     INSERT INTO relationship_type_roles (id, relationship_type_id, role, allowed_object_type, min_count, max_count, sort_order, is_required)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -90,6 +92,18 @@ function seedDB(database: Database.Database) {
     INSERT INTO relationship_type_roles (id, relationship_type_id, role, allowed_object_type, min_count, max_count, sort_order, is_required)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run('role-artifact', 'rel_type_appears_in', 'artifact', 'artifact', 1, 1, 20, 1);
+  database.prepare(`
+    INSERT INTO relationship_type_roles (id, relationship_type_id, role, allowed_object_type, min_count, max_count, sort_order, is_required)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run('role-identified-subject-person', 'rel_type_identified_by', 'subject', 'person', 1, null, 10, 1);
+  database.prepare(`
+    INSERT INTO relationship_type_roles (id, relationship_type_id, role, allowed_object_type, min_count, max_count, sort_order, is_required)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run('role-identified-subject-artifact', 'rel_type_identified_by', 'subject', 'artifact', 1, null, 11, 1);
+  database.prepare(`
+    INSERT INTO relationship_type_roles (id, relationship_type_id, role, allowed_object_type, min_count, max_count, sort_order, is_required)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run('role-identified-identifier', 'rel_type_identified_by', 'identifier', 'person', 1, null, 20, 1);
 }
 
 describe('RelationshipRepository and RelationshipService', () => {
@@ -124,6 +138,23 @@ describe('RelationshipRepository and RelationshipService', () => {
     ]);
   });
 
+  it('accepts required roles that allow one of several object types', () => {
+    const service = new RelationshipService();
+    const relationship = service.create({
+      relationship_type_code: 'identified_by',
+      label: 'Aunt Susan identified Christmas Photo',
+      members: [
+        { object_id: 'artifact-1', role: 'subject' },
+        { object_id: 'person-2', role: 'identifier' },
+      ],
+    });
+
+    expect(relationship.members.map(member => [member.role, member.object_type])).toEqual([
+      ['subject', 'artifact'],
+      ['identifier', 'person'],
+    ]);
+  });
+
   it('rejects invalid member object types and missing required roles', () => {
     const service = new RelationshipService();
 
@@ -138,6 +169,11 @@ describe('RelationshipRepository and RelationshipService', () => {
     expect(() => service.create({
       relationship_type_code: 'appears_in',
       members: [{ object_id: 'person-1', role: 'subject' }],
+    })).toThrow(RelationshipValidationError);
+
+    expect(() => service.create({
+      relationship_type_code: 'identified_by',
+      members: [{ object_id: 'person-2', role: 'identifier' }],
     })).toThrow(RelationshipValidationError);
   });
 
