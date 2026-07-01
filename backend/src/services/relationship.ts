@@ -32,7 +32,8 @@ export class RelationshipService {
   }
 
   private validateMembers(members: CreateRelationshipInput['members'], roles: RelationshipTypeRole[]): void {
-    const counts = new Map<string, number>();
+    const countsByRole = new Map<string, number>();
+    const countsByRoleAndType = new Map<string, number>();
 
     for (const member of members) {
       const objectType = this.repository.findObjectType(member.object_id);
@@ -43,18 +44,35 @@ export class RelationshipService {
         throw new RelationshipValidationError(`role ${member.role} does not allow object type ${objectType}`);
       }
 
-      const key = `${matchingRole.role}:${matchingRole.allowed_object_type}`;
-      counts.set(key, (counts.get(key) ?? 0) + 1);
+      const roleAndTypeKey = `${matchingRole.role}:${matchingRole.allowed_object_type}`;
+      countsByRoleAndType.set(roleAndTypeKey, (countsByRoleAndType.get(roleAndTypeKey) ?? 0) + 1);
+      countsByRole.set(matchingRole.role, (countsByRole.get(matchingRole.role) ?? 0) + 1);
     }
 
+    const rolesByName = new Map<string, RelationshipTypeRole[]>();
     for (const role of roles) {
-      const key = `${role.role}:${role.allowed_object_type}`;
-      const count = counts.get(key) ?? 0;
-      if (role.is_required && count < role.min_count) {
-        throw new RelationshipValidationError(`role ${role.role} requires at least ${role.min_count} ${role.allowed_object_type} member(s)`);
+      const existing = rolesByName.get(role.role) ?? [];
+      existing.push(role);
+      rolesByName.set(role.role, existing);
+    }
+
+    for (const [roleName, roleContracts] of rolesByName) {
+      const requiredContracts = roleContracts.filter(role => role.is_required);
+      if (requiredContracts.length > 0) {
+        const minCount = Math.max(...requiredContracts.map(role => role.min_count));
+        const totalCount = countsByRole.get(roleName) ?? 0;
+        if (totalCount < minCount) {
+          const allowedTypes = requiredContracts.map(role => role.allowed_object_type).join(' or ');
+          throw new RelationshipValidationError(`role ${roleName} requires at least ${minCount} ${allowedTypes} member(s)`);
+        }
       }
-      if (role.max_count !== null && count > role.max_count) {
-        throw new RelationshipValidationError(`role ${role.role} allows at most ${role.max_count} ${role.allowed_object_type} member(s)`);
+
+      for (const role of roleContracts) {
+        const roleAndTypeKey = `${role.role}:${role.allowed_object_type}`;
+        const count = countsByRoleAndType.get(roleAndTypeKey) ?? 0;
+        if (role.max_count !== null && count > role.max_count) {
+          throw new RelationshipValidationError(`role ${role.role} allows at most ${role.max_count} ${role.allowed_object_type} member(s)`);
+        }
       }
     }
   }
