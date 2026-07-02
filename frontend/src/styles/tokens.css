@@ -47,6 +47,13 @@
   --color-bg-tertiary: var(--color-gray-100);
   --color-bg-overlay: rgba(0, 0, 0, 0.5);
 
+  /* Colors — Archive chrome (Apex Family Legacy 2.0 mockup) */
+  --color-topbar-bg: #143236;
+  --color-topbar-text: #ffffff;
+  --color-topbar-muted: #b8d5d1;
+  --color-bg-app: #f6f4ef;
+  --color-border-warm: #e4ded2;
+
   /* Colors — Text */
   --color-text-primary: var(--color-gray-900);
   --color-text-secondary: var(--color-gray-600);
