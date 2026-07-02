@@ -82,6 +82,14 @@ function renderPage() {
   );
 }
 
+describe('PersonDetailPage — archive layout', () => {
+  it('renders View in Tree in the identity header and no sidebar', async () => {
+    renderPage();
+    expect(await screen.findByRole('button', { name: /view in tree/i })).toBeInTheDocument();
+    expect(screen.queryByText(/generations/i)).not.toBeInTheDocument();
+  });
+});
+
 describe('PersonDetailPage — Add Family', () => {
   it('renders Add Family only inside the Actions menu', async () => {
     mockOpenModal.mockResolvedValue({ action: 'cancelled' });

@@ -1,12 +1,18 @@
 /* ── Page shell ──────────────────────────────────────────────────────────── */
 
 .page {
+  height: 100%;
+  overflow-y: auto;
+  background: var(--color-bg-app);
+  padding: var(--space-6) var(--space-4) var(--space-8);
+}
+
+.pageInner {
+  width: min(1180px, 100%);
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  padding: var(--space-6);
-  gap: var(--space-6);
-  overflow-y: auto;
+  gap: var(--space-4);
 }
 
 /* ── Page header ─────────────────────────────────────────────────────────── */

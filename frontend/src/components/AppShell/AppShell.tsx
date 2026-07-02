@@ -5,7 +5,7 @@ import styles from './AppShell.module.css';
 
 interface AppShellProps {
   navbar: React.ReactNode;
-  sidebar: React.ReactNode;
+  sidebar?: React.ReactNode;
   detail?: React.ReactNode;
   showDetail?: boolean;
   /** Current page context — used for context-aware StatusBar */

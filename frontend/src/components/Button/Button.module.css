@@ -40,6 +40,15 @@
   background-color: var(--color-primary-800);
 }
 
+.secondary {
+  background-color: #eef7f5;
+  color: var(--color-primary-800);
+  border: 1px solid #cde7e2;
+}
+.secondary:hover:not(:disabled) {
+  background-color: #e0f2ef;
+}
+
 .ghost {
   background-color: transparent;
   color: var(--color-text-primary);

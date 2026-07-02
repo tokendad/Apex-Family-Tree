@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
-import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import PersonEditModal from '@/components/PersonEditModal/PersonEditModal';
 import ActionDrawer from '@/components/archive-object/ActionDrawer';
@@ -441,18 +440,20 @@ const PersonDetailPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <AppShell navbar={<Navbar />} sidebar={<Sidebar context="people" />}>
+      <AppShell navbar={<Navbar />}>
         <div className={styles.page}>
-          <div className={styles.loadingState} aria-busy="true" aria-label="Loading person…">
-            <div className={styles.skeletonHeading} />
-            <div className={styles.contentGrid}>
-              <div className={styles.leftCol}>
-                <div className={styles.skeletonSection} />
-                <div className={styles.skeletonSection} />
-              </div>
-              <div className={styles.rightCol}>
-                <div className={styles.skeletonSection} />
-                <div className={styles.skeletonSection} />
+          <div className={styles.pageInner}>
+            <div className={styles.loadingState} aria-busy="true" aria-label="Loading person…">
+              <div className={styles.skeletonHeading} />
+              <div className={styles.contentGrid}>
+                <div className={styles.leftCol}>
+                  <div className={styles.skeletonSection} />
+                  <div className={styles.skeletonSection} />
+                </div>
+                <div className={styles.rightCol}>
+                  <div className={styles.skeletonSection} />
+                  <div className={styles.skeletonSection} />
+                </div>
               </div>
             </div>
           </div>
@@ -463,21 +464,23 @@ const PersonDetailPage: React.FC = () => {
 
   if (notFound) {
     return (
-      <AppShell navbar={<Navbar />} sidebar={<Sidebar context="people" />}>
+      <AppShell navbar={<Navbar />}>
         <div className={styles.page}>
-          <div className={styles.centeredState}>
-            <div className={styles.centeredIcon} aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-              </svg>
+          <div className={styles.pageInner}>
+            <div className={styles.centeredState}>
+              <div className={styles.centeredIcon} aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                </svg>
+              </div>
+              <h2 className={styles.centeredTitle}>Person not found</h2>
+              <p className={styles.centeredDesc}>
+                This person record does not exist or has been deleted.
+              </p>
+              <Button variant="primary" size="sm" onClick={() => navigate('/people')}>
+                Back to People
+              </Button>
             </div>
-            <h2 className={styles.centeredTitle}>Person not found</h2>
-            <p className={styles.centeredDesc}>
-              This person record does not exist or has been deleted.
-            </p>
-            <Button variant="primary" size="sm" onClick={() => navigate('/people')}>
-              Back to People
-            </Button>
           </div>
         </div>
       </AppShell>
@@ -486,19 +489,21 @@ const PersonDetailPage: React.FC = () => {
 
   if (error && !person) {
     return (
-      <AppShell navbar={<Navbar />} sidebar={<Sidebar context="people" />}>
+      <AppShell navbar={<Navbar />}>
         <div className={styles.page}>
-          <div className={styles.centeredState}>
-            <div className={styles.centeredIcon} aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-              </svg>
+          <div className={styles.pageInner}>
+            <div className={styles.centeredState}>
+              <div className={styles.centeredIcon} aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+              </div>
+              <h2 className={styles.centeredTitle}>Something went wrong</h2>
+              <p className={styles.centeredDesc}>{error}</p>
+              <Button variant="primary" size="sm" onClick={fetchPerson}>
+                Try again
+              </Button>
             </div>
-            <h2 className={styles.centeredTitle}>Something went wrong</h2>
-            <p className={styles.centeredDesc}>{error}</p>
-            <Button variant="primary" size="sm" onClick={fetchPerson}>
-              Try again
-            </Button>
           </div>
         </div>
       </AppShell>
@@ -544,8 +549,9 @@ const PersonDetailPage: React.FC = () => {
   // ─── Full render ───────────────────────────────────────────────────────────
 
   return (
-    <AppShell navbar={<Navbar />} sidebar={<Sidebar context="people" />}>
+    <AppShell navbar={<Navbar />}>
       <div className={styles.page}>
+        <div className={styles.pageInner}>
         <button className={styles.backBtn} onClick={() => navigate('/people')}>
           ← People
         </button>
@@ -573,6 +579,9 @@ const PersonDetailPage: React.FC = () => {
           subtitle={`${person.is_living === 1 ? 'Living' : 'Deceased'} • ${SEX_LABELS[person.sex]}${person.is_private === 1 ? ' • Private' : ''}`}
           summary={person.notes}
           avatar={<span>{initialsFromName(displayTitle)}</span>}
+          headerAction={(
+            <Button variant="secondary" onClick={() => navigate('/')}>View in Tree</Button>
+          )}
           stats={[
             { label: 'Names', value: person.names.length },
             { label: 'Events', value: sortedEventsList.length },
@@ -930,6 +939,7 @@ const PersonDetailPage: React.FC = () => {
             </section>
           )}
         </ArchiveObjectLayout>
+        </div>
       </div>
 
       <ActionDrawer
