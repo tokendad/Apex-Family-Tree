@@ -6,6 +6,7 @@ import Button from '@/components/Button/Button';
 import PersonEditModal from '@/components/PersonEditModal/PersonEditModal';
 import ActionDrawer from '@/components/archive-object/ActionDrawer';
 import ArchiveObjectLayout, { type ConnectedGroup } from '@/components/archive-object/ArchiveObjectLayout';
+import ArtifactCard from '@/components/archive-object/ArtifactCard';
 import { type ContextActionItem } from '@/components/archive-object/ContextActionsMenu';
 import { usePageActions } from '@/contexts/PageActionsContext';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -650,6 +651,73 @@ const PersonDetailPage: React.FC = () => {
           {activeTab === 'overview' && (
             <div className={styles.tabStack}>
 
+            {/* ── Recent Artifacts ── */}
+            <section className={styles.section} aria-labelledby="recent-artifacts-heading">
+              <div className={styles.sectionHeader}>
+                <h2 className={styles.sectionTitle} id="recent-artifacts-heading">
+                  Recent Artifacts
+                </h2>
+                <Button variant="ghost" size="sm" onClick={() => setActiveTab('artifacts')}>
+                  View all
+                </Button>
+              </div>
+              {connectedObjectsLoading ? (
+                <div className={styles.skeletonLine} aria-hidden="true" />
+              ) : connectedArtifacts.length === 0 ? (
+                <p className={styles.noInfo}>No artifacts connected yet. Use Actions → Connect Artifact.</p>
+              ) : (
+                <div className={styles.cardGrid}>
+                  {connectedArtifacts.slice(0, 3).map((artifact) => (
+                    <ArtifactCard
+                      key={`${artifact.relationship_id}-${artifact.object_id}`}
+                      href={`/artifacts/${artifact.object_id}`}
+                      title={artifact.title}
+                      subtitle={artifact.artifact_type_name ?? artifact.relationship_type_name}
+                      typeName={artifact.artifact_type_name}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* ── Key Life Context ── */}
+            <section className={styles.section} aria-labelledby="life-context-heading">
+              <div className={styles.sectionHeader}>
+                <h2 className={styles.sectionTitle} id="life-context-heading">
+                  Key Life Context
+                </h2>
+                <Button variant="ghost" size="sm" onClick={() => setActiveTab('timeline')}>
+                  Timeline
+                </Button>
+              </div>
+              {sortedEventsList.length === 0 ? (
+                <p className={styles.noInfo}>No events recorded.</p>
+              ) : (
+                <ol className={styles.eventsList} aria-label="Key life events">
+                  {sortedEventsList.slice(0, 3).map((event) => (
+                    <li key={event.id} className={styles.eventItem}>
+                      <div className={styles.eventDot} aria-hidden="true" />
+                      <div className={styles.eventContent}>
+                        <div className={styles.eventHeader}>
+                          <span className={styles.eventType}>
+                            {formatEventType(event.event_type)}
+                          </span>
+                          <div className={styles.eventHeaderRight}>
+                            {event.event_date && (
+                              <span className={styles.eventDate}>{event.event_date}</span>
+                            )}
+                          </div>
+                        </div>
+                        {event.event_place && (
+                          <div className={styles.eventPlace}>📍 {event.event_place}</div>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </section>
+
             {/* ── Basic Information ── */}
             <section className={styles.section} aria-labelledby="basic-info-heading">
               <div className={styles.sectionHeader}>
@@ -962,16 +1030,15 @@ const PersonDetailPage: React.FC = () => {
               ) : connectedArtifacts.length === 0 ? (
                 <p className={styles.noInfo}>No artifacts connected to this person yet.</p>
               ) : (
-                <div className={styles.relPersonList}>
+                <div className={styles.cardGrid}>
                   {connectedArtifacts.map((artifact) => (
-                    <Link
+                    <ArtifactCard
                       key={`${artifact.relationship_id}-${artifact.object_id}`}
-                      to={`/artifacts/${artifact.object_id}`}
-                      className={styles.relPersonLink}
-                    >
-                      {artifact.title}
-                      {artifact.artifact_type_name ? ` (${artifact.artifact_type_name})` : ''}
-                    </Link>
+                      href={`/artifacts/${artifact.object_id}`}
+                      title={artifact.title}
+                      subtitle={artifact.artifact_type_name ?? artifact.relationship_type_name}
+                      typeName={artifact.artifact_type_name}
+                    />
                   ))}
                 </div>
               )}

@@ -53,6 +53,8 @@
   --color-topbar-muted: #b8d5d1;
   --color-bg-app: #f6f4ef;
   --color-border-warm: #e4ded2;
+  --color-surface: #ffffff;
+  --color-border: var(--color-border-warm);
 
   /* Colors — Text */
   --color-text-primary: var(--color-gray-900);
