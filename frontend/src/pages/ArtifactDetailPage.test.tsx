@@ -2,6 +2,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import ArtifactDetailPage from './ArtifactDetailPage';
+import { PageActionsProvider, usePageActionsValue } from '@/contexts/PageActionsContext';
+import ContextActionsMenu from '@/components/archive-object/ContextActionsMenu';
 
 vi.mock('@/components/AppShell/AppShell', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -81,12 +83,22 @@ beforeEach(() => {
   global.fetch = fetchMock;
 });
 
+// Stand-in for the topbar chrome: renders the page-registered Actions menu.
+function TestChrome() {
+  const { title, actions } = usePageActionsValue();
+  if (actions.length === 0) return null;
+  return <ContextActionsMenu title={title || undefined} actions={actions} />;
+}
+
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/artifacts/artifact-1']}>
-      <Routes>
-        <Route path="/artifacts/:id" element={<ArtifactDetailPage />} />
-      </Routes>
+      <PageActionsProvider>
+        <TestChrome />
+        <Routes>
+          <Route path="/artifacts/:id" element={<ArtifactDetailPage />} />
+        </Routes>
+      </PageActionsProvider>
     </MemoryRouter>,
   );
 }
@@ -101,7 +113,7 @@ describe('ArtifactDetailPage', () => {
     expect(screen.queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^delete$/i })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /actions/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /actions/i }));
 
     expect(screen.getByRole('menuitem', { name: /connect person/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /edit artifact/i })).toBeInTheDocument();

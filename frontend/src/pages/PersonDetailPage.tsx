@@ -7,7 +7,8 @@ import Button from '@/components/Button/Button';
 import PersonEditModal from '@/components/PersonEditModal/PersonEditModal';
 import ActionDrawer from '@/components/archive-object/ActionDrawer';
 import ArchiveObjectLayout, { type ConnectedGroup } from '@/components/archive-object/ArchiveObjectLayout';
-import ContextActionsMenu, { type ContextActionItem } from '@/components/archive-object/ContextActionsMenu';
+import { type ContextActionItem } from '@/components/archive-object/ContextActionsMenu';
+import { usePageActions } from '@/contexts/PageActionsContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useModal } from '@/components/modals/useModal';
 import type { FamilySummary } from '@/types/genealogy';
@@ -359,6 +360,64 @@ const PersonDetailPage: React.FC = () => {
     fetchConnectedArtifacts();
   }, [fetchPerson, fetchRelationships, fetchMedia, fetchConnectedArtifacts]);
 
+  // ─── Context actions (registered in the global topbar Actions menu) ───────
+
+  const primary = person ? primaryName(person.names) : null;
+  const displayTitle = person
+    ? person.displayName?.trim() || person.display_name?.trim() || (primary ? fullName(primary) : 'Unknown Person')
+    : '';
+
+  const handleAddFamily = async () => {
+    const result = await openModal<FamilySummary>('FamilyEditor', {
+      mode: 'create',
+      defaults: { spouse1_id: id },
+    });
+    if (result.action === 'created') navigate(`/families/${result.entity.id}`);
+  };
+
+  const contextActions: ContextActionItem[] = [
+    {
+      id: 'connect-artifact',
+      label: 'Connect Artifact',
+      description: 'Link this person to a preserved item',
+      disabled: !canCreate,
+      onSelect: () => setDrawerMode('connect-artifact'),
+    },
+    {
+      id: 'add-story',
+      label: 'Add Story',
+      description: 'Preserve a memory or explanation',
+      disabled: !canCreate,
+      onSelect: () => setDrawerMode('add-story'),
+    },
+    {
+      id: 'add-family',
+      label: 'Add Family',
+      description: 'Create a family relationship record',
+      disabled: !canCreate,
+      onSelect: handleAddFamily,
+    },
+    {
+      id: 'edit-person',
+      label: 'Edit Person',
+      description: 'Names, privacy, notes, and identity',
+      group: 'manage',
+      disabled: !canEdit,
+      onSelect: () => setShowEditModal(true),
+    },
+    {
+      id: 'delete-person',
+      label: 'Delete Person',
+      description: 'Remove this person record',
+      group: 'manage',
+      danger: true,
+      disabled: !canDelete,
+      onSelect: () => setDeleteConfirm(true),
+    },
+  ];
+
+  usePageActions(person ? `Actions for ${displayTitle}` : '', person ? contextActions : []);
+
   // ─── Delete handler ────────────────────────────────────────────────────────
 
   const handleDelete = async () => {
@@ -450,10 +509,6 @@ const PersonDetailPage: React.FC = () => {
 
   // ─── Derived values ────────────────────────────────────────────────────────
 
-  const primary = primaryName(person.names);
-  const displayTitle =
-    person.displayName?.trim() || person.display_name?.trim() || (primary ? fullName(primary) : 'Unknown Person');
-
   const sortedEventsList = sortEvents(person.events);
   const childFamilies = relationships.filter((r) => r.type === 'child_family');
   const parentFamilies = relationships.filter((r) => r.type === 'parent_family');
@@ -486,58 +541,6 @@ const PersonDetailPage: React.FC = () => {
       })),
     },
   ];
-  const handleAddFamily = async () => {
-    const result = await openModal<FamilySummary>('FamilyEditor', {
-      mode: 'create',
-      defaults: { spouse1_id: id },
-    });
-    if (result.action === 'created') navigate(`/families/${result.entity.id}`);
-  };
-  const contextActions: ContextActionItem[] = [
-    {
-      id: 'connect-artifact',
-      label: 'Connect Artifact',
-      description: 'Link this person to a preserved item',
-      disabled: !canCreate,
-      onSelect: () => setDrawerMode('connect-artifact'),
-    },
-    {
-      id: 'add-story',
-      label: 'Add Story',
-      description: 'Preserve a memory or explanation',
-      disabled: !canCreate,
-      onSelect: () => setDrawerMode('add-story'),
-    },
-    {
-      id: 'add-family',
-      label: 'Add Family',
-      description: 'Create a family relationship record',
-      disabled: !canCreate,
-      onSelect: handleAddFamily,
-    },
-    {
-      id: 'edit-person',
-      label: 'Edit Person',
-      description: 'Names, privacy, notes, and identity',
-      disabled: !canEdit,
-      onSelect: () => setShowEditModal(true),
-    },
-    {
-      id: 'view-tree',
-      label: 'View in Tree',
-      description: 'Open the tree workspace',
-      onSelect: () => navigate('/'),
-    },
-    {
-      id: 'delete-person',
-      label: 'Delete Person',
-      description: 'Remove this person record',
-      danger: true,
-      disabled: !canDelete,
-      onSelect: () => setDeleteConfirm(true),
-    },
-  ];
-
   // ─── Full render ───────────────────────────────────────────────────────────
 
   return (
@@ -570,9 +573,6 @@ const PersonDetailPage: React.FC = () => {
           subtitle={`${person.is_living === 1 ? 'Living' : 'Deceased'} • ${SEX_LABELS[person.sex]}${person.is_private === 1 ? ' • Private' : ''}`}
           summary={person.notes}
           avatar={<span>{initialsFromName(displayTitle)}</span>}
-          headerAction={(
-            <ContextActionsMenu actions={contextActions} />
-          )}
           stats={[
             { label: 'Names', value: person.names.length },
             { label: 'Events', value: sortedEventsList.length },

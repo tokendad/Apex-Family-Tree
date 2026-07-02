@@ -2,6 +2,8 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import PersonDetailPage from './PersonDetailPage';
+import { PageActionsProvider, usePageActionsValue } from '@/contexts/PageActionsContext';
+import ContextActionsMenu from '@/components/archive-object/ContextActionsMenu';
 
 vi.mock('@/components/AppShell/AppShell', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -60,12 +62,22 @@ vi.mock('react-router-dom', async (importOriginal) => {
   return { ...actual, useNavigate: () => mockNavigate };
 });
 
+// Stand-in for the topbar chrome: renders the page-registered Actions menu.
+function TestChrome() {
+  const { title, actions } = usePageActionsValue();
+  if (actions.length === 0) return null;
+  return <ContextActionsMenu title={title || undefined} actions={actions} />;
+}
+
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/people/per-1']}>
-      <Routes>
-        <Route path="/people/:id" element={<PersonDetailPage />} />
-      </Routes>
+      <PageActionsProvider>
+        <TestChrome />
+        <Routes>
+          <Route path="/people/:id" element={<PersonDetailPage />} />
+        </Routes>
+      </PageActionsProvider>
     </MemoryRouter>
   );
 }
@@ -78,7 +90,7 @@ describe('PersonDetailPage — Add Family', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Jane Doe' })).toBeInTheDocument());
     expect(screen.queryByRole('button', { name: /add family/i })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /actions/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /actions/i }));
 
     expect(screen.getByRole('menuitem', { name: /add family/i })).toBeInTheDocument();
   });

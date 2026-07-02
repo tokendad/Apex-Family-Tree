@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext.js';
+import { usePageActionsValue } from '@/contexts/PageActionsContext';
 import Avatar from '@/components/Avatar/Avatar';
+import ContextActionsMenu from '@/components/archive-object/ContextActionsMenu';
 import styles from './Navbar.module.css';
 
 const NAV_ITEMS = [
@@ -39,6 +41,7 @@ const Navbar: React.FC = () => {
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const { title: actionsTitle, actions: pageActions } = usePageActionsValue();
   const dropdownRef = useRef<HTMLDivElement>(null);
   const visibleNavItems = [
     ...NAV_ITEMS,
@@ -89,6 +92,9 @@ const Navbar: React.FC = () => {
         </div>
 
         <div className={styles.topActions}>
+          {pageActions.length > 0 && (
+            <ContextActionsMenu title={actionsTitle || undefined} actions={pageActions} />
+          )}
           {user && (
             <div className={styles.userArea} ref={dropdownRef}>
               <button

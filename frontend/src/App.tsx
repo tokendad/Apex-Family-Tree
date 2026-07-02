@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext.js';
+import { PageActionsProvider } from './contexts/PageActionsContext';
 import { ProtectedRoute } from './components/ProtectedRoute.js';
 import { AdminRoute } from './components/AdminRoute.js';
 import ErrorBoundary from './components/ErrorBoundary/ErrorBoundary';
@@ -72,6 +73,7 @@ function App() {
     <ErrorBoundary>
       <BrowserRouter>
         <AuthProvider>
+          <PageActionsProvider>
           <ModalHost />
           <OfflineBanner />
           <Suspense fallback={<LoadingFallback />}>
@@ -124,6 +126,7 @@ function App() {
               <Route path="*" element={<ComingSoonPage title="404 — Page Not Found" />} />
             </Routes>
           </Suspense>
+          </PageActionsProvider>
         </AuthProvider>
       </BrowserRouter>
     </ErrorBoundary>

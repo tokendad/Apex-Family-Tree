@@ -8,7 +8,8 @@ import Input from '@/components/Form/Input';
 import PersonPicker from '@/components/entity-pickers/PersonPicker';
 import ActionDrawer from '@/components/archive-object/ActionDrawer';
 import ArchiveObjectLayout, { type ConnectedGroup } from '@/components/archive-object/ArchiveObjectLayout';
-import ContextActionsMenu, { type ContextActionItem } from '@/components/archive-object/ContextActionsMenu';
+import { type ContextActionItem } from '@/components/archive-object/ContextActionsMenu';
+import { usePageActions } from '@/contexts/PageActionsContext';
 import type { PersonResult } from '@/components/PersonSearch/PersonSearch';
 import { usePermissions } from '@/hooks/usePermissions';
 import styles from './ArtifactsPage.module.css';
@@ -280,6 +281,7 @@ const ArtifactDetailPage: React.FC = () => {
       id: 'edit-artifact',
       label: 'Edit Artifact',
       description: 'Update metadata, privacy, and notes',
+      group: 'manage',
       disabled: !canEdit,
       onSelect: () => {
         setEditMode(true);
@@ -311,11 +313,14 @@ const ArtifactDetailPage: React.FC = () => {
       id: 'delete-artifact',
       label: 'Delete Artifact',
       description: 'Remove this artifact metadata',
+      group: 'manage',
       danger: true,
       disabled: !canDelete,
       onSelect: handleDelete,
     },
   ];
+
+  usePageActions(artifact ? `Actions for ${artifact.title}` : '', artifact ? contextActions : []);
 
   return (
     <AppShell navbar={<Navbar />} sidebar={<Sidebar context="artifacts" />} context="artifacts">
@@ -333,7 +338,6 @@ const ArtifactDetailPage: React.FC = () => {
               subtitle={`${artifact.privacy_level} artifact${artifact.original_date_text ? ` • ${artifact.original_date_text}` : ''}`}
               summary={artifact.summary}
               avatar={<span>{artifact.artifact_type_name.slice(0, 2).toUpperCase()}</span>}
-              headerAction={<ContextActionsMenu actions={contextActions} />}
               stats={[
                 { label: 'People', value: connectedPeople.length },
                 { label: 'Claims', value: relatedClaims.length },
