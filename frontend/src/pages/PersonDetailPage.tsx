@@ -92,7 +92,7 @@ interface MediaItem {
   thumbnail_url?: string;
 }
 
-interface ConnectedArtifact {
+interface ConnectedObject {
   relationship_id: string;
   relationship_type_code: string;
   relationship_type_name: string;
@@ -267,8 +267,8 @@ const PersonDetailPage: React.FC = () => {
   const [mediaLoading, setMediaLoading] = useState(true);
 
   // ── Archive connections ──
-  const [connectedArtifacts, setConnectedArtifacts] = useState<ConnectedArtifact[]>([]);
-  const [connectedArtifactsLoading, setConnectedArtifactsLoading] = useState(true);
+  const [connectedObjects, setConnectedObjects] = useState<ConnectedObject[]>([]);
+  const [connectedObjectsLoading, setConnectedObjectsLoading] = useState(true);
 
   // ── Delete ──
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -337,19 +337,19 @@ const PersonDetailPage: React.FC = () => {
     }
   }, [id]);
 
-  const fetchConnectedArtifacts = useCallback(async () => {
+  const fetchConnectedObjects = useCallback(async () => {
     if (!id) return;
-    setConnectedArtifactsLoading(true);
+    setConnectedObjectsLoading(true);
     try {
       const res = await fetch(`/api/v1/relationships/objects/${id}/connected`, { credentials: 'include' });
       if (res.ok) {
-        const json = await res.json() as { data: ConnectedArtifact[] };
-        setConnectedArtifacts(json.data.filter((object) => object.object_type === 'artifact'));
+        const json = await res.json() as { data: ConnectedObject[] };
+        setConnectedObjects(json.data ?? []);
       }
     } catch {
-      // Non-critical — connected artifacts can be empty until Phase 4 data exists.
+      // Non-critical — connected objects can be empty until Phase 4 data exists.
     } finally {
-      setConnectedArtifactsLoading(false);
+      setConnectedObjectsLoading(false);
     }
   }, [id]);
 
@@ -357,8 +357,8 @@ const PersonDetailPage: React.FC = () => {
     fetchPerson();
     fetchRelationships();
     fetchMedia();
-    fetchConnectedArtifacts();
-  }, [fetchPerson, fetchRelationships, fetchMedia, fetchConnectedArtifacts]);
+    fetchConnectedObjects();
+  }, [fetchPerson, fetchRelationships, fetchMedia, fetchConnectedObjects]);
 
   // ─── Context actions (registered in the global topbar Actions menu) ───────
 
@@ -518,9 +518,31 @@ const PersonDetailPage: React.FC = () => {
   const sortedEventsList = sortEvents(person.events);
   const childFamilies = relationships.filter((r) => r.type === 'child_family');
   const parentFamilies = relationships.filter((r) => r.type === 'parent_family');
+
+  const connectedArtifacts = connectedObjects.filter((o) => o.object_type === 'artifact');
+  const connectedStories = connectedObjects.filter((o) => o.object_type === 'story');
+  const connectedCollections = connectedObjects.filter((o) => o.object_type === 'collection');
+  const connectedPlaces = connectedObjects.filter((o) => o.object_type === 'place');
+
+  const familyRoles = new Map<string, string>();
+  childFamilies.forEach((rel) => {
+    [rel.spouse1, rel.spouse2].forEach((p) => {
+      if (p) familyRoles.set(p.id, 'Parent');
+    });
+  });
+  parentFamilies.forEach((rel) => {
+    const other = rel.role === 'spouse1' ? rel.spouse2 : rel.spouse1;
+    if (other) familyRoles.set(other.id, 'Spouse');
+    rel.children.forEach((c) => familyRoles.set(c.person_id, 'Child'));
+  });
+
   const familyConnections = [
     ...childFamilies.flatMap((rel) => [rel.spouse1, rel.spouse2].filter((p): p is PersonSummary => p !== null)),
     ...parentFamilies.flatMap((rel) => [rel.role === 'spouse1' ? rel.spouse2 : rel.spouse1].filter((p): p is PersonSummary => p !== null)),
+    ...parentFamilies.flatMap((rel) =>
+      rel.children
+        .filter((c) => c.person_id !== id)
+        .map((c) => ({ id: c.person_id, displayName: c.displayName, display_name: c.display_name, given_name: c.given_name, middle_name: c.middle_name, surname: c.surname }))),
   ];
   const uniqueFamilyConnections = Array.from(new Map(familyConnections.map((p) => [p.id, p])).values());
   const connectedGroups: ConnectedGroup[] = [
@@ -530,9 +552,31 @@ const PersonDetailPage: React.FC = () => {
       items: uniqueFamilyConnections.slice(0, 8).map((p) => ({
         id: p.id,
         title: personName(p),
-        subtitle: 'Family relationship',
+        subtitle: familyRoles.get(p.id) ?? 'Family relationship',
         href: `/people/${p.id}`,
         initials: initialsFromName(personName(p)),
+      })),
+    },
+    {
+      id: 'collections',
+      label: 'Collections',
+      items: connectedCollections.slice(0, 6).map((o) => ({
+        id: o.object_id,
+        title: o.title,
+        subtitle: o.relationship_type_name,
+        href: `/collections/${o.object_id}`,
+        initials: '★',
+      })),
+    },
+    {
+      id: 'places',
+      label: 'Places',
+      items: connectedPlaces.slice(0, 6).map((o) => ({
+        id: o.object_id,
+        title: o.title,
+        subtitle: o.relationship_type_name,
+        href: `/places/${o.object_id}`,
+        initials: '⌂',
       })),
     },
     {
@@ -546,7 +590,7 @@ const PersonDetailPage: React.FC = () => {
         initials: 'A',
       })),
     },
-  ];
+  ].filter((group) => group.items.length > 0);
   // ─── Full render ───────────────────────────────────────────────────────────
 
   return (
@@ -585,16 +629,17 @@ const PersonDetailPage: React.FC = () => {
             <Button variant="secondary" onClick={() => navigate('/')}>View in Tree</Button>
           )}
           stats={[
-            { label: 'Names', value: person.names.length },
-            { label: 'Events', value: sortedEventsList.length },
-            { label: 'Media', value: media.length },
             { label: 'Artifacts', value: connectedArtifacts.length },
+            { label: 'Stories', value: connectedStories.length },
+            { label: 'Events', value: sortedEventsList.length },
+            { label: 'Collections', value: connectedCollections.length },
             { label: 'Families', value: relationships.length },
           ]}
           tabs={[
             { id: 'overview', label: 'Overview' },
             { id: 'timeline', label: 'Timeline', count: sortedEventsList.length },
             { id: 'artifacts', label: 'Artifacts', count: connectedArtifacts.length + media.length },
+            { id: 'stories', label: 'Stories', count: connectedStories.length },
             { id: 'family', label: 'Family', count: relationships.length },
             { id: 'claims', label: 'Claims' },
           ]}
@@ -912,7 +957,7 @@ const PersonDetailPage: React.FC = () => {
                 )}
               </h2>
 
-              {connectedArtifactsLoading ? (
+              {connectedObjectsLoading ? (
                 <div className={styles.skeletonLine} aria-hidden="true" />
               ) : connectedArtifacts.length === 0 ? (
                 <p className={styles.noInfo}>No artifacts connected to this person yet.</p>
@@ -932,6 +977,35 @@ const PersonDetailPage: React.FC = () => {
               )}
             </section>
             </div>
+          )}
+
+          {activeTab === 'stories' && (
+            <section className={styles.section} aria-labelledby="stories-heading">
+              <h2 className={styles.sectionTitle} id="stories-heading">
+                Stories
+                {connectedStories.length > 0 && (
+                  <span className={styles.countBadge}>{connectedStories.length}</span>
+                )}
+              </h2>
+
+              {connectedObjectsLoading ? (
+                <div className={styles.skeletonLine} aria-hidden="true" />
+              ) : connectedStories.length === 0 ? (
+                <p className={styles.noInfo}>No stories connected to this person yet. Use Actions → Add Story.</p>
+              ) : (
+                <div className={styles.relPersonList}>
+                  {connectedStories.map((story) => (
+                    <Link
+                      key={`${story.relationship_id}-${story.object_id}`}
+                      to={`/stories/${story.object_id}`}
+                      className={styles.relPersonLink}
+                    >
+                      {story.title}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </section>
           )}
 
           {activeTab === 'claims' && (
@@ -975,7 +1049,7 @@ const PersonDetailPage: React.FC = () => {
           fetchPerson();
           fetchRelationships();
           fetchMedia();
-          fetchConnectedArtifacts();
+          fetchConnectedObjects();
         }}
       />
     </AppShell>
