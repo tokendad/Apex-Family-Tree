@@ -12,6 +12,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { useModal } from '@/components/modals/useModal';
 import type { FamilySummary } from '@/types/genealogy';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
+import { lifespanLabel } from '@/utils/personEvents';
 import styles from './PersonDetailPage.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -552,10 +553,6 @@ const PersonDetailPage: React.FC = () => {
     <AppShell navbar={<Navbar />}>
       <div className={styles.page}>
         <div className={styles.pageInner}>
-        <button className={styles.backBtn} onClick={() => navigate('/people')}>
-          ← People
-        </button>
-
         {/* ── Inline error banner ── */}
         {inlineError && (
           <div className={styles.errorBanner} role="alert">
@@ -574,9 +571,14 @@ const PersonDetailPage: React.FC = () => {
         )}
 
         <ArchiveObjectLayout
-          eyebrow="Person Archive Profile"
+          breadcrumb={<><Link to="/people">People</Link> / Archive Profile</>}
           title={displayTitle}
-          subtitle={`${person.is_living === 1 ? 'Living' : 'Deceased'} • ${SEX_LABELS[person.sex]}${person.is_private === 1 ? ' • Private' : ''}`}
+          subtitle={[
+            lifespanLabel(person.events),
+            person.is_living === 1 ? 'Living' : 'Deceased',
+            SEX_LABELS[person.sex],
+            person.is_private === 1 ? 'Private' : null,
+          ].filter(Boolean).join(' • ')}
           summary={person.notes}
           avatar={<span>{initialsFromName(displayTitle)}</span>}
           headerAction={(

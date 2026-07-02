@@ -26,7 +26,9 @@ export interface ConnectedGroup {
 }
 
 interface ArchiveObjectLayoutProps {
-  eyebrow: string;
+  eyebrow?: string;
+  /** Breadcrumb trail rendered above the title; replaces the eyebrow when present. */
+  breadcrumb?: React.ReactNode;
   title: string;
   subtitle?: string;
   summary?: string | null;
@@ -42,6 +44,7 @@ interface ArchiveObjectLayoutProps {
 
 const ArchiveObjectLayout: React.FC<ArchiveObjectLayoutProps> = ({
   eyebrow,
+  breadcrumb,
   title,
   subtitle,
   summary,
@@ -59,7 +62,11 @@ const ArchiveObjectLayout: React.FC<ArchiveObjectLayoutProps> = ({
       <header className={styles.identity}>
         {avatar && <div className={styles.avatar}>{avatar}</div>}
         <div className={styles.identityText}>
-          <p className={styles.eyebrow}>{eyebrow}</p>
+          {breadcrumb ? (
+            <div className={styles.crumb}>{breadcrumb}</div>
+          ) : (
+            eyebrow && <p className={styles.eyebrow}>{eyebrow}</p>
+          )}
           <h1>{title}</h1>
           {subtitle && <p className={styles.subtitle}>{subtitle}</p>}
           {summary && <p className={styles.summary}>{summary}</p>}

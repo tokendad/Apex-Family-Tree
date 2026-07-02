@@ -35,6 +35,16 @@
   line-height: 1;
 }
 
+.crumb {
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  margin-bottom: var(--space-2);
+}
+
+.crumb a {
+  color: inherit;
+}
+
 .eyebrow {
   margin: 0 0 var(--space-2);
   color: var(--color-primary-700);
