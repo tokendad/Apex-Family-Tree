@@ -1,7 +1,7 @@
 .backdrop {
   position: fixed;
   inset: 0;
-  z-index: 120;
+  z-index: var(--z-modal);
   display: flex;
   justify-content: flex-end;
   background: rgba(15, 23, 42, 0.42);
