@@ -1,6 +1,7 @@
 import { BaseRepository } from './base.js';
 import { ArchiveObjectRepository } from './ArchiveObjectRepository.js';
 import { RelationshipRepository } from './RelationshipRepository.js';
+import { decodeUpdatedAtCursor, encodeUpdatedAtCursor } from '../utils/cursor.js';
 import type { CreateStoryInput, StoryDetail, StoryRecord, UpdateStoryInput } from '../types/story.js';
 
 export class StoryRepository extends BaseRepository {
@@ -47,8 +48,11 @@ export class StoryRepository extends BaseRepository {
     ).get(...params) as { cnt: number };
 
     if (options?.cursor) {
-      conditions.push('ao.id > ?');
-      params.push(options.cursor);
+      const decoded = decodeUpdatedAtCursor(options.cursor);
+      if (decoded) {
+        conditions.push('(ao.updated_at < ? OR (ao.updated_at = ? AND ao.id > ?))');
+        params.push(decoded.updatedAt, decoded.updatedAt, decoded.id);
+      }
     }
 
     params.push(limit + 1);
@@ -70,9 +74,10 @@ export class StoryRepository extends BaseRepository {
     const hasMore = rows.length > limit;
     if (hasMore) rows.pop();
 
+    const last = rows[rows.length - 1];
     return {
       data: rows,
-      next_cursor: hasMore ? rows[rows.length - 1]?.id ?? null : null,
+      next_cursor: hasMore && last ? encodeUpdatedAtCursor(last.updated_at, last.id) : null,
       total_count: countRow.cnt,
     };
   }

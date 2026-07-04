@@ -160,4 +160,36 @@ describe('ClaimRepository', () => {
     expect(repo.delete(claim.id, 'user-2')).toBe(true);
     expect(repo.findById(claim.id)).toBeUndefined();
   });
+
+  it('paginates by (updated_at, id) so a lower-id row is not skipped across pages', () => {
+    const repo = new ClaimRepository();
+    const claims = [
+      repo.create({ statement: 'Claim one', subject_object_id: 'person-1' }),
+      repo.create({ statement: 'Claim two', subject_object_id: 'person-1' }),
+      repo.create({ statement: 'Claim three', subject_object_id: 'person-1' }),
+    ];
+
+    // Sort the (randomly generated) ids so we can deterministically assign
+    // updated_at values: the lexicographically largest id gets the most
+    // recent updated_at. That reproduces the bug on purpose — a cursor keyed
+    // on raw id alone (`id > cursor`) can never match a smaller id again, so
+    // the old code would report the list exhausted after just one page.
+    const sortedIds = [...claims.map(c => c.id)].sort();
+    const [idOldest, idMiddle, idNewest] = sortedIds;
+    db.prepare('UPDATE archive_objects SET updated_at = ? WHERE id = ?').run('2024-01-01 00:00:00', idOldest);
+    db.prepare('UPDATE archive_objects SET updated_at = ? WHERE id = ?').run('2024-01-02 00:00:00', idMiddle);
+    db.prepare('UPDATE archive_objects SET updated_at = ? WHERE id = ?').run('2024-01-03 00:00:00', idNewest);
+
+    const page1 = repo.findAll({ limit: 1 });
+    expect(page1.data.map(c => c.id)).toEqual([idNewest]);
+    expect(page1.next_cursor).toBeTruthy();
+
+    const page2 = repo.findAll({ limit: 1, cursor: page1.next_cursor! });
+    expect(page2.data.map(c => c.id)).toEqual([idMiddle]);
+    expect(page2.next_cursor).toBeTruthy();
+
+    const page3 = repo.findAll({ limit: 1, cursor: page2.next_cursor! });
+    expect(page3.data.map(c => c.id)).toEqual([idOldest]);
+    expect(page3.next_cursor).toBeNull();
+  });
 });

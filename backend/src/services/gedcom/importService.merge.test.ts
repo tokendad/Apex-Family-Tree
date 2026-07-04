@@ -175,6 +175,19 @@ CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY,
   value TEXT
 );
+
+CREATE TABLE IF NOT EXISTS archive_objects (
+  id TEXT PRIMARY KEY,
+  object_type TEXT NOT NULL,
+  title TEXT NOT NULL,
+  summary TEXT,
+  privacy_level TEXT NOT NULL DEFAULT 'family',
+  is_deleted INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  created_by TEXT,
+  updated_by TEXT
+);
 `;
 
 // Seed Margaret Smith with birth 1842 and death 1911 events

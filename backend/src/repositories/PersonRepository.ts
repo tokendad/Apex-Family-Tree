@@ -1,4 +1,5 @@
 import { BaseRepository } from './base.js';
+import { ArchiveObjectRepository } from './ArchiveObjectRepository.js';
 import { soundex } from '../utils/soundex.js';
 import { formatName, normalizeToNull, sanitizeDisplayName, sanitizeNameField } from '../utils/nameFormatter.js';
 import type { Person, Name, Family, PersonWithNames } from '../types/db.js';
@@ -18,6 +19,21 @@ function buildFtsQuery(input: string): string | null {
 }
 
 export class PersonRepository extends BaseRepository {
+  private archiveObjects = new ArchiveObjectRepository();
+
+  /**
+   * Recompute this person's archive_objects title from their current display
+   * name / primary name, so relationship-connected views (Connect Person,
+   * story/artifact "Connected To" panels) don't show a stale or missing title.
+   * No-ops if the person has no archive_objects row (shouldn't happen for
+   * anyone created after this write-through was added).
+   */
+  private refreshArchiveTitle(personId: string): void {
+    const person = this.findById(personId);
+    if (!person) return;
+    this.archiveObjects.update(personId, { title: person.displayName?.trim() || 'Unknown Person' });
+  }
+
   /**
    * Get the global name display format from settings (cached per repository instance).
    * Defaults to '%f %m %s' if not set.
@@ -529,20 +545,38 @@ export class PersonRepository extends BaseRepository {
   }): Person {
     const id = this.generateId();
     const now = this.now();
-    this.db.prepare(
-      'INSERT INTO persons (id, sex, is_living, is_private, notes, display_name, created_by, gedcom_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(
-      id,
-      data.sex || 'U',
-      data.is_living ?? 1,
-      data.is_private ?? 0,
-      normalizeToNull(data.notes),
-      sanitizeDisplayName(data.display_name),
-      data.created_by || null,
-      data.gedcom_id || null,
-      now,
-      now,
-    );
+    const displayName = sanitizeDisplayName(data.display_name);
+
+    const createPerson = this.db.transaction(() => {
+      // Every person needs a matching archive_objects row so relationship
+      // validation (Connect Person, story/artifact connections, etc.) can
+      // resolve them as a member — see RelationshipService.validateMembers.
+      this.archiveObjects.create({
+        id,
+        object_type: 'person',
+        title: displayName || 'Unknown Person',
+        summary: normalizeToNull(data.notes) ?? null,
+        privacy_level: (data.is_private ?? 0) === 1 ? 'private' : 'family',
+        created_by: data.created_by ?? null,
+      });
+
+      this.db.prepare(
+        'INSERT INTO persons (id, sex, is_living, is_private, notes, display_name, created_by, gedcom_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(
+        id,
+        data.sex || 'U',
+        data.is_living ?? 1,
+        data.is_private ?? 0,
+        normalizeToNull(data.notes),
+        displayName,
+        data.created_by || null,
+        data.gedcom_id || null,
+        now,
+        now,
+      );
+    });
+
+    createPerson();
     return this.db.prepare('SELECT * FROM persons WHERE id = ?').get(id) as Person;
   }
 
@@ -563,13 +597,32 @@ export class PersonRepository extends BaseRepository {
     values.push(this.now());
     values.push(id);
 
-    this.db.prepare(`UPDATE persons SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+    const updatePerson = this.db.transaction(() => {
+      this.db.prepare(`UPDATE persons SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+
+      const archiveUpdate: { summary?: string | null; privacy_level?: 'private' | 'family' } = {};
+      if (data.notes !== undefined) archiveUpdate.summary = normalizeToNull(data.notes) ?? null;
+      if (data.is_private !== undefined) archiveUpdate.privacy_level = data.is_private === 1 ? 'private' : 'family';
+      if (Object.keys(archiveUpdate).length > 0) this.archiveObjects.update(id, archiveUpdate);
+
+      if (data.display_name !== undefined) this.refreshArchiveTitle(id);
+    });
+
+    updatePerson();
     return this.db.prepare('SELECT * FROM persons WHERE id = ?').get(id) as Person | undefined;
   }
 
   delete(id: string): boolean {
-    const result = this.db.prepare('DELETE FROM persons WHERE id = ?').run(id);
-    return result.changes > 0;
+    const deletePerson = this.db.transaction(() => {
+      const result = this.db.prepare('DELETE FROM persons WHERE id = ?').run(id);
+      if (result.changes > 0) {
+        // Cascades to relationship_members via ON DELETE CASCADE, so no
+        // relationship keeps pointing at a person that no longer exists.
+        this.db.prepare('DELETE FROM archive_objects WHERE id = ?').run(id);
+      }
+      return result.changes > 0;
+    });
+    return deletePerson();
   }
 
   addName(personId: string, data: {
@@ -602,6 +655,7 @@ export class PersonRepository extends BaseRepository {
       data.is_primary ?? 0, maxOrder.next, now, now,
     );
 
+    this.refreshArchiveTitle(personId);
     return this.db.prepare('SELECT * FROM names WHERE id = ?').get(id) as Name;
   }
 
@@ -643,11 +697,15 @@ export class PersonRepository extends BaseRepository {
     values.push(nameId);
 
     this.db.prepare(`UPDATE names SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+    this.refreshArchiveTitle(existing.person_id);
     return this.findNameById(nameId);
   }
 
   deleteName(nameId: string): boolean {
-    return this.db.prepare('DELETE FROM names WHERE id = ?').run(nameId).changes > 0;
+    const existing = this.findNameById(nameId);
+    const deleted = this.db.prepare('DELETE FROM names WHERE id = ?').run(nameId).changes > 0;
+    if (deleted && existing) this.refreshArchiveTitle(existing.person_id);
+    return deleted;
   }
 
   getRelationships(personId: string): { parents: PersonWithNames[]; spouses: PersonWithNames[]; children: PersonWithNames[] } {
