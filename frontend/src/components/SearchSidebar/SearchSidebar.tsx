@@ -3,29 +3,31 @@ import CollapsibleSection from '@/components/CollapsibleSection/CollapsibleSecti
 import Input from '@/components/Form/Input';
 import Select from '@/components/Form/Select';
 import { useSearchStore, hasActiveFilters } from '@/stores/searchStore';
-import type { DateMode } from '@/stores/searchStore';
+import type { DateMode, SidebarContext } from '@/stores/searchStore';
 import styles from './SearchSidebar.module.css';
 
 interface SearchSidebarProps {
   /** Which page context we're on — controls which filters are visible */
-  context?: 'tree' | 'people' | 'families' | 'sources' | 'media';
+  context?: SidebarContext;
 }
 
 const SearchSidebar: React.FC<SearchSidebarProps> = ({ context = 'people' }) => {
   const store = useSearchStore();
   const isPersonContext = context === 'tree' || context === 'people';
+  const searchLabel = isPersonContext ? 'Search tree' : 'Search archive';
+  const searchPlaceholder = isPersonContext ? 'Search name, place, date…' : 'Search artifact, story, place, tag…';
   const active = hasActiveFilters(store, context);
 
   return (
     <div className={styles.searchSidebar}>
       <div className={styles.sectionHeader}>
-        <span className={styles.sectionTitle}>Search tree</span>
+        <span className={styles.sectionTitle}>{searchLabel}</span>
         <span className={styles.persistentBadge} title="Filters are saved between visits">Saved</span>
       </div>
 
       <div className={styles.globalSearch}>
         <Input
-          placeholder="Search name, place, date…"
+          placeholder={searchPlaceholder}
           value={store.globalQuery}
           onChange={(e) => store.setFilter('globalQuery', e.target.value)}
           aria-label="Global search"
@@ -38,7 +40,7 @@ const SearchSidebar: React.FC<SearchSidebarProps> = ({ context = 'people' }) => 
           <span className={styles.activeLabel}>
             {store.totalCount !== null
               ? `${store.totalCount} match${store.totalCount !== 1 ? 'es' : ''}`
-              : 'Searching\u2026'}
+              : 'Searching…'}
           </span>
           <button
             type="button"

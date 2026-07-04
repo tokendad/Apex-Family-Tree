@@ -1,12 +1,30 @@
 /* ── Page shell ──────────────────────────────────────────────────────────── */
 
 .page {
+  height: 100%;
+  overflow-y: auto;
+  background: var(--color-bg-app);
+  padding: var(--space-6) var(--space-4) var(--space-8);
+}
+
+.pageInner {
+  width: min(1180px, 100%);
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  padding: var(--space-6);
-  gap: var(--space-6);
-  overflow-y: auto;
+  gap: var(--space-4);
+}
+
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+@media (max-width: 740px) {
+  .cardGrid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ── Page header ─────────────────────────────────────────────────────────── */
@@ -92,6 +110,19 @@
   font-size: var(--font-size-sm);
 }
 
+.drawerPlaceholder {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.drawerPlaceholder p {
+  margin: 0;
+}
+
 /* ── Responsive 2-column content grid ───────────────────────────────────── */
 
 .contentGrid {
@@ -112,6 +143,12 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
+}
+
+.tabStack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
 }
 
 /* ── Sections ────────────────────────────────────────────────────────────── */

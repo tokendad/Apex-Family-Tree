@@ -127,8 +127,10 @@ familiesRouter.get('/:id', (req, res) => {
       ...m,
       person: personRepo.findById(m.person_id),
     }));
+    const eventRepo = new EventRepository();
+    const events = eventRepo.findByFamily(family.id);
 
-    res.json({ ...family, spouse1, spouse2, children });
+    res.json({ ...family, spouse1, spouse2, children, events });
   } catch (error) {
     res.status(500).json({ error: 'Failed to get family' });
   }

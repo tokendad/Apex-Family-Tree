@@ -1,8 +1,11 @@
 import { BaseRepository } from './base.js';
+import { ArchiveObjectRepository } from './ArchiveObjectRepository.js';
 import type { Event } from '../types/db.js';
 import { parseGedcomDate } from '../utils/gedcom-date.js';
 
 export class EventRepository extends BaseRepository {
+  private archiveObjects = new ArchiveObjectRepository();
+
   findById(id: string): Event | undefined {
     return this.db.prepare('SELECT * FROM events WHERE id = ?').get(id) as Event | undefined;
   }
@@ -104,14 +107,28 @@ export class EventRepository extends BaseRepository {
     const now = this.now();
     const dateInfo = data.event_date ? parseGedcomDate(data.event_date) : null;
 
-    this.db.prepare(
-      'INSERT INTO events (id, person_id, family_id, event_type, event_date, event_date_qualifier, event_date_sort_key, event_place, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(
-      id, data.person_id || null, data.family_id || null, data.event_type,
-      data.event_date || null, dateInfo?.qualifier || 'exact', dateInfo?.sortKey || null,
-      data.event_place || null, data.description || null,
-      now, now,
-    );
+    const createEvent = this.db.transaction(() => {
+      this.db.prepare(
+        'INSERT INTO events (id, person_id, family_id, event_type, event_date, event_date_qualifier, event_date_sort_key, event_place, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).run(
+        id, data.person_id || null, data.family_id || null, data.event_type,
+        data.event_date || null, dateInfo?.qualifier || 'exact', dateInfo?.sortKey || null,
+        data.event_place || null, data.description || null,
+        now, now,
+      );
+
+      if (this.hasArchiveObjectsTable()) {
+        this.archiveObjects.create({
+          id,
+          object_type: 'event',
+          title: this.eventTitle(data.event_type, data.event_date ?? null),
+          summary: data.description ?? null,
+          privacy_level: 'family',
+        });
+      }
+    });
+
+    createEvent();
     return this.findById(id)!;
   }
 
@@ -172,11 +189,41 @@ export class EventRepository extends BaseRepository {
     values.push(this.now());
     values.push(id);
 
-    this.db.prepare(`UPDATE events SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+    const updateEvent = this.db.transaction(() => {
+      this.db.prepare(`UPDATE events SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+      const event = this.findById(id);
+      if (event && this.hasArchiveObjectsTable()) {
+        this.archiveObjects.update(id, {
+          title: this.eventTitle(event.event_type, event.event_date),
+          summary: event.description,
+        });
+      }
+    });
+
+    updateEvent();
     return this.findById(id);
   }
 
   delete(id: string): boolean {
-    return this.db.prepare('DELETE FROM events WHERE id = ?').run(id).changes > 0;
+    const deleteEvent = this.db.transaction(() => {
+      if (this.hasArchiveObjectsTable()) {
+        this.db.prepare('DELETE FROM archive_objects WHERE id = ?').run(id);
+      }
+      return this.db.prepare('DELETE FROM events WHERE id = ?').run(id).changes > 0;
+    });
+
+    return deleteEvent();
+  }
+
+  private eventTitle(eventType: string, eventDate?: string | null): string {
+    const label = eventType
+      .split('_')
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+    return eventDate ? `${label} - ${eventDate}` : label;
+  }
+
+  private hasArchiveObjectsTable(): boolean {
+    return Boolean(this.db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'archive_objects'").get());
   }
 }

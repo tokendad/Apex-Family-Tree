@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext.js';
+import { PageActionsProvider } from './contexts/PageActionsContext';
 import { ProtectedRoute } from './components/ProtectedRoute.js';
 import { AdminRoute } from './components/AdminRoute.js';
 import ErrorBoundary from './components/ErrorBoundary/ErrorBoundary';
@@ -16,7 +17,21 @@ const AdminPage = React.lazy(() => import('./pages/AdminPage'));
 const FamiliesPage = React.lazy(() => import('./pages/FamiliesPage'));
 const FamilyDetailPage = React.lazy(() => import('./pages/FamilyDetailPage'));
 const PersonDetailPage = React.lazy(() => import('./pages/PersonDetailPage'));
+const ArtifactsPage = React.lazy(() => import('./pages/ArtifactsPage'));
+const ArtifactDetailPage = React.lazy(() => import('./pages/ArtifactDetailPage'));
+const ClaimsPage = React.lazy(() => import('./pages/ClaimsPage'));
+const ClaimDetailPage = React.lazy(() => import('./pages/ClaimDetailPage'));
+const CollectionsPage = React.lazy(() => import('./pages/CollectionsPage'));
+const CollectionDetailPage = React.lazy(() => import('./pages/CollectionDetailPage'));
+const EventsPage = React.lazy(() => import('./pages/EventsPage'));
+const EventDetailPage = React.lazy(() => import('./pages/EventDetailPage'));
+const PlacesPage = React.lazy(() => import('./pages/PlacesPage'));
+const PlaceDetailPage = React.lazy(() => import('./pages/PlaceDetailPage'));
 const SourcesPage = React.lazy(() => import('./pages/SourcesPage'));
+const SourceDetailPage = React.lazy(() => import('./pages/SourceDetailPage'));
+const StoriesPage = React.lazy(() => import('./pages/StoriesPage'));
+const StoryDetailPage = React.lazy(() => import('./pages/StoryDetailPage'));
+const SearchPage = React.lazy(() => import('./pages/SearchPage'));
 const ImportPage = React.lazy(() => import('./pages/ImportPage'));
 const ExportPage = React.lazy(() => import('./pages/ExportPage'));
 const ToolsPage = React.lazy(() => import('./pages/ToolsPage'));
@@ -59,6 +74,7 @@ function App() {
     <ErrorBoundary>
       <BrowserRouter>
         <AuthProvider>
+          <PageActionsProvider>
           <ModalHost />
           <OfflineBanner />
           <Suspense fallback={<LoadingFallback />}>
@@ -77,7 +93,21 @@ function App() {
               <Route path="/people/:id" element={<ProtectedRoute><PersonDetailPage /></ProtectedRoute>} />
               <Route path="/families" element={<ProtectedRoute><FamiliesPage /></ProtectedRoute>} />
               <Route path="/families/:id" element={<ProtectedRoute><FamilyDetailPage /></ProtectedRoute>} />
+              <Route path="/artifacts" element={<ProtectedRoute><ArtifactsPage /></ProtectedRoute>} />
+              <Route path="/artifacts/:id" element={<ProtectedRoute><ArtifactDetailPage /></ProtectedRoute>} />
+              <Route path="/claims" element={<ProtectedRoute><ClaimsPage /></ProtectedRoute>} />
+              <Route path="/claims/:id" element={<ProtectedRoute><ClaimDetailPage /></ProtectedRoute>} />
+              <Route path="/collections" element={<ProtectedRoute><CollectionsPage /></ProtectedRoute>} />
+              <Route path="/collections/:id" element={<ProtectedRoute><CollectionDetailPage /></ProtectedRoute>} />
+              <Route path="/events" element={<ProtectedRoute><EventsPage /></ProtectedRoute>} />
+              <Route path="/events/:id" element={<ProtectedRoute><EventDetailPage /></ProtectedRoute>} />
+              <Route path="/places" element={<ProtectedRoute><PlacesPage /></ProtectedRoute>} />
+              <Route path="/places/:id" element={<ProtectedRoute><PlaceDetailPage /></ProtectedRoute>} />
               <Route path="/sources" element={<ProtectedRoute><SourcesPage /></ProtectedRoute>} />
+              <Route path="/sources/:id" element={<ProtectedRoute><SourceDetailPage /></ProtectedRoute>} />
+              <Route path="/stories" element={<ProtectedRoute><StoriesPage /></ProtectedRoute>} />
+              <Route path="/stories/:id" element={<ProtectedRoute><StoryDetailPage /></ProtectedRoute>} />
+              <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
               <Route path="/media" element={<ProtectedRoute><MediaPage /></ProtectedRoute>} />
 
               {/* Import/Export (protected) */}
@@ -98,6 +128,7 @@ function App() {
               <Route path="*" element={<ComingSoonPage title="404 — Page Not Found" />} />
             </Routes>
           </Suspense>
+          </PageActionsProvider>
         </AuthProvider>
       </BrowserRouter>
     </ErrorBoundary>

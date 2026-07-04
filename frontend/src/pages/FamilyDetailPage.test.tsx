@@ -52,6 +52,7 @@ const familyWithNoSpouse1 = {
   divorce_date: null,
   divorce_place: null,
   children: [],
+  events: [],
 };
 
 describe('FamilyDetailPage — spouse assignment', () => {
@@ -73,7 +74,8 @@ describe('FamilyDetailPage — spouse assignment', () => {
       </MemoryRouter>
     );
 
-    await waitFor(() => expect(screen.queryByText('Loading…')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('tab', { name: /people/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('tab', { name: /people/i }));
     expect(screen.getByTestId('pick-spouse-1')).toBeInTheDocument();
   });
 
@@ -120,6 +122,8 @@ describe('FamilyDetailPage — spouse assignment', () => {
       </MemoryRouter>
     );
 
+    await waitFor(() => expect(screen.getByRole('tab', { name: /people/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('tab', { name: /people/i }));
     await waitFor(() => expect(screen.getByTestId('pick-spouse-1')).toBeInTheDocument());
     fireEvent.click(screen.getByTestId('pick-spouse-1'));
 

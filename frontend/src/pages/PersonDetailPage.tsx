@@ -2,13 +2,18 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
-import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import PersonEditModal from '@/components/PersonEditModal/PersonEditModal';
+import ActionDrawer from '@/components/archive-object/ActionDrawer';
+import ArchiveObjectLayout, { type ConnectedGroup } from '@/components/archive-object/ArchiveObjectLayout';
+import ArtifactCard from '@/components/archive-object/ArtifactCard';
+import { type ContextActionItem } from '@/components/archive-object/ContextActionsMenu';
+import { usePageActions } from '@/contexts/PageActionsContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useModal } from '@/components/modals/useModal';
 import type { FamilySummary } from '@/types/genealogy';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
+import { lifespanLabel } from '@/utils/personEvents';
 import styles from './PersonDetailPage.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -86,6 +91,18 @@ interface MediaItem {
   media_type?: string;
   url?: string;
   thumbnail_url?: string;
+}
+
+interface ConnectedObject {
+  relationship_id: string;
+  relationship_type_code: string;
+  relationship_type_name: string;
+  role: string;
+  object_id: string;
+  object_type: string;
+  title: string;
+  summary: string | null;
+  artifact_type_name: string | null;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -180,6 +197,11 @@ function mediaDisplayName(item: MediaItem): string {
   return item.filename ?? item.file_name ?? `Media ${item.id.slice(0, 8)}`;
 }
 
+function initialsFromName(name: string): string {
+  const parts = name.split(/\s+/).filter(Boolean);
+  return (parts[0]?.[0] ?? '?') + (parts[1]?.[0] ?? '');
+}
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 interface InfoRowProps {
@@ -245,6 +267,10 @@ const PersonDetailPage: React.FC = () => {
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [mediaLoading, setMediaLoading] = useState(true);
 
+  // ── Archive connections ──
+  const [connectedObjects, setConnectedObjects] = useState<ConnectedObject[]>([]);
+  const [connectedObjectsLoading, setConnectedObjectsLoading] = useState(true);
+
   // ── Delete ──
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -254,6 +280,8 @@ const PersonDetailPage: React.FC = () => {
 
   // ── Edit modal ──
   const [showEditModal, setShowEditModal] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [drawerMode, setDrawerMode] = useState<'connect-artifact' | 'add-story' | null>(null);
 
   // ─── Fetchers ──────────────────────────────────────────────────────────────
 
@@ -310,11 +338,86 @@ const PersonDetailPage: React.FC = () => {
     }
   }, [id]);
 
+  const fetchConnectedObjects = useCallback(async () => {
+    if (!id) return;
+    setConnectedObjectsLoading(true);
+    try {
+      const res = await fetch(`/api/v1/relationships/objects/${id}/connected`, { credentials: 'include' });
+      if (res.ok) {
+        const json = await res.json() as { data: ConnectedObject[] };
+        setConnectedObjects(json.data ?? []);
+      }
+    } catch {
+      // Non-critical — connected objects can be empty until Phase 4 data exists.
+    } finally {
+      setConnectedObjectsLoading(false);
+    }
+  }, [id]);
+
   useEffect(() => {
     fetchPerson();
     fetchRelationships();
     fetchMedia();
-  }, [fetchPerson, fetchRelationships, fetchMedia]);
+    fetchConnectedObjects();
+  }, [fetchPerson, fetchRelationships, fetchMedia, fetchConnectedObjects]);
+
+  // ─── Context actions (registered in the global topbar Actions menu) ───────
+
+  const primary = person ? primaryName(person.names) : null;
+  const displayTitle = person
+    ? person.displayName?.trim() || person.display_name?.trim() || (primary ? fullName(primary) : 'Unknown Person')
+    : '';
+
+  const handleAddFamily = async () => {
+    const result = await openModal<FamilySummary>('FamilyEditor', {
+      mode: 'create',
+      defaults: { spouse1_id: id },
+    });
+    if (result.action === 'created') navigate(`/families/${result.entity.id}`);
+  };
+
+  const contextActions: ContextActionItem[] = [
+    {
+      id: 'connect-artifact',
+      label: 'Connect Artifact',
+      description: 'Link this person to a preserved item',
+      disabled: !canCreate,
+      onSelect: () => setDrawerMode('connect-artifact'),
+    },
+    {
+      id: 'add-story',
+      label: 'Add Story',
+      description: 'Preserve a memory or explanation',
+      disabled: !canCreate,
+      onSelect: () => setDrawerMode('add-story'),
+    },
+    {
+      id: 'add-family',
+      label: 'Add Family',
+      description: 'Create a family relationship record',
+      disabled: !canCreate,
+      onSelect: handleAddFamily,
+    },
+    {
+      id: 'edit-person',
+      label: 'Edit Person',
+      description: 'Names, privacy, notes, and identity',
+      group: 'manage',
+      disabled: !canEdit,
+      onSelect: () => setShowEditModal(true),
+    },
+    {
+      id: 'delete-person',
+      label: 'Delete Person',
+      description: 'Remove this person record',
+      group: 'manage',
+      danger: true,
+      disabled: !canDelete,
+      onSelect: () => setDeleteConfirm(true),
+    },
+  ];
+
+  usePageActions(person ? `Actions for ${displayTitle}` : '', person ? contextActions : []);
 
   // ─── Delete handler ────────────────────────────────────────────────────────
 
@@ -339,18 +442,20 @@ const PersonDetailPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <AppShell navbar={<Navbar />} sidebar={<Sidebar context="people" />}>
+      <AppShell navbar={<Navbar />}>
         <div className={styles.page}>
-          <div className={styles.loadingState} aria-busy="true" aria-label="Loading person…">
-            <div className={styles.skeletonHeading} />
-            <div className={styles.contentGrid}>
-              <div className={styles.leftCol}>
-                <div className={styles.skeletonSection} />
-                <div className={styles.skeletonSection} />
-              </div>
-              <div className={styles.rightCol}>
-                <div className={styles.skeletonSection} />
-                <div className={styles.skeletonSection} />
+          <div className={styles.pageInner}>
+            <div className={styles.loadingState} aria-busy="true" aria-label="Loading person…">
+              <div className={styles.skeletonHeading} />
+              <div className={styles.contentGrid}>
+                <div className={styles.leftCol}>
+                  <div className={styles.skeletonSection} />
+                  <div className={styles.skeletonSection} />
+                </div>
+                <div className={styles.rightCol}>
+                  <div className={styles.skeletonSection} />
+                  <div className={styles.skeletonSection} />
+                </div>
               </div>
             </div>
           </div>
@@ -361,21 +466,23 @@ const PersonDetailPage: React.FC = () => {
 
   if (notFound) {
     return (
-      <AppShell navbar={<Navbar />} sidebar={<Sidebar context="people" />}>
+      <AppShell navbar={<Navbar />}>
         <div className={styles.page}>
-          <div className={styles.centeredState}>
-            <div className={styles.centeredIcon} aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-              </svg>
+          <div className={styles.pageInner}>
+            <div className={styles.centeredState}>
+              <div className={styles.centeredIcon} aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                </svg>
+              </div>
+              <h2 className={styles.centeredTitle}>Person not found</h2>
+              <p className={styles.centeredDesc}>
+                This person record does not exist or has been deleted.
+              </p>
+              <Button variant="primary" size="sm" onClick={() => navigate('/people')}>
+                Back to People
+              </Button>
             </div>
-            <h2 className={styles.centeredTitle}>Person not found</h2>
-            <p className={styles.centeredDesc}>
-              This person record does not exist or has been deleted.
-            </p>
-            <Button variant="primary" size="sm" onClick={() => navigate('/people')}>
-              Back to People
-            </Button>
           </div>
         </div>
       </AppShell>
@@ -384,19 +491,21 @@ const PersonDetailPage: React.FC = () => {
 
   if (error && !person) {
     return (
-      <AppShell navbar={<Navbar />} sidebar={<Sidebar context="people" />}>
+      <AppShell navbar={<Navbar />}>
         <div className={styles.page}>
-          <div className={styles.centeredState}>
-            <div className={styles.centeredIcon} aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-              </svg>
+          <div className={styles.pageInner}>
+            <div className={styles.centeredState}>
+              <div className={styles.centeredIcon} aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+              </div>
+              <h2 className={styles.centeredTitle}>Something went wrong</h2>
+              <p className={styles.centeredDesc}>{error}</p>
+              <Button variant="primary" size="sm" onClick={fetchPerson}>
+                Try again
+              </Button>
             </div>
-            <h2 className={styles.centeredTitle}>Something went wrong</h2>
-            <p className={styles.centeredDesc}>{error}</p>
-            <Button variant="primary" size="sm" onClick={fetchPerson}>
-              Try again
-            </Button>
           </div>
         </div>
       </AppShell>
@@ -407,63 +516,88 @@ const PersonDetailPage: React.FC = () => {
 
   // ─── Derived values ────────────────────────────────────────────────────────
 
-  const primary = primaryName(person.names);
-  const displayTitle =
-    person.displayName?.trim() || person.display_name?.trim() || (primary ? fullName(primary) : 'Unknown Person');
-
   const sortedEventsList = sortEvents(person.events);
   const childFamilies = relationships.filter((r) => r.type === 'child_family');
   const parentFamilies = relationships.filter((r) => r.type === 'parent_family');
 
+  const connectedArtifacts = connectedObjects.filter((o) => o.object_type === 'artifact');
+  const connectedStories = connectedObjects.filter((o) => o.object_type === 'story');
+  const connectedCollections = connectedObjects.filter((o) => o.object_type === 'collection');
+  const connectedPlaces = connectedObjects.filter((o) => o.object_type === 'place');
+
+  const familyRoles = new Map<string, string>();
+  childFamilies.forEach((rel) => {
+    [rel.spouse1, rel.spouse2].forEach((p) => {
+      if (p) familyRoles.set(p.id, 'Parent');
+    });
+  });
+  parentFamilies.forEach((rel) => {
+    const other = rel.role === 'spouse1' ? rel.spouse2 : rel.spouse1;
+    if (other) familyRoles.set(other.id, 'Spouse');
+    rel.children.forEach((c) => familyRoles.set(c.person_id, 'Child'));
+  });
+
+  const familyConnections = [
+    ...childFamilies.flatMap((rel) => [rel.spouse1, rel.spouse2].filter((p): p is PersonSummary => p !== null)),
+    ...parentFamilies.flatMap((rel) => [rel.role === 'spouse1' ? rel.spouse2 : rel.spouse1].filter((p): p is PersonSummary => p !== null)),
+    ...parentFamilies.flatMap((rel) =>
+      rel.children
+        .filter((c) => c.person_id !== id)
+        .map((c) => ({ id: c.person_id, displayName: c.displayName, display_name: c.display_name, given_name: c.given_name, middle_name: c.middle_name, surname: c.surname }))),
+  ];
+  const uniqueFamilyConnections = Array.from(new Map(familyConnections.map((p) => [p.id, p])).values());
+  const connectedGroups: ConnectedGroup[] = [
+    {
+      id: 'family',
+      label: 'Family',
+      items: uniqueFamilyConnections.slice(0, 8).map((p) => ({
+        id: p.id,
+        title: personName(p),
+        subtitle: familyRoles.get(p.id) ?? 'Family relationship',
+        href: `/people/${p.id}`,
+        initials: initialsFromName(personName(p)),
+      })),
+    },
+    {
+      id: 'collections',
+      label: 'Collections',
+      items: connectedCollections.slice(0, 6).map((o) => ({
+        id: o.object_id,
+        title: o.title,
+        subtitle: o.relationship_type_name,
+        href: `/collections/${o.object_id}`,
+        initials: '★',
+      })),
+    },
+    {
+      id: 'places',
+      label: 'Places',
+      items: connectedPlaces.slice(0, 6).map((o) => ({
+        id: o.object_id,
+        title: o.title,
+        subtitle: o.relationship_type_name,
+        href: `/places/${o.object_id}`,
+        initials: '⌂',
+      })),
+    },
+    {
+      id: 'artifacts',
+      label: 'Artifacts',
+      items: connectedArtifacts.slice(0, 8).map((artifact) => ({
+        id: artifact.object_id,
+        title: artifact.title,
+        subtitle: artifact.artifact_type_name ?? artifact.relationship_type_name,
+        href: `/artifacts/${artifact.object_id}`,
+        initials: 'A',
+      })),
+    },
+  ].filter((group) => group.items.length > 0);
   // ─── Full render ───────────────────────────────────────────────────────────
 
   return (
-    <AppShell navbar={<Navbar />} sidebar={<Sidebar context="people" />}>
+    <AppShell navbar={<Navbar />}>
       <div className={styles.page}>
-
-        {/* ── Page header ── */}
-        <div className={styles.pageHeader}>
-          <button className={styles.backBtn} onClick={() => navigate('/people')}>
-            ← People
-          </button>
-          <div className={styles.headerRow}>
-            <h1 className={styles.title}>{displayTitle}</h1>
-            <div className={styles.headerActions}>
-              {canEdit && !deleteConfirm && (
-                <Button variant="ghost" size="sm" onClick={() => setShowEditModal(true)}>
-                  Edit Info
-                </Button>
-              )}
-              {canDelete && !deleteConfirm && (
-                <Button variant="danger" size="sm" onClick={() => setDeleteConfirm(true)}>
-                  Delete
-                </Button>
-              )}
-              {deleteConfirm && (
-                <div className={styles.confirmDelete}>
-                  <span className={styles.confirmText}>Delete this person?</span>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={handleDelete}
-                    loading={isDeleting}
-                  >
-                    Confirm Delete
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setDeleteConfirm(false)}
-                    disabled={isDeleting}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
+        <div className={styles.pageInner}>
         {/* ── Inline error banner ── */}
         {inlineError && (
           <div className={styles.errorBanner} role="alert">
@@ -471,11 +605,118 @@ const PersonDetailPage: React.FC = () => {
           </div>
         )}
 
-        {/* ── Main 2-column content grid ── */}
-        <div className={styles.contentGrid}>
+        {deleteConfirm && (
+          <div className={styles.errorBanner} role="alert">
+            <div className={styles.confirmDelete}>
+              <span className={styles.confirmText}>Delete this person?</span>
+              <Button variant="danger" size="sm" onClick={handleDelete} loading={isDeleting}>Confirm Delete</Button>
+              <Button variant="ghost" size="sm" onClick={() => setDeleteConfirm(false)} disabled={isDeleting}>Cancel</Button>
+            </div>
+          </div>
+        )}
 
-          {/* ════════════════ LEFT COLUMN ════════════════ */}
-          <div className={styles.leftCol}>
+        <ArchiveObjectLayout
+          breadcrumb={<><Link to="/people">People</Link> / Archive Profile</>}
+          title={displayTitle}
+          subtitle={[
+            lifespanLabel(person.events),
+            person.is_living === 1 ? 'Living' : 'Deceased',
+            SEX_LABELS[person.sex],
+            person.is_private === 1 ? 'Private' : null,
+          ].filter(Boolean).join(' • ')}
+          summary={person.notes}
+          avatar={<span>{initialsFromName(displayTitle)}</span>}
+          headerAction={(
+            <Button variant="secondary" onClick={() => navigate('/')}>View in Tree</Button>
+          )}
+          stats={[
+            { label: 'Artifacts', value: connectedArtifacts.length },
+            { label: 'Stories', value: connectedStories.length },
+            { label: 'Events', value: sortedEventsList.length },
+            { label: 'Collections', value: connectedCollections.length },
+            { label: 'Families', value: relationships.length },
+          ]}
+          tabs={[
+            { id: 'overview', label: 'Overview' },
+            { id: 'timeline', label: 'Timeline', count: sortedEventsList.length },
+            { id: 'artifacts', label: 'Artifacts', count: connectedArtifacts.length + media.length },
+            { id: 'stories', label: 'Stories', count: connectedStories.length },
+            { id: 'family', label: 'Family', count: relationships.length },
+            { id: 'claims', label: 'Claims' },
+          ]}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          connectedGroups={connectedGroups}
+        >
+          {activeTab === 'overview' && (
+            <div className={styles.tabStack}>
+
+            {/* ── Recent Artifacts ── */}
+            <section className={styles.section} aria-labelledby="recent-artifacts-heading">
+              <div className={styles.sectionHeader}>
+                <h2 className={styles.sectionTitle} id="recent-artifacts-heading">
+                  Recent Artifacts
+                </h2>
+                <Button variant="ghost" size="sm" onClick={() => setActiveTab('artifacts')}>
+                  View all
+                </Button>
+              </div>
+              {connectedObjectsLoading ? (
+                <div className={styles.skeletonLine} aria-hidden="true" />
+              ) : connectedArtifacts.length === 0 ? (
+                <p className={styles.noInfo}>No artifacts connected yet. Use Actions → Connect Artifact.</p>
+              ) : (
+                <div className={styles.cardGrid}>
+                  {connectedArtifacts.slice(0, 3).map((artifact) => (
+                    <ArtifactCard
+                      key={`${artifact.relationship_id}-${artifact.object_id}`}
+                      href={`/artifacts/${artifact.object_id}`}
+                      title={artifact.title}
+                      subtitle={artifact.artifact_type_name ?? artifact.relationship_type_name}
+                      typeName={artifact.artifact_type_name}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* ── Key Life Context ── */}
+            <section className={styles.section} aria-labelledby="life-context-heading">
+              <div className={styles.sectionHeader}>
+                <h2 className={styles.sectionTitle} id="life-context-heading">
+                  Key Life Context
+                </h2>
+                <Button variant="ghost" size="sm" onClick={() => setActiveTab('timeline')}>
+                  Timeline
+                </Button>
+              </div>
+              {sortedEventsList.length === 0 ? (
+                <p className={styles.noInfo}>No events recorded.</p>
+              ) : (
+                <ol className={styles.eventsList} aria-label="Key life events">
+                  {sortedEventsList.slice(0, 3).map((event) => (
+                    <li key={event.id} className={styles.eventItem}>
+                      <div className={styles.eventDot} aria-hidden="true" />
+                      <div className={styles.eventContent}>
+                        <div className={styles.eventHeader}>
+                          <span className={styles.eventType}>
+                            {formatEventType(event.event_type)}
+                          </span>
+                          <div className={styles.eventHeaderRight}>
+                            {event.event_date && (
+                              <span className={styles.eventDate}>{event.event_date}</span>
+                            )}
+                          </div>
+                        </div>
+                        {event.event_place && (
+                          <div className={styles.eventPlace}>📍 {event.event_place}</div>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </section>
 
             {/* ── Basic Information ── */}
             <section className={styles.section} aria-labelledby="basic-info-heading">
@@ -537,8 +778,8 @@ const PersonDetailPage: React.FC = () => {
                 <p className={styles.noInfo}>No names recorded.</p>
               ) : (
                 <ul className={styles.namesList}>
-                  {person.names.map((name) => (
-                    <li key={name.id} className={styles.nameItem}>
+                  {person.names.map((name, index) => (
+                    <li key={name.id ?? `${name.name_type}-${fullName(name)}-${index}`} className={styles.nameItem}>
                       <div className={styles.nameItemMain}>
                         <span className={styles.nameText}>{fullName(name)}</span>
                         <span
@@ -565,11 +806,11 @@ const PersonDetailPage: React.FC = () => {
                 <p className={styles.notesText}>{person.notes}</p>
               </section>
             )}
-          </div>
+            </div>
+          )}
 
-          {/* ════════════════ RIGHT COLUMN ════════════════ */}
-          <div className={styles.rightCol}>
-
+          {activeTab === 'timeline' && (
+            <div className={styles.tabStack}>
             {/* ── Events timeline ── */}
             <section className={styles.section} aria-labelledby="events-heading">
               <div className={styles.sectionHeader}>
@@ -611,30 +852,17 @@ const PersonDetailPage: React.FC = () => {
                 </ol>
               )}
             </section>
+            </div>
+          )}
 
+          {activeTab === 'family' && (
+            <div className={styles.tabStack}>
             {/* ── Relationships ── */}
             <section className={styles.section} aria-labelledby="relationships-heading">
               <div className={styles.sectionHeader}>
                 <h2 className={styles.sectionTitle} id="relationships-heading">
                   Relationships
                 </h2>
-                {canCreate && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={async () => {
-                      const result = await openModal<FamilySummary>('FamilyEditor', {
-                        mode: 'create',
-                        defaults: { spouse1_id: id },
-                      });
-                      if (result.action === 'created') {
-                        navigate(`/families/${result.entity.id}`);
-                      }
-                    }}
-                  >
-                    + Add Family
-                  </Button>
-                )}
               </div>
 
               {relLoading ? (
@@ -751,7 +979,11 @@ const PersonDetailPage: React.FC = () => {
                 </div>
               )}
             </section>
+            </div>
+          )}
 
+          {activeTab === 'artifacts' && (
+            <div className={styles.tabStack}>
             {/* ── Media ── */}
             <section className={styles.section} aria-labelledby="media-heading">
               <h2 className={styles.sectionTitle} id="media-heading">
@@ -784,12 +1016,95 @@ const PersonDetailPage: React.FC = () => {
               )}
             </section>
 
-          </div>
-          {/* end rightCol */}
-        </div>
-        {/* end contentGrid */}
+            {/* ── Connected Artifacts ── */}
+            <section className={styles.section} aria-labelledby="connected-artifacts-heading">
+              <h2 className={styles.sectionTitle} id="connected-artifacts-heading">
+                Connected Artifacts
+                {connectedArtifacts.length > 0 && (
+                  <span className={styles.countBadge}>{connectedArtifacts.length}</span>
+                )}
+              </h2>
 
+              {connectedObjectsLoading ? (
+                <div className={styles.skeletonLine} aria-hidden="true" />
+              ) : connectedArtifacts.length === 0 ? (
+                <p className={styles.noInfo}>No artifacts connected to this person yet.</p>
+              ) : (
+                <div className={styles.cardGrid}>
+                  {connectedArtifacts.map((artifact) => (
+                    <ArtifactCard
+                      key={`${artifact.relationship_id}-${artifact.object_id}`}
+                      href={`/artifacts/${artifact.object_id}`}
+                      title={artifact.title}
+                      subtitle={artifact.artifact_type_name ?? artifact.relationship_type_name}
+                      typeName={artifact.artifact_type_name}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+            </div>
+          )}
+
+          {activeTab === 'stories' && (
+            <section className={styles.section} aria-labelledby="stories-heading">
+              <h2 className={styles.sectionTitle} id="stories-heading">
+                Stories
+                {connectedStories.length > 0 && (
+                  <span className={styles.countBadge}>{connectedStories.length}</span>
+                )}
+              </h2>
+
+              {connectedObjectsLoading ? (
+                <div className={styles.skeletonLine} aria-hidden="true" />
+              ) : connectedStories.length === 0 ? (
+                <p className={styles.noInfo}>No stories connected to this person yet. Use Actions → Add Story.</p>
+              ) : (
+                <div className={styles.relPersonList}>
+                  {connectedStories.map((story) => (
+                    <Link
+                      key={`${story.relationship_id}-${story.object_id}`}
+                      to={`/stories/${story.object_id}`}
+                      className={styles.relPersonLink}
+                    >
+                      {story.title}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
+          {activeTab === 'claims' && (
+            <section className={styles.section} aria-labelledby="claims-heading">
+              <h2 className={styles.sectionTitle} id="claims-heading">Claims</h2>
+              <p className={styles.noInfo}>Claim summaries for people are not wired into this page yet. Use the Actions menu to add or review claims as the claims UI is expanded.</p>
+            </section>
+          )}
+        </ArchiveObjectLayout>
+        </div>
       </div>
+
+      <ActionDrawer
+        open={drawerMode !== null}
+        title={drawerMode === 'add-story' ? 'Add Story' : 'Connect Artifact'}
+        description="This drawer establishes the shared Actions pattern. Searchable pickers will replace raw IDs in the next UI pass."
+        onClose={() => setDrawerMode(null)}
+      >
+        {drawerMode === 'connect-artifact' ? (
+          <div className={styles.drawerPlaceholder}>
+            <p>Connect an artifact to {displayTitle} using the existing relationship engine.</p>
+            <p className={styles.noInfo}>Next step: replace this placeholder with an artifact picker and relationship role selector.</p>
+            <Button onClick={() => navigate('/artifacts')}>Browse Artifacts</Button>
+          </div>
+        ) : (
+          <div className={styles.drawerPlaceholder}>
+            <p>Preserve a memory, oral history, or explanation connected to {displayTitle}.</p>
+            <p className={styles.noInfo}>Next step: launch a story editor with this person preselected as a connected subject.</p>
+            <Button onClick={() => navigate('/stories')}>Open Stories</Button>
+          </div>
+        )}
+      </ActionDrawer>
 
       {/* ── Edit modal ── */}
       <PersonEditModal
@@ -801,6 +1116,7 @@ const PersonDetailPage: React.FC = () => {
           fetchPerson();
           fetchRelationships();
           fetchMedia();
+          fetchConnectedObjects();
         }}
       />
     </AppShell>

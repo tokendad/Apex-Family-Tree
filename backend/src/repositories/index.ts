@@ -1,4 +1,12 @@
 export { UserRepository } from './UserRepository.js';
+export { ArchiveObjectRepository } from './ArchiveObjectRepository.js';
+export { ArtifactRepository } from './ArtifactRepository.js';
+export { ClaimRepository } from './ClaimRepository.js';
+export { CollectionRepository } from './CollectionRepository.js';
+export { PlaceRepository } from './PlaceRepository.js';
+export { RelationshipRepository } from './RelationshipRepository.js';
+export { StoryRepository } from './StoryRepository.js';
+export { SearchRepository } from './SearchRepository.js';
 export { PersonRepository } from './PersonRepository.js';
 export { FamilyRepository } from './FamilyRepository.js';
 export { EventRepository } from './EventRepository.js';

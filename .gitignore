@@ -1,6 +1,8 @@
 # Ignore all folders under Docs except Guides
 Docs/*/
 !Docs/Guides/
+!Docs/Apex_Family_Legacy_2.0/
+!Docs/Apex_Family_Legacy_2.0/**
 
 # Dependencies
 node_modules/
@@ -15,6 +17,7 @@ build/
 .env.*.local
 
 # IDE
+.claude/
 .vscode/
 .idea/
 *.swp

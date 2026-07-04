@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Apex Family Legacy — Family Profile Mockup</title>
+  <style>
+    :root {
+      --bg: #f6f4ef;
+      --surface: #ffffff;
+      --surface-soft: #fbfaf7;
+      --ink: #213033;
+      --muted: #66777b;
+      --line: #e4ded2;
+      --brand: #0f766e;
+      --brand-dark: #115e59;
+      --gold: #c0841a;
+      --shadow: 0 12px 34px rgba(37,45,49,.11);
+      --radius: 20px;
+      --font: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: var(--font); color: var(--ink); background: var(--bg); }
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+
+    .topbar { position: sticky; top: 0; z-index: 50; background: #143236; color: white; box-shadow: 0 2px 12px rgba(0,0,0,.18); }
+    .topline { display: flex; align-items: center; gap: 18px; padding: 14px 22px; }
+    .brand { min-width: 220px; display: flex; flex-direction: column; line-height: 1.08; }
+    .brand strong { font-size: 17px; letter-spacing: .2px; }
+    .brand span { font-size: 12px; color: #b8d5d1; margin-top: 3px; }
+    .mobile-menu { display: none; border: 1px solid rgba(255,255,255,.25); background: transparent; color: white; border-radius: 12px; padding: 9px 11px; }
+    .search { flex: 1; max-width: 520px; position: relative; margin-left: auto; }
+    .search input { width: 100%; border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.12); color: white; border-radius: 999px; padding: 10px 14px 10px 38px; outline: none; }
+    .search input::placeholder { color: rgba(255,255,255,.72); }
+    .search::before { content: "⌕"; position: absolute; left: 15px; top: 7px; font-size: 22px; color: rgba(255,255,255,.8); }
+    .top-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+
+    .btn { border: 0; border-radius: 999px; padding: 10px 14px; background: var(--surface); color: var(--ink); box-shadow: 0 1px 0 rgba(0,0,0,.06); }
+    .btn.primary { background: var(--brand); color: white; }
+    .btn.secondary { background: #eef7f5; color: var(--brand-dark); border: 1px solid #cde7e2; }
+    .btn.ghost { background: transparent; color: white; border: 1px solid rgba(255,255,255,.25); }
+    .btn.plain { background: transparent; color: var(--brand-dark); box-shadow: none; padding: 0; font-weight: 800; }
+
+    .actions-wrap { position: relative; }
+    .actions-menu { position: absolute; right: 0; top: calc(100% + 10px); width: 320px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); padding: 8px; display: none; }
+    .actions-menu.open { display: block; }
+    .actions-menu h3 { margin: 8px 10px 6px; font-size: 13px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+    .action-item { width: 100%; border: 0; background: transparent; padding: 11px 12px; border-radius: 12px; text-align: left; display: flex; justify-content: space-between; gap: 12px; color: var(--ink); }
+    .action-item:hover { background: #f6f3ea; }
+    .action-item span { color: var(--muted); font-size: 12px; display: block; margin-top: 2px; }
+    .action-item.danger strong { color: #a13427; }
+
+    .navline { display: flex; align-items: center; justify-content: space-between; gap: 18px; background: var(--surface); color: var(--ink); border-bottom: 1px solid var(--line); padding: 0 22px; }
+    .nav-left { display: flex; align-items: center; gap: 4px; min-width: 0; overflow-x: auto; }
+    .nav-link { border: 0; background: transparent; color: var(--muted); padding: 13px 14px; border-bottom: 3px solid transparent; white-space: nowrap; }
+    .nav-link.active { color: var(--brand-dark); border-bottom-color: var(--brand); font-weight: 800; }
+
+    main { width: min(1180px, calc(100vw - 28px)); margin: 22px auto 48px; }
+    .profile-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+    .identity { display: grid; grid-template-columns: 132px minmax(0, 1fr) auto; gap: 20px; padding: 24px; align-items: center; background: linear-gradient(135deg, #ffffff 0%, #fbf7ed 100%); border-bottom: 1px solid var(--line); }
+    .avatar-stack { width: 132px; height: 116px; position: relative; }
+    .avatar { width: 82px; height: 82px; border-radius: 24px; display: grid; place-items: center; background: linear-gradient(145deg, #d8e8e5, #fff7e6); border: 1px solid #d6d2c8; color: var(--brand-dark); font-size: 28px; font-weight: 900; position: absolute; top: 12px; box-shadow: 0 8px 20px rgba(37,45,49,.10); }
+    .avatar.one { left: 2px; }
+    .avatar.two { right: 2px; background: linear-gradient(145deg, #fff2d8, #dcebe8); }
+    .union-badge { position: absolute; left: 50%; top: 72px; transform: translateX(-50%); background: var(--brand); color: white; border-radius: 999px; padding: 5px 10px; font-size: 12px; font-weight: 900; box-shadow: 0 4px 14px rgba(15,118,110,.25); }
+    .crumb { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+    h1 { margin: 0; font-size: clamp(32px, 5vw, 52px); letter-spacing: -1.4px; }
+    .subtitle { color: var(--muted); margin: 8px 0 0; font-size: 17px; }
+    .summary { margin: 16px 0 0; color: #425256; line-height: 1.55; max-width: 780px; }
+    .header-action { display: flex; justify-content: flex-end; min-width: 150px; }
+
+    .stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); border-bottom: 1px solid var(--line); background: var(--surface); }
+    .stat { padding: 15px 18px; border-right: 1px solid var(--line); }
+    .stat:last-child { border-right: 0; }
+    .stat strong { display: block; font-size: 21px; color: var(--brand-dark); }
+    .stat span { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+    .tabs { display: flex; background: #f7f4ed; border-bottom: 1px solid var(--line); overflow-x: auto; }
+    .tab { border: 0; background: transparent; padding: 15px 18px; color: var(--muted); border-bottom: 3px solid transparent; white-space: nowrap; }
+    .tab.active { background: white; color: var(--brand-dark); border-bottom-color: var(--brand); font-weight: 900; }
+
+    .body-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; padding: 22px; align-items: start; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .panel { border: 1px solid var(--line); background: var(--surface-soft); border-radius: 18px; padding: 18px; }
+    .panel.white { background: white; }
+    .section-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .section-header h2 { margin: 0; font-size: 21px; }
+    .muted { color: var(--muted); line-height: 1.45; }
+
+    .people-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+    .person-card, .artifact-card, .story-card { border: 1px solid var(--line); background: white; border-radius: 16px; padding: 14px; text-align: left; transition: transform .14s ease, box-shadow .14s ease; }
+    .person-card:hover, .artifact-card:hover, .story-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(30,42,46,.12); }
+    .person-card strong, .artifact-card strong, .story-card strong { display: block; }
+    .person-card span, .artifact-card span, .story-card span { display: block; color: var(--muted); font-size: 13px; margin-top: 5px; line-height: 1.35; }
+    .person-head { display: flex; align-items: center; gap: 10px; }
+    .mini-avatar { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: #e0f2ef; color: var(--brand-dark); font-weight: 900; }
+
+    .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; }
+    .thumb { height: 84px; display: grid; place-items: center; background: linear-gradient(145deg, #f2ead9, #dcebe8); color: var(--brand-dark); font-size: 34px; border-radius: 13px; margin-bottom: 10px; }
+    .timeline { display: grid; gap: 12px; }
+    .event { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 12px; border: 1px solid var(--line); border-radius: 15px; background: white; padding: 13px; }
+    .year { color: var(--brand-dark); font-weight: 900; font-size: 18px; }
+    .event h3 { margin: 0 0 4px; font-size: 16px; }
+    .event p { margin: 0; color: var(--muted); line-height: 1.45; }
+
+    .connected { position: sticky; top: 128px; }
+    .connected h2 { margin: 0 0 14px; font-size: 19px; }
+    .group { border-top: 1px solid var(--line); padding: 13px 0; }
+    .group:first-of-type { border-top: 0; padding-top: 0; }
+    .group h3 { margin: 0 0 8px; font-size: 12px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+    .row-link { width: 100%; border: 0; background: transparent; padding: 9px 8px; border-radius: 11px; text-align: left; display: flex; align-items: center; gap: 10px; }
+    .row-link:hover { background: #f6f3ea; }
+    .row-link small { display: block; color: var(--muted); margin-top: 2px; }
+
+    .callout { border: 1px dashed #c9bea9; background: #fffaf0; border-radius: 16px; padding: 14px; color: #65523a; line-height: 1.45; margin-bottom: 18px; }
+
+    .drawer-backdrop { position: fixed; inset: 0; background: rgba(13,24,27,.42); display: none; justify-content: flex-end; z-index: 100; }
+    .drawer-backdrop.open { display: flex; }
+    .drawer { width: min(480px, calc(100vw - 26px)); height: 100%; background: white; box-shadow: -20px 0 50px rgba(0,0,0,.2); overflow: auto; padding: 22px; }
+    .drawer-header { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 22px; }
+    .drawer-header h2 { margin: 0; font-size: 24px; }
+    .hint { color: var(--muted); font-size: 13px; line-height: 1.4; }
+    .close { border: 0; background: #f1eee7; border-radius: 999px; width: 36px; height: 36px; font-size: 18px; }
+    .field { display: grid; gap: 7px; margin-bottom: 16px; }
+    .field label { font-weight: 900; font-size: 14px; }
+    .field input, .field select, .field textarea { width: 100%; border: 1px solid var(--line); border-radius: 12px; padding: 11px 12px; background: white; color: var(--ink); }
+    .field textarea { min-height: 100px; resize: vertical; }
+    .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); opacity: 0; pointer-events: none; transition: .18s ease; background: #143236; color: white; border-radius: 999px; box-shadow: var(--shadow); padding: 12px 16px; z-index: 140; }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    @media (max-width: 980px) {
+      .identity { grid-template-columns: 116px minmax(0, 1fr); }
+      .header-action { grid-column: 1 / -1; justify-content: flex-start; }
+      .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .stat { border-bottom: 1px solid var(--line); }
+      .body-grid { grid-template-columns: 1fr; }
+      .connected { position: static; }
+    }
+
+    @media (max-width: 740px) {
+      .topline { gap: 10px; padding: 12px 14px; }
+      .mobile-menu { display: inline-flex; }
+      .brand { min-width: 0; flex: 1; }
+      .brand strong { font-size: 15px; }
+      .search { display: none; }
+      .navline { display: none; }
+      main { width: min(100vw - 18px, 1180px); margin-top: 12px; }
+      .profile-card { border-radius: 16px; }
+      .identity { grid-template-columns: 88px minmax(0, 1fr); gap: 13px; padding: 16px; }
+      .avatar-stack { width: 88px; height: 82px; }
+      .avatar { width: 58px; height: 58px; border-radius: 18px; font-size: 20px; top: 8px; }
+      .union-badge { top: 56px; font-size: 11px; }
+      h1 { font-size: 29px; }
+      .subtitle, .summary { font-size: 14px; }
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .body-grid { padding: 14px; }
+      .cards, .people-grid { grid-template-columns: 1fr; }
+      .event { grid-template-columns: 1fr; }
+      .actions-menu { position: fixed; left: 10px; right: 10px; bottom: 10px; top: auto; width: auto; border-radius: 22px; box-shadow: 0 -18px 50px rgba(0,0,0,.22); }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topline">
+      <button class="mobile-menu" onclick="showToast('Mobile menu placeholder')">☰</button>
+      <div class="brand"><strong>Apex Family Legacy</strong><span>A Digital Family Archive</span></div>
+      <div class="search"><input id="search" placeholder="Search people, families, artifacts, stories..." /></div>
+      <div class="top-actions">
+        <div class="actions-wrap">
+          <button class="btn primary" onclick="toggleActions(event)">Actions ▾</button>
+          <div id="actionsMenu" class="actions-menu" role="menu" aria-label="Context actions">
+            <h3>Family Structure</h3>
+            <button class="action-item" onclick="openDrawer('partner')"><strong>Add Partner<span>Add or connect a partner in this union</span></strong><b>+</b></button>
+            <button class="action-item" onclick="openDrawer('child')"><strong>Add Child<span>Add biological, adopted, foster, or step child</span></strong><b>+</b></button>
+            <button class="action-item" onclick="openDrawer('person')"><strong>Connect Person<span>Witness, household member, guardian...</span></strong><b>+</b></button>
+            <h3>Archive</h3>
+            <button class="action-item" onclick="openDrawer('artifact')"><strong>Connect Artifact<span>Link photos, letters, records, objects</span></strong><b>+</b></button>
+            <button class="action-item" onclick="openDrawer('event')"><strong>Add Event<span>Marriage, residence, reunion, move...</span></strong><b>+</b></button>
+            <button class="action-item" onclick="openDrawer('story')"><strong>Add Story<span>Preserve family memory</span></strong><b>+</b></button>
+            <button class="action-item" onclick="openDrawer('claim')"><strong>Add Claim<span>Track evidence and confidence</span></strong><b>+</b></button>
+            <h3>Manage</h3>
+            <button class="action-item" onclick="showToast('Open tree centered on this family union')"><strong>View in Tree<span>Open the existing tree view</span></strong><b>⌂</b></button>
+            <button class="action-item" onclick="openDrawer('edit')"><strong>Edit Family<span>Dates, places, notes, privacy</span></strong><b>›</b></button>
+            <button class="action-item danger" onclick="showToast('Delete family placeholder')"><strong>Delete Family<span>Remove this family record</span></strong><b>!</b></button>
+          </div>
+        </div>
+        <button class="btn ghost" onclick="showToast('User menu placeholder')">Walter</button>
+      </div>
+    </div>
+    <div class="navline">
+      <div class="nav-left">
+        <button class="nav-link" onclick="showToast('Tree view placeholder')">Tree</button>
+        <button class="nav-link" onclick="showToast('People view placeholder')">People</button>
+        <button class="nav-link active" onclick="showToast('Current view: Families')">Families</button>
+        <button class="nav-link" onclick="showToast('Artifacts view placeholder')">Artifacts</button>
+        <button class="nav-link" onclick="showToast('Collections view placeholder')">Collections</button>
+        <button class="nav-link" onclick="showToast('Stories view placeholder')">Stories</button>
+        <button class="nav-link" onclick="showToast('Places view placeholder')">Places</button>
+        <button class="nav-link" onclick="showToast('Search view placeholder')">Search</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="profile-card">
+      <div class="identity">
+        <div class="avatar-stack" aria-label="Family union avatar">
+          <div class="avatar one">JL</div>
+          <div class="avatar two">MS</div>
+          <div class="union-badge">Union</div>
+        </div>
+        <div>
+          <div class="crumb">Families / LeFort Family / Family Union Profile</div>
+          <h1>John LeFort + Mary Smith</h1>
+          <p class="subtitle">Married 1954 • Denver, Colorado • 5 children • Household at 12 Maple Street</p>
+          <p class="summary">
+            A family union profile collects the people, events, places, artifacts, stories, and claims tied to a family unit. This page bridges the old tree-oriented family record with the new archive model.
+          </p>
+        </div>
+        <div class="header-action">
+          <button class="btn secondary" onclick="showToast('Open tree centered on John + Mary')">View in Tree</button>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><strong>2</strong><span>Partners</span></div>
+        <div class="stat"><strong>5</strong><span>Children</span></div>
+        <div class="stat"><strong>12</strong><span>Artifacts</span></div>
+        <div class="stat"><strong>3</strong><span>Stories</span></div>
+        <div class="stat"><strong>7</strong><span>Events</span></div>
+        <div class="stat"><strong>2</strong><span>Claims</span></div>
+      </div>
+
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="overview">Overview</button>
+        <button class="tab" data-tab="people">People</button>
+        <button class="tab" data-tab="timeline">Timeline</button>
+        <button class="tab" data-tab="artifacts">Artifacts</button>
+        <button class="tab" data-tab="stories">Stories</button>
+        <button class="tab" data-tab="claims">Claims</button>
+      </div>
+
+      <div class="body-grid">
+        <section>
+          <div id="overview" class="tab-panel active">
+            <div class="callout">
+              Mockup note: commands live in the top-right Actions menu. The page body focuses on family identity, connected people, events, artifacts, and stories.
+            </div>
+            <div class="panel">
+              <div class="section-header"><h2>Family Summary</h2><button class="btn plain" data-tab-link="people">View people</button></div>
+              <div class="people-grid">
+                <button class="person-card" onclick="showToast('Open John LeFort profile')"><div class="person-head"><span class="mini-avatar">JL</span><div><strong>John LeFort</strong><span>Partner • 1931–2008</span></div></div></button>
+                <button class="person-card" onclick="showToast('Open Mary Smith profile')"><div class="person-head"><span class="mini-avatar">MS</span><div><strong>Mary Smith</strong><span>Partner • 1933–2011</span></div></div></button>
+                <button class="person-card" onclick="showToast('Open Robert LeFort profile')"><div class="person-head"><span class="mini-avatar">RL</span><div><strong>Robert LeFort</strong><span>Child • biological</span></div></div></button>
+                <button class="person-card" onclick="showToast('Open Linda LeFort profile')"><div class="person-head"><span class="mini-avatar">LL</span><div><strong>Linda LeFort</strong><span>Child • biological</span></div></div></button>
+              </div>
+            </div>
+            <div class="panel" style="margin-top:18px">
+              <div class="section-header"><h2>Recent Archive Context</h2><button class="btn plain" data-tab-link="artifacts">Artifacts</button></div>
+              <div class="cards">
+                <button class="artifact-card" onclick="openArtifact('Wedding Photo')"><div class="thumb">▧</div><strong>Wedding Photo</strong><span>Depicts family event • 1954</span></button>
+                <button class="artifact-card" onclick="openArtifact('Marriage Certificate')"><div class="thumb">▤</div><strong>Marriage Certificate</strong><span>Documents family union • Official Record</span></button>
+                <button class="artifact-card" onclick="openArtifact('Christmas Morning 1989')"><div class="thumb">✦</div><strong>Christmas Morning 1989</strong><span>Family memory • 12 Maple Street</span></button>
+              </div>
+            </div>
+          </div>
+
+          <div id="people" class="tab-panel">
+            <div class="panel">
+              <div class="section-header"><h2>People in this Family</h2></div>
+              <h3 class="muted">Partners</h3>
+              <div class="people-grid">
+                <button class="person-card" onclick="showToast('Open John LeFort')"><div class="person-head"><span class="mini-avatar">JL</span><div><strong>John LeFort</strong><span>Partner • spouse</span></div></div></button>
+                <button class="person-card" onclick="showToast('Open Mary Smith')"><div class="person-head"><span class="mini-avatar">MS</span><div><strong>Mary Smith</strong><span>Partner • spouse</span></div></div></button>
+              </div>
+              <h3 class="muted" style="margin-top:18px">Children</h3>
+              <div class="people-grid">
+                <button class="person-card" onclick="showToast('Open Robert LeFort')"><div class="person-head"><span class="mini-avatar">RL</span><div><strong>Robert LeFort</strong><span>Biological child</span></div></div></button>
+                <button class="person-card" onclick="showToast('Open Linda LeFort')"><div class="person-head"><span class="mini-avatar">LL</span><div><strong>Linda LeFort</strong><span>Biological child</span></div></div></button>
+                <button class="person-card" onclick="showToast('Open Susan LeFort')"><div class="person-head"><span class="mini-avatar">SL</span><div><strong>Susan LeFort</strong><span>Biological child</span></div></div></button>
+                <button class="person-card" onclick="showToast('Open Michael LeFort')"><div class="person-head"><span class="mini-avatar">ML</span><div><strong>Michael LeFort</strong><span>Biological child</span></div></div></button>
+              </div>
+            </div>
+          </div>
+
+          <div id="timeline" class="tab-panel">
+            <div class="panel"><div class="section-header"><h2>Family Timeline</h2></div><div class="timeline">
+              <div class="event"><div class="year">1954</div><div><h3>Marriage</h3><p>John LeFort and Mary Smith married in Denver, Colorado. Connected artifact: Marriage Certificate.</p></div></div>
+              <div class="event"><div class="year">1956</div><div><h3>Birth of Robert</h3><p>First child connected to this family union.</p></div></div>
+              <div class="event"><div class="year">1962</div><div><h3>Moved to 12 Maple Street</h3><p>Family residence connected to place and household stories.</p></div></div>
+              <div class="event"><div class="year">1989</div><div><h3>Christmas Morning</h3><p>Connected to photo, place, and LeFort Family Christmases collection.</p></div></div>
+            </div></div>
+          </div>
+
+          <div id="artifacts" class="tab-panel">
+            <div class="panel"><div class="section-header"><h2>Connected Artifacts</h2></div><div class="cards">
+              <button class="artifact-card" onclick="openArtifact('Wedding Photo')"><div class="thumb">▧</div><strong>Wedding Photo</strong><span>Depicts family event</span></button>
+              <button class="artifact-card" onclick="openArtifact('Marriage Certificate')"><div class="thumb">▤</div><strong>Marriage Certificate</strong><span>Documents family union</span></button>
+              <button class="artifact-card" onclick="openArtifact('Family Bible')"><div class="thumb">✚</div><strong>Family Bible</strong><span>Owned by household</span></button>
+              <button class="artifact-card" onclick="openArtifact('House Deed')"><div class="thumb">⌂</div><strong>House Deed</strong><span>Associated with family place</span></button>
+              <button class="artifact-card" onclick="openArtifact('Recipe Box')"><div class="thumb">⌁</div><strong>Recipe Box</strong><span>Family object • story attached</span></button>
+              <button class="artifact-card" onclick="openArtifact('Christmas Morning 1989')"><div class="thumb">✦</div><strong>Christmas Morning 1989</strong><span>Photo • family memory</span></button>
+            </div></div>
+          </div>
+
+          <div id="stories" class="tab-panel">
+            <div class="panel"><div class="section-header"><h2>Family Stories</h2></div><div class="timeline">
+              <div class="event"><div class="year">Story</div><div><h3>How John and Mary Met</h3><p>A family memory connected to both partners and the wedding collection.</p></div></div>
+              <div class="event"><div class="year">Story</div><div><h3>Christmas at 12 Maple Street</h3><p>Connects a place, photo album, multiple family members, and a recurring tradition.</p></div></div>
+              <div class="event"><div class="year">Story</div><div><h3>The Recipe Box</h3><p>Explains how a family object moved through the household and later generations.</p></div></div>
+            </div></div>
+          </div>
+
+          <div id="claims" class="tab-panel">
+            <div class="panel"><div class="section-header"><h2>Claims and Evidence</h2></div><div class="timeline">
+              <div class="event"><div class="year">High</div><div><h3>John LeFort and Mary Smith married in 1954.</h3><p>Supported by Marriage Certificate, Wedding Photo, and newspaper announcement.</p></div></div>
+              <div class="event"><div class="year">High</div><div><h3>Robert LeFort was a child of this union.</h3><p>Supported by birth certificate and family Bible entry.</p></div></div>
+            </div></div>
+          </div>
+        </section>
+
+        <aside class="connected panel white">
+          <div class="section-header"><h2>Connected To</h2></div>
+          <div class="group"><h3>Partners</h3>
+            <button class="row-link" onclick="showToast('Open John LeFort')"><span class="mini-avatar">JL</span><span><strong>John LeFort</strong><small>Partner</small></span></button>
+            <button class="row-link" onclick="showToast('Open Mary Smith')"><span class="mini-avatar">MS</span><span><strong>Mary Smith</strong><small>Partner</small></span></button>
+          </div>
+          <div class="group"><h3>Children</h3>
+            <button class="row-link" onclick="showToast('Open Robert LeFort')"><span class="mini-avatar">RL</span><span><strong>Robert LeFort</strong><small>Child</small></span></button>
+            <button class="row-link" onclick="showToast('Open Linda LeFort')"><span class="mini-avatar">LL</span><span><strong>Linda LeFort</strong><small>Child</small></span></button>
+          </div>
+          <div class="group"><h3>Places</h3>
+            <button class="row-link" onclick="showToast('Open 12 Maple Street')"><span class="mini-avatar">⌂</span><span><strong>12 Maple Street</strong><small>Residence • 1954–1968</small></span></button>
+            <button class="row-link" onclick="showToast('Open Denver, Colorado')"><span class="mini-avatar">◎</span><span><strong>Denver, Colorado</strong><small>Marriage place</small></span></button>
+          </div>
+          <div class="group"><h3>Collections</h3>
+            <button class="row-link" onclick="showToast('Open LeFort Family Christmases')"><span class="mini-avatar">✦</span><span><strong>LeFort Family Christmases</strong><small>12 photos • 4 stories</small></span></button>
+            <button class="row-link" onclick="showToast('Open John and Mary Wedding Collection')"><span class="mini-avatar">★</span><span><strong>John and Mary Wedding</strong><small>5 artifacts • 1 claim</small></span></button>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <div id="drawerBackdrop" class="drawer-backdrop" onclick="backdropClose(event)">
+    <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+      <div class="drawer-header">
+        <div><h2 id="drawerTitle">Action</h2><p id="drawerSub" class="hint">Context action placeholder.</p></div>
+        <button class="close" onclick="closeDrawer()">×</button>
+      </div>
+      <div id="drawerBody"></div>
+    </aside>
+  </div>
+
+  <div id="toast" class="toast">Saved</div>
+
+  <script>
+    function activateTab(name) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === name));
+    }
+    document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => activateTab(tab.dataset.tab)));
+    document.querySelectorAll('[data-tab-link]').forEach(link => link.addEventListener('click', () => activateTab(link.dataset.tabLink)));
+
+    function toggleActions(event) {
+      event.stopPropagation();
+      document.getElementById('actionsMenu').classList.toggle('open');
+    }
+    document.addEventListener('click', () => document.getElementById('actionsMenu').classList.remove('open'));
+    document.getElementById('actionsMenu').addEventListener('click', event => event.stopPropagation());
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+      document.getElementById('actionsMenu').classList.remove('open');
+    }
+
+    function openArtifact(title) { openDrawer('artifact', title); }
+
+    function openDrawer(mode, payload) {
+      document.getElementById('actionsMenu').classList.remove('open');
+      const title = document.getElementById('drawerTitle');
+      const sub = document.getElementById('drawerSub');
+      const body = document.getElementById('drawerBody');
+      const labels = {
+        partner: ['Add Partner', 'Add or connect another partner in this family union.'],
+        child: ['Add Child', 'Add a child and classify the child relationship.'],
+        person: ['Connect Person', 'Connect a witness, household member, guardian, or other person.'],
+        artifact: ['Connect Artifact', 'Link a photo, letter, official record, or family object to this family.'],
+        event: ['Add Event', 'Add a family-level event such as marriage, residence, reunion, or move.'],
+        story: ['Add Story', 'Preserve a memory connected to this family unit.'],
+        claim: ['Add Claim', 'Create an evidence-backed claim about this family relationship.'],
+        edit: ['Edit Family', 'Edit dates, places, notes, and privacy for this family union.'],
+        artifactPreview: [payload || 'Artifact', 'Artifact preview placeholder. A production app would open the artifact detail page.']
+      };
+      const selected = labels[mode] || ['Action', 'Context action placeholder.'];
+      title.textContent = selected[0];
+      sub.textContent = selected[1];
+
+      if (mode === 'artifactPreview') {
+        body.innerHTML = `<div class="thumb" style="height:170px;margin-bottom:16px">▧</div><p class="muted">This artifact is connected to the family union through an archive relationship such as documents, depicts event, owned by household, or associated with family.</p><button class="btn primary" onclick="showToast('Would open artifact detail page')">Open Artifact Page</button>`;
+      } else if (mode === 'child') {
+        body.innerHTML = `<div class="field"><label>Child</label><select><option>Select existing person...</option><option>Create new person...</option></select></div><div class="field"><label>Relationship</label><select><option>Biological child</option><option>Adopted child</option><option>Foster child</option><option>Step child</option><option>Guardian relationship</option></select></div><div class="field"><label>Notes</label><textarea placeholder="Optional context"></textarea></div><button class="btn primary" onclick="closeDrawer(); showToast('Child relationship saved placeholder')">Save</button>`;
+      } else {
+        body.innerHTML = `<div class="field"><label>Target</label><input placeholder="Search or select target..." /></div><div class="field"><label>Relationship</label><select><option>Associated with</option><option>Documents family union</option><option>Depicts family event</option><option>Belongs to collection</option></select></div><div class="field"><label>Notes</label><textarea placeholder="Optional context"></textarea></div><button class="btn primary" onclick="closeDrawer(); showToast('${selected[0]} saved placeholder')">Save</button>`;
+      }
+      document.getElementById('drawerBackdrop').classList.add('open');
+    }
+
+    function closeDrawer() { document.getElementById('drawerBackdrop').classList.remove('open'); }
+    function backdropClose(event) { if (event.target.id === 'drawerBackdrop') closeDrawer(); }
+    document.addEventListener('keydown', event => { if (event.key === 'Escape') closeDrawer(); });
+    document.getElementById('search').addEventListener('keydown', event => { if (event.key === 'Enter') showToast('Archive search prototype: ' + event.target.value); });
+  </script>
+</body>
+</html>

@@ -105,6 +105,18 @@ function seedDB(database: Database.Database) {
       key TEXT PRIMARY KEY,
       value TEXT
     );
+    CREATE TABLE IF NOT EXISTS archive_objects (
+      id TEXT PRIMARY KEY,
+      object_type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT,
+      privacy_level TEXT NOT NULL DEFAULT 'family',
+      is_deleted INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      created_by TEXT,
+      updated_by TEXT
+    );
   `);
 
   // FTS5 table for full-text search (content-storing, matching migration 033)
@@ -841,5 +853,60 @@ describe('PersonRepository.findAllForMatch', () => {
     expect(row!.surname).toBe('Wilson');
     expect(row!.birthDate).toBeNull();
     expect(row!.deathDate).toBeNull();
+  });
+});
+
+describe('PersonRepository archive_objects write-through', () => {
+  it('create() gives the person a resolvable archive_objects row', () => {
+    const repo = new PersonRepository();
+    const p = repo.create({ sex: 'M', is_living: 1, created_by: 'u1' });
+
+    const row = db.prepare('SELECT object_type, title, is_deleted FROM archive_objects WHERE id = ?').get(p.id) as
+      { object_type: string; title: string; is_deleted: number } | undefined;
+
+    expect(row).toBeDefined();
+    expect(row!.object_type).toBe('person');
+    expect(row!.is_deleted).toBe(0);
+    // No display_name and no names yet — falls back to the same default migration 042 used.
+    expect(row!.title).toBe('Unknown Person');
+  });
+
+  it('addName() refreshes the archive_objects title from the new primary name', () => {
+    const repo = new PersonRepository();
+    const p = repo.create({ sex: 'F', is_living: 1 });
+    repo.addName(p.id, { given_name: 'Jane', surname: 'Doe', is_primary: 1 });
+
+    const row = db.prepare('SELECT title FROM archive_objects WHERE id = ?').get(p.id) as { title: string };
+    expect(row.title).toBe('Jane Doe');
+  });
+
+  it('update() with display_name overrides the archive_objects title', () => {
+    const repo = new PersonRepository();
+    const p = repo.create({ sex: 'M', is_living: 1 });
+    repo.addName(p.id, { given_name: 'John', surname: 'Smith', is_primary: 1 });
+    repo.update(p.id, { display_name: 'Johnny' });
+
+    const row = db.prepare('SELECT title FROM archive_objects WHERE id = ?').get(p.id) as { title: string };
+    expect(row.title).toBe('Johnny');
+  });
+
+  it('update() keeps archive_objects privacy_level and summary in sync', () => {
+    const repo = new PersonRepository();
+    const p = repo.create({ sex: 'M', is_living: 1 });
+    repo.update(p.id, { is_private: 1, notes: 'sealed record' });
+
+    const row = db.prepare('SELECT privacy_level, summary FROM archive_objects WHERE id = ?').get(p.id) as
+      { privacy_level: string; summary: string };
+    expect(row.privacy_level).toBe('private');
+    expect(row.summary).toBe('sealed record');
+  });
+
+  it('delete() removes the matching archive_objects row', () => {
+    const repo = new PersonRepository();
+    const p = repo.create({ sex: 'F', is_living: 1 });
+    expect(repo.delete(p.id)).toBe(true);
+
+    const row = db.prepare('SELECT 1 FROM archive_objects WHERE id = ?').get(p.id);
+    expect(row).toBeUndefined();
   });
 });
