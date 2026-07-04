@@ -9,6 +9,7 @@ export { StoryRepository } from './StoryRepository.js';
 export { SearchRepository } from './SearchRepository.js';
 export { PersonRepository } from './PersonRepository.js';
 export { FamilyRepository } from './FamilyRepository.js';
+export { TreeRepository } from './TreeRepository.js';
 export { EventRepository } from './EventRepository.js';
 export { MediaRepository } from './MediaRepository.js';
 export { SourceRepository } from './SourceRepository.js';

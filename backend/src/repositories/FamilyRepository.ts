@@ -1,4 +1,5 @@
 import { BaseRepository } from './base.js';
+import { TreeRepository } from './TreeRepository.js';
 import type { Family, FamilyMember, FamilyWithSpouseNames, Name, SpouseNameSummary } from '../types/db.js';
 import { formatName } from '../utils/nameFormatter.js';
 
@@ -163,6 +164,7 @@ export class FamilyRepository extends BaseRepository {
     this.db.prepare(
       'INSERT INTO families (id, spouse1_id, spouse2_id, marriage_date, marriage_place, gedcom_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(id, data.spouse1_id || null, data.spouse2_id || null, data.marriage_date || null, data.marriage_place || null, data.gedcom_id || null, now, now);
+    new TreeRepository().syncFamilyUnionFromLegacyFamily(id);
     return this.findById(id)!;
   }
 
@@ -184,11 +186,14 @@ export class FamilyRepository extends BaseRepository {
     values.push(id);
 
     this.db.prepare(`UPDATE families SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+    new TreeRepository().syncFamilyUnionFromLegacyFamily(id);
     return this.findById(id);
   }
 
   delete(id: string): boolean {
-    return this.db.prepare('DELETE FROM families WHERE id = ?').run(id).changes > 0;
+    const deleted = this.db.prepare('DELETE FROM families WHERE id = ?').run(id).changes > 0;
+    if (deleted) new TreeRepository().deleteFamilyUnion(id);
+    return deleted;
   }
 
   addMember(familyId: string, personId: string, role: FamilyMember['role'] = 'child'): FamilyMember {
@@ -199,11 +204,14 @@ export class FamilyRepository extends BaseRepository {
     this.db.prepare(
       'INSERT INTO family_members (id, family_id, person_id, role, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?)'
     ).run(id, familyId, personId, role, maxOrder.next, this.now());
+    new TreeRepository().syncFamilyUnionFromLegacyFamily(familyId);
     return this.db.prepare('SELECT * FROM family_members WHERE id = ?').get(id) as FamilyMember;
   }
 
   removeMember(familyId: string, personId: string): boolean {
-    return this.db.prepare('DELETE FROM family_members WHERE family_id = ? AND person_id = ?').run(familyId, personId).changes > 0;
+    const removed = this.db.prepare('DELETE FROM family_members WHERE family_id = ? AND person_id = ?').run(familyId, personId).changes > 0;
+    if (removed) new TreeRepository().syncFamilyUnionFromLegacyFamily(familyId);
+    return removed;
   }
 
   getMembers(familyId: string): FamilyMember[] {

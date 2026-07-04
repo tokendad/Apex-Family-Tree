@@ -84,6 +84,44 @@ function seedMinimal(database: Database.Database) {
   `);
 }
 
+function seedRelationshipTables(database: Database.Database) {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS archive_objects (
+      id TEXT PRIMARY KEY,
+      object_type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT,
+      privacy_level TEXT NOT NULL DEFAULT 'family',
+      is_deleted INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE IF NOT EXISTS relationship_types (
+      id TEXT PRIMARY KEY,
+      code TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      is_tree_relevant INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS relationships (
+      id TEXT PRIMARY KEY REFERENCES archive_objects(id) ON DELETE CASCADE,
+      relationship_type_id TEXT NOT NULL REFERENCES relationship_types(id),
+      label TEXT,
+      date_text TEXT,
+      notes TEXT
+    );
+    CREATE TABLE IF NOT EXISTS relationship_members (
+      id TEXT PRIMARY KEY,
+      relationship_id TEXT NOT NULL REFERENCES relationships(id) ON DELETE CASCADE,
+      object_id TEXT NOT NULL REFERENCES archive_objects(id) ON DELETE CASCADE,
+      role TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      notes TEXT,
+      UNIQUE (relationship_id, object_id, role)
+    );
+  `);
+  database.prepare(`INSERT INTO relationship_types (id, code, name, is_tree_relevant) VALUES ('rel_type_family_union', 'family_union', 'Family Union', 1)`).run();
+}
+
 describe('GET /api/v1/tree/unconnected-segments', () => {
   beforeAll(() => {
     db = new Database(':memory:');
@@ -155,5 +193,51 @@ describe('GET /api/v1/tree/unconnected-people', () => {
     expect(ids).toContain('p-c');
     expect(ids).not.toContain('p-a');
     expect(ids).not.toContain('p-b');
+  });
+});
+
+describe('GET /api/v1/tree relationship view', () => {
+  beforeAll(() => {
+    db = new Database(':memory:');
+    seedMinimal(db);
+    seedRelationshipTables(db);
+
+    db.prepare(`INSERT INTO users (id, email, display_name, password_hash, role, home_person_id)
+      VALUES ('user-1', 'a@b.com', 'Test', 'x', 'admin', 'p-parent-1')`).run();
+
+    db.prepare(`INSERT INTO persons (id, sex) VALUES ('p-parent-1', 'M'), ('p-parent-2', 'F'), ('p-child', 'U')`).run();
+    db.prepare(`INSERT INTO names (id, person_id, given_name, surname, is_primary) VALUES
+      ('n-parent-1', 'p-parent-1', 'Alex', 'Apex', 1),
+      ('n-parent-2', 'p-parent-2', 'Blair', 'Apex', 1),
+      ('n-child', 'p-child', 'Casey', 'Apex', 1)`).run();
+    db.prepare(`INSERT INTO archive_objects (id, object_type, title) VALUES
+      ('p-parent-1', 'person', 'Alex Apex'),
+      ('p-parent-2', 'person', 'Blair Apex'),
+      ('p-child', 'person', 'Casey Apex'),
+      ('rel-family-1', 'relationship', 'Family Union')`).run();
+    db.prepare(`INSERT INTO relationships (id, relationship_type_id, label, date_text)
+      VALUES ('rel-family-1', 'rel_type_family_union', 'Family Union', '2000-01-01')`).run();
+    db.prepare(`INSERT INTO relationship_members (id, relationship_id, object_id, role, sort_order) VALUES
+      ('rm-p1', 'rel-family-1', 'p-parent-1', 'partner', 0),
+      ('rm-p2', 'rel-family-1', 'p-parent-2', 'partner', 1),
+      ('rm-c', 'rel-family-1', 'p-child', 'child', 2)`).run();
+  });
+
+  it('adapts family_union relationships into the existing tree family shape', async () => {
+    const app = buildApp();
+    const res = await request(app).get('/api/v1/tree');
+    expect(res.status).toBe(200);
+
+    const ids = res.body.persons.map((p: { id: string }) => p.id);
+    expect(ids).toEqual(expect.arrayContaining(['p-parent-1', 'p-parent-2', 'p-child']));
+    expect(res.body.families).toEqual([
+      {
+        id: 'rel-family-1',
+        spouse1_id: 'p-parent-1',
+        spouse2_id: 'p-parent-2',
+        children_ids: ['p-child'],
+        marriage_date: '2000-01-01',
+      },
+    ]);
   });
 });
