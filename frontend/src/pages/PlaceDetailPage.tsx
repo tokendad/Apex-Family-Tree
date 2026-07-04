@@ -2,11 +2,13 @@ import React, { FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
-import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
+import ArchiveObjectLayout, { type ConnectedGroup } from '@/components/archive-object/ArchiveObjectLayout';
+import { type ContextActionItem } from '@/components/archive-object/ContextActionsMenu';
+import { usePageActions } from '@/contexts/PageActionsContext';
 import { usePermissions } from '@/hooks/usePermissions';
-import styles from './ArtifactsPage.module.css';
+import styles from '@/components/archive-object/ArchiveDetailPage.module.css';
 
 interface PlaceRecord {
   id: string;
@@ -21,9 +23,13 @@ interface PlaceRecord {
   notes: string | null;
 }
 
-interface ConnectedObject { relationship_id: string; object_id: string; object_type: string; title: string; summary: string | null }
-
-const DetailRow: React.FC<{ label: string; value: string | null }> = ({ label, value }) => <div className={styles.detailRow}><span>{label}</span><strong>{value || '-'}</strong></div>;
+interface ConnectedObject {
+  relationship_id: string;
+  object_id: string;
+  object_type: string;
+  title: string;
+  summary: string | null;
+}
 
 function formFromPlace(place: PlaceRecord) {
   return {
@@ -39,6 +45,13 @@ function formFromPlace(place: PlaceRecord) {
   };
 }
 
+const InfoRow: React.FC<{ label: string; value: string | null }> = ({ label, value }) => (
+  <div className={styles.infoRow}>
+    <span>{label}</span>
+    <strong>{value || '—'}</strong>
+  </div>
+);
+
 const PlaceDetailPage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -50,6 +63,7 @@ const PlaceDetailPage: React.FC = () => {
   const [editMode, setEditMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState('overview');
 
   const loadPlace = useCallback(async () => {
     if (!id) return;
@@ -109,15 +123,152 @@ const PlaceDetailPage: React.FC = () => {
     if (res.ok) navigate('/places');
   };
 
+  const contextActions: ContextActionItem[] = [
+    {
+      id: 'connect-event',
+      label: 'Connect Event',
+      description: 'Link an event that occurred at this place',
+      disabled: !canEdit,
+      onSelect: () => setActiveTab('events'),
+    },
+    {
+      id: 'edit-place',
+      label: 'Edit Place',
+      description: 'Update location details and notes',
+      group: 'manage',
+      disabled: !canEdit,
+      onSelect: () => {
+        setEditMode(true);
+        setActiveTab('overview');
+      },
+    },
+    {
+      id: 'delete-place',
+      label: 'Delete Place',
+      description: 'Remove this place record',
+      group: 'manage',
+      danger: true,
+      disabled: !canDelete,
+      onSelect: handleDelete,
+    },
+  ];
+
+  usePageActions(place ? `Actions for ${place.title}` : '', place ? contextActions : []);
+
+  const locationLine = place
+    ? [place.locality, place.region, place.country].filter(Boolean).join(', ')
+    : '';
+
+  const connectedGroups: ConnectedGroup[] = [
+    {
+      id: 'events',
+      label: 'Events',
+      items: connectedEvents.slice(0, 8).map((event) => ({
+        id: event.object_id,
+        title: event.title,
+        subtitle: event.summary ?? 'Occurred here',
+        href: `/events/${event.object_id}`,
+        initials: 'E',
+      })),
+    },
+  ].filter((group) => group.items.length > 0);
+
   return (
-    <AppShell navbar={<Navbar />} sidebar={<Sidebar context="places" />} context="places">
+    <AppShell navbar={<Navbar />} context="places">
       <div className={styles.page}>
-        <Link className={styles.backLink} to="/places">Back to places</Link>
-        {isLoading ? <div className={styles.empty}>Loading place...</div> : error || !place || !form ? <div className={styles.error}>{error ?? 'Place not found'}</div> : <>
-          <header className={styles.header}><div><p className={styles.eyebrow}>{place.place_type || 'Place'}</p><h1>{place.title}</h1>{place.summary && <p className={styles.subtitle}>{place.summary}</p>}</div><div className={styles.actions}>{canEdit && <Button variant="ghost" onClick={() => setEditMode((value) => !value)}>{editMode ? 'Cancel' : 'Edit'}</Button>}{canDelete && <Button variant="danger" onClick={handleDelete}>Delete</Button>}</div></header>
-          {editMode ? <form className={styles.formCard} onSubmit={handleSave}><div className={styles.formGrid}>{(['title', 'place_type', 'address_text', 'locality', 'region', 'country'] as const).map((field) => <label key={field} className={styles.field}><span>{field.replace('_', ' ')}</span><Input value={form[field]} onChange={(e) => setForm({ ...form, [field]: e.target.value })} required={field === 'title'} /></label>)}</div><label className={styles.field}><span>Notes</span><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} /></label><div className={styles.actions}><Button type="submit">Save Place</Button></div></form> : <section className={styles.detailCard}><DetailRow label="Address" value={place.address_text} /><DetailRow label="Locality" value={place.locality} /><DetailRow label="Region" value={place.region} /><DetailRow label="Country" value={place.country} /><DetailRow label="Notes" value={place.notes} /></section>}
-          <section className={styles.detailCard}><div className={styles.sectionTitleRow}><h2>Connected Events</h2></div>{connectedEvents.length === 0 ? <p className={styles.muted}>No events connected yet.</p> : <div className={styles.connectedList}>{connectedEvents.map((event) => <Link key={`${event.relationship_id}-${event.object_id}`} className={styles.connectedItem} to={`/events/${event.object_id}`}><strong>{event.title}</strong><span>{event.summary}</span></Link>)}</div>}{canEdit && <div className={styles.connectBox}><Input placeholder="Event archive object ID" value={eventId} onChange={(event) => setEventId(event.target.value)} /><Button onClick={handleConnectEvent}>Connect Event</Button></div>}</section>
-        </>}
+        <div className={styles.pageInner}>
+          {isLoading ? (
+            <div className={styles.centered}>Loading place...</div>
+          ) : error || !place || !form ? (
+            <div className={styles.errorBanner} role="alert">{error ?? 'Place not found'}</div>
+          ) : (
+            <ArchiveObjectLayout
+              breadcrumb={<><Link to="/places">Places</Link> / Archive Profile</>}
+              title={place.title}
+              subtitle={[place.place_type, locationLine, place.privacy_level].filter(Boolean).join(' • ')}
+              summary={place.summary}
+              avatar={<span>⌂</span>}
+              stats={[
+                { label: 'Events', value: connectedEvents.length },
+                { label: 'Privacy', value: place.privacy_level },
+              ]}
+              tabs={[
+                { id: 'overview', label: 'Overview' },
+                { id: 'events', label: 'Events', count: connectedEvents.length },
+              ]}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              connectedGroups={connectedGroups}
+            >
+              {activeTab === 'overview' && (
+                <div className={styles.tabStack}>
+                  {editMode ? (
+                    <form className={styles.section} onSubmit={handleSave}>
+                      <div className={styles.sectionHeader}>
+                        <h2 className={styles.sectionTitle}>Edit Place</h2>
+                      </div>
+                      <div className={styles.formGrid}>
+                        {(['title', 'place_type', 'address_text', 'locality', 'region', 'country'] as const).map((field) => (
+                          <label key={field} className={styles.field}>
+                            <span>{field.replace('_', ' ')}</span>
+                            <Input value={form[field]} onChange={(e) => setForm({ ...form, [field]: e.target.value })} required={field === 'title'} />
+                          </label>
+                        ))}
+                      </div>
+                      <label className={styles.field}>
+                        <span>Notes</span>
+                        <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} />
+                      </label>
+                      <div className={styles.formActions}>
+                        <Button variant="ghost" type="button" onClick={() => setEditMode(false)}>Cancel</Button>
+                        <Button type="submit">Save Place</Button>
+                      </div>
+                    </form>
+                  ) : (
+                    <section className={styles.section} aria-labelledby="place-details-heading">
+                      <div className={styles.sectionHeader}>
+                        <h2 className={styles.sectionTitle} id="place-details-heading">Location Details</h2>
+                      </div>
+                      <div className={styles.infoGrid}>
+                        <InfoRow label="Address" value={place.address_text} />
+                        <InfoRow label="Locality" value={place.locality} />
+                        <InfoRow label="Region" value={place.region} />
+                        <InfoRow label="Country" value={place.country} />
+                        <InfoRow label="Notes" value={place.notes} />
+                      </div>
+                    </section>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'events' && (
+                <section className={styles.section} aria-labelledby="place-events-heading">
+                  <div className={styles.sectionHeader}>
+                    <h2 className={styles.sectionTitle} id="place-events-heading">Connected Events</h2>
+                  </div>
+                  {connectedEvents.length === 0 ? (
+                    <p className={styles.muted}>No events connected yet.</p>
+                  ) : (
+                    <div className={styles.linkList}>
+                      {connectedEvents.map((event) => (
+                        <Link key={`${event.relationship_id}-${event.object_id}`} className={styles.linkItem} to={`/events/${event.object_id}`}>
+                          <strong>{event.title}</strong>
+                          {event.summary && <span>{event.summary}</span>}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                  {canEdit && (
+                    <div className={styles.connectBox}>
+                      <Input placeholder="Event archive object ID" value={eventId} onChange={(event) => setEventId(event.target.value)} />
+                      <Button onClick={handleConnectEvent}>Connect Event</Button>
+                    </div>
+                  )}
+                </section>
+              )}
+            </ArchiveObjectLayout>
+          )}
+        </div>
       </div>
     </AppShell>
   );
