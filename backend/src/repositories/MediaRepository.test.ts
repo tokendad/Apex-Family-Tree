@@ -1,5 +1,8 @@
 import Database from 'better-sqlite3';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 let db: Database.Database;
 
@@ -131,5 +134,85 @@ describe('MediaRepository person regions', () => {
 
     expect(repo.deleteRegion(created.id)).toBe(true);
     expect(repo.findRegions('media-1')).toHaveLength(0);
+  });
+});
+
+describe('MediaRepository scanDirectory', () => {
+  let tmpDir: string;
+
+  beforeAll(() => {
+    db = new Database(':memory:');
+    seedDB(db);
+  });
+
+  afterAll(() => {
+    db.close();
+  });
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aft-media-scan-'));
+    db.exec('DELETE FROM media_items');
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('relinks a file that moved into a subfolder instead of creating a duplicate row', () => {
+    const repo = new MediaRepository();
+
+    // Simulate a file that was scanned once at the top level of the media dir.
+    const originalPath = path.join(tmpDir, 'photo.jpg');
+    fs.writeFileSync(originalPath, 'hello-world-content');
+    repo.scanDirectory(tmpDir);
+
+    const beforeCount = (db.prepare('SELECT COUNT(*) as c FROM media_items').get() as { c: number }).c;
+    expect(beforeCount).toBe(1);
+
+    // Simulate the user reorganizing the file into a subfolder on disk.
+    const subDir = path.join(tmpDir, 'Family');
+    fs.mkdirSync(subDir);
+    const movedPath = path.join(subDir, 'photo.jpg');
+    fs.renameSync(originalPath, movedPath);
+
+    const result = repo.scanDirectory(tmpDir);
+
+    const rows = db.prepare('SELECT file_path FROM media_items').all() as { file_path: string }[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0].file_path).toBe(movedPath);
+    expect(result.relinked).toBe(1);
+    expect(result.added).toBe(0);
+  });
+
+  it('cleans up a pre-existing orphaned duplicate that already has a live counterpart', () => {
+    const repo = new MediaRepository();
+
+    // Simulate two historical scans: one that already recorded the file at
+    // its current (live) subfolder path, and an older orphaned row left
+    // over from before the file was moved there.
+    const subDir = path.join(tmpDir, 'Family');
+    fs.mkdirSync(subDir);
+    const livePath = path.join(subDir, 'photo.jpg');
+    fs.writeFileSync(livePath, 'hello-world-content');
+    const size = fs.statSync(livePath).size;
+
+    db.prepare(
+      `INSERT INTO media_items (id, filename, original_filename, mime_type, file_size, file_path, is_external)
+       VALUES (?, ?, ?, ?, ?, ?, 1)`,
+    ).run('live-1', 'photo.jpg', 'photo.jpg', 'image/jpeg', size, livePath);
+
+    const staleAbsentPath = path.join(tmpDir, 'photo.jpg');
+    db.prepare(
+      `INSERT INTO media_items (id, filename, original_filename, mime_type, file_size, file_path, is_external)
+       VALUES (?, ?, ?, ?, ?, ?, 1)`,
+    ).run('stale-1', 'photo.jpg', 'photo.jpg', 'image/jpeg', size, staleAbsentPath);
+
+    const result = repo.scanDirectory(tmpDir);
+
+    const rows = db.prepare('SELECT id, file_path FROM media_items').all() as { id: string; file_path: string }[];
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe('live-1');
+    expect(rows[0].file_path).toBe(livePath);
+    expect(result.removed).toBe(1);
   });
 });

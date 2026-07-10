@@ -157,7 +157,10 @@ mediaRouter.post(
       const repo = new MediaRepository();
       const mediaPath = process.env.MEDIA_PATH || getMediaPath();
       const result = repo.scanDirectory(mediaPath);
-      res.json({ message: `Scan complete: ${result.added} added, ${result.skipped} skipped`, ...result });
+      res.json({
+        message: `Scan complete: ${result.added} added, ${result.relinked} relinked, ${result.removed} removed, ${result.skipped} skipped`,
+        ...result,
+      });
     } catch (error) {
       res.status(500).json({ error: 'Failed to scan media directory' });
     }

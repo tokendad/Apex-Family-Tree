@@ -287,10 +287,11 @@ export class MediaRepository extends BaseRepository {
 
   // ─── Scan pre-existing files ──────────────────────────────────────────────
 
-  scanDirectory(mediaPath: string): { added: number; skipped: number } {
+  scanDirectory(mediaPath: string): { added: number; skipped: number; relinked: number; removed: number } {
     const files = this.walkDir(mediaPath);
     let added = 0;
     let skipped = 0;
+    let relinked = 0;
 
     const insertStmt = this.db.prepare(
       `INSERT OR IGNORE INTO media_items (id, filename, original_filename, mime_type, file_size, file_path, thumbnail_path, title, description, date_taken, uploaded_by, is_external, created_at, updated_at)
@@ -298,6 +299,16 @@ export class MediaRepository extends BaseRepository {
     );
 
     const checkStmt = this.db.prepare('SELECT 1 FROM media_items WHERE file_path = ?');
+
+    // Files get reorganized into subfolders after their first scan. Find a
+    // scanned row for the same file (by name + size) whose old path no
+    // longer exists on disk, so a move is treated as a relink rather than
+    // a brand-new duplicate row pointing at a fresh id.
+    const findStaleStmt = this.db.prepare(
+      `SELECT id, file_path FROM media_items
+       WHERE original_filename = ? AND file_size = ? AND is_external = 1 AND file_path != ?`
+    );
+    const relinkStmt = this.db.prepare('UPDATE media_items SET file_path = ?, updated_at = ? WHERE id = ?');
 
     const runScan = this.db.transaction(() => {
       for (const filePath of files) {
@@ -317,6 +328,15 @@ export class MediaRepository extends BaseRepository {
           continue;
         }
 
+        const staleCandidates = findStaleStmt.all(filename, fileSize, filePath) as { id: string; file_path: string }[];
+        const stale = staleCandidates.find((c) => !fs.existsSync(c.file_path));
+
+        if (stale) {
+          relinkStmt.run(filePath, this.now(), stale.id);
+          relinked++;
+          continue;
+        }
+
         const id = this.generateId();
         const now = this.now();
         const result = insertStmt.run(
@@ -331,7 +351,37 @@ export class MediaRepository extends BaseRepository {
     });
 
     runScan();
-    return { added, skipped };
+    const removed = this.cleanupOrphanedScans();
+    return { added, skipped, relinked, removed };
+  }
+
+  // Removes scanned rows whose file no longer exists on disk, but only when
+  // another scanned row for the same file (name + size) still resolves —
+  // i.e. it was a duplicate left behind by a scan that predates a move,
+  // not the only remaining record of that file.
+  private cleanupOrphanedScans(): number {
+    const rows = this.db.prepare(
+      `SELECT id, file_path, original_filename, file_size FROM media_items WHERE is_external = 1`
+    ).all() as { id: string; file_path: string; original_filename: string; file_size: number }[];
+
+    const deleteStmt = this.db.prepare('DELETE FROM media_items WHERE id = ?');
+    let removed = 0;
+
+    for (const row of rows) {
+      if (fs.existsSync(row.file_path)) continue;
+      const hasLiveDuplicate = rows.some(
+        (other) => other.id !== row.id
+          && other.original_filename === row.original_filename
+          && other.file_size === row.file_size
+          && fs.existsSync(other.file_path),
+      );
+      if (hasLiveDuplicate) {
+        deleteStmt.run(row.id);
+        removed++;
+      }
+    }
+
+    return removed;
   }
 
   private walkDir(dir: string): string[] {

@@ -119,28 +119,10 @@
 
 .gallery {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--space-2);
   align-items: start;  /* prevents cells stretching to row height → masonry feel */
   flex: 1;
-}
-
-@media (max-width: 1200px) {
-  .gallery {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-@media (max-width: 900px) {
-  .gallery {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 480px) {
-  .gallery {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -176,7 +158,7 @@
 .thumbImgWrap {
   position: relative;
   width: 100%;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 1 / 1;
   background-color: var(--color-gray-100);
   overflow: hidden;
 }
@@ -210,7 +192,7 @@
 /* PDF placeholder */
 .pdfPlaceholder {
   width: 100%;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 1 / 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -271,7 +253,7 @@
 }
 
 .overlayTitle {
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   color: #ffffff;
   white-space: nowrap;
@@ -291,7 +273,7 @@
 
 .skeleton {
   border-radius: var(--radius-lg);
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 1 / 1;
   background: linear-gradient(
     90deg,
     var(--color-gray-100) 25%,
