@@ -1,4 +1,13 @@
+/* The AppShell is a fixed-height flex layout whose containers are all
+   overflow:hidden, so a page that does not manage its own scrolling is simply
+   clipped — no scrollbar appears anywhere. Matching the People and Families
+   pattern: the page fills the available height and the card grid is the part
+   that scrolls, which keeps the type filter and bulk bar pinned while working
+   through a long list. */
 .page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   padding: var(--space-6);
   max-width: 1180px;
   margin: 0 auto;
@@ -37,6 +46,10 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: var(--space-4);
+  flex: 1;
+  overflow-y: auto;
+  /* Without this a short list stretches its rows to fill the scroll area. */
+  align-content: start;
 }
 
 .card,
@@ -266,6 +279,7 @@
 /* ── Type filter ───────────────────────────────────────────────────────── */
 
 .typeFilter {
+  flex-shrink: 0;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
@@ -318,6 +332,7 @@
 /* ── Bulk re-type ──────────────────────────────────────────────────────── */
 
 .bulkBar {
+  flex-shrink: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
