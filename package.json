@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "concurrently -n fe,be -c cyan,green \"npm run dev -w frontend\" \"npm run dev -w backend\"",
     "build": "npm run build -w frontend && npm run build -w backend",
-    "test": "npm run test -w frontend && npm run test -w backend",
+    "test": "concurrently -n fe,be -c cyan,green \"npm run test -w frontend\" \"npm run test -w backend\"",
     "lint": "eslint frontend/src backend/src",
     "format": "prettier --write \"**/*.{ts,tsx,js,json,css,html}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,json,css,html}\""
