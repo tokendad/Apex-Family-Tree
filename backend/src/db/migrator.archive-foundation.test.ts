@@ -61,8 +61,18 @@ describe('archive foundation migration', () => {
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'relationship_members'").get()).toBeTruthy();
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'places'").get()).toBeTruthy();
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'place_aliases'").get()).toBeTruthy();
-      // 12 seeded by 042, plus Uncategorized added by 054.
-      expect(db.prepare('SELECT COUNT(*) AS count FROM artifact_types').get()).toEqual({ count: 13 });
+      // 12 seeded by 042, plus Uncategorized (054), plus the three identities
+      // the Artifact Model lists that 042 missed (055).
+      expect(db.prepare('SELECT COUNT(*) AS count FROM artifact_types').get()).toEqual({ count: 16 });
+      // These answer "what is this?" for items Document could not describe
+      // accurately — a draft card is a Military Document, not a generic one.
+      expect(
+        db.prepare(
+          `SELECT name FROM artifact_types
+           WHERE id IN ('artifact_type_diary', 'artifact_type_report_card', 'artifact_type_military_document')
+           ORDER BY sort_order`
+        ).all()
+      ).toEqual([{ name: 'Diary' }, { name: 'Report Card' }, { name: 'Military Document' }]);
       // Uncategorized must sort first: the artifact create form defaults to the
       // first type, so anything created without a deliberate choice lands there.
       expect(db.prepare('SELECT id FROM artifact_types ORDER BY sort_order ASC LIMIT 1').get())
