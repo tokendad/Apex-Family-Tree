@@ -55,6 +55,39 @@ The Vite dev server proxies all `/api` requests to the backend at port 3000.
 
 On first visit, you'll be prompted to create an admin account through the setup wizard.
 
+### 5. Seed a Development Account (optional)
+
+Rather than creating an account through the setup wizard every time you reset your
+local database, you can seed a known one:
+
+```bash
+npm run seed:dev -w backend
+```
+
+| | |
+|---|---|
+| Email | `dev@localhost.test` |
+| Password | `devpassword123` |
+| Role | admin |
+
+These credentials are intentionally published. They are only usable against a local
+development database, and keeping them in the repository is the entire point — it
+means anyone (or any tooling) can sign in to a fresh local environment without a
+password reset.
+
+The script is safe to re-run: it resets the password if the account already exists
+rather than failing, and it leaves any other accounts alone.
+
+**It cannot run against production.** Because it mints an admin account with a
+published password, it fails closed on two independent checks:
+
+- `NODE_ENV` must be explicitly `development` or `test`. An unset value is treated
+  as unsafe, not assumed to be development.
+- `DATA_DIR` must not resolve to `/app/data`, the volume the production container
+  mounts.
+
+By default it writes to `dev-data/`. Override with `DATA_DIR=... npm run seed:dev -w backend`.
+
 ---
 
 ## Available Scripts
@@ -69,6 +102,7 @@ All scripts are run from the project root:
 | `npm run lint` | Lint all source files with ESLint |
 | `npm run format` | Format all files with Prettier |
 | `npm run format:check` | Check formatting without making changes |
+| `npm run seed:dev -w backend` | Seed the local dev admin account (see above) |
 
 ### Workspace-Specific Scripts
 
