@@ -52,6 +52,16 @@ artifactsRouter.get('/types', (_req, res) => {
   }
 });
 
+// GET /artifacts/type-counts — Artifact count per type, including empty types
+artifactsRouter.get('/type-counts', (_req, res) => {
+  try {
+    const repo = new ArtifactRepository();
+    res.json({ data: repo.countsByType() });
+  } catch {
+    res.status(500).json({ error: 'Failed to count artifacts by type' });
+  }
+});
+
 // GET /artifacts/evidence-classifications — List evidence classification lookup values
 artifactsRouter.get('/evidence-classifications', (_req, res) => {
   try {
@@ -69,8 +79,9 @@ artifactsRouter.get('/', (req, res) => {
     const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 200);
     const cursor = req.query.cursor as string | undefined;
     const search = req.query.q as string | undefined;
+    const typeId = req.query.type as string | undefined;
 
-    res.json(repo.findAll({ limit, cursor, search }));
+    res.json(repo.findAll({ limit, cursor, search, typeId }));
   } catch (error) {
     res.status(500).json({ error: 'Failed to list artifacts' });
   }
@@ -149,6 +160,48 @@ artifactsRouter.put(
       res.json(artifact);
     } catch (error) {
       res.status(500).json({ error: 'Failed to update artifact' });
+    }
+  },
+);
+
+// PATCH /artifacts/bulk-type — Reassign the type of many artifacts at once
+artifactsRouter.patch(
+  '/bulk-type',
+  requireRole('admin', 'editor', 'limited_editor'),
+  (req, res) => {
+    try {
+      const body = (req.body ?? {}) as { ids?: unknown; artifact_type_id?: unknown };
+
+      // validate() only checks scalar fields, so the array is checked here.
+      if (!Array.isArray(body.ids) || body.ids.some((id) => typeof id !== 'string')) {
+        res.status(400).json({ error: 'ids must be an array of strings' });
+        return;
+      }
+      if (typeof body.artifact_type_id !== 'string' || !body.artifact_type_id) {
+        res.status(400).json({ error: 'artifact_type_id is required' });
+        return;
+      }
+      // Bounded so a single request cannot pin the event loop on a huge batch.
+      if (body.ids.length > 500) {
+        res.status(400).json({ error: 'ids must contain at most 500 entries' });
+        return;
+      }
+
+      const repo = new ArtifactRepository();
+      if (!repo.findArtifactTypes().some((type) => type.id === body.artifact_type_id)) {
+        res.status(400).json({ error: 'Unknown artifact_type_id' });
+        return;
+      }
+
+      const updated = repo.bulkUpdateType(
+        body.ids as string[],
+        body.artifact_type_id,
+        req.user?.userId ?? null,
+      );
+
+      res.json({ updated });
+    } catch {
+      res.status(500).json({ error: 'Failed to update artifact types' });
     }
   },
 );
