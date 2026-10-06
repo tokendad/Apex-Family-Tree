@@ -40,7 +40,10 @@ coverage/
 *.db
 *.db-journal
 *.db-wal
+*.db-shm
 .data/
+# Default DATA_DIR for `npm run seed:dev -w backend`
+dev-data/
 
 # Docker
 .docker/

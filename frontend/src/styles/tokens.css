@@ -113,6 +113,10 @@
   /* Z-index */
   --z-dropdown: 100;
   --z-sticky: 200;
+  /* Global chrome (top navbar and the menus it owns). Sits above page-level
+     sticky elements, which all share --z-sticky, so the navbar never loses the
+     stacking tie to whichever of them happens to come later in the DOM. */
+  --z-navbar: 250;
   --z-modal-backdrop: 300;
   --z-modal: 400;
   --z-tooltip: 500;

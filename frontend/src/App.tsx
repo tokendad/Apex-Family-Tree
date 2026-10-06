@@ -43,6 +43,11 @@ const RegisterPage = React.lazy(() => import('./pages/RegisterPage'));
 const ForgotPasswordPage = React.lazy(() => import('./pages/ForgotPasswordPage'));
 const ResetPasswordPage = React.lazy(() => import('./pages/ResetPasswordPage'));
 const MediaPage = React.lazy(() => import('./pages/MediaPage'));
+const AboutPage = React.lazy(() => import('./pages/AboutPage'));
+const FaqPage = React.lazy(() => import('./pages/FaqPage'));
+const GlossaryPage = React.lazy(() => import('./pages/GlossaryPage'));
+const ThemePage = React.lazy(() => import('./pages/ThemePage'));
+const UserSettingsPage = React.lazy(() => import('./pages/UserSettingsPage'));
 
 function LoadingFallback() {
   return (
@@ -109,6 +114,13 @@ function App() {
               <Route path="/stories/:id" element={<ProtectedRoute><StoryDetailPage /></ProtectedRoute>} />
               <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
               <Route path="/media" element={<ProtectedRoute><MediaPage /></ProtectedRoute>} />
+
+              {/* Account menu destinations (#15) */}
+              <Route path="/about" element={<ProtectedRoute><AboutPage /></ProtectedRoute>} />
+              <Route path="/faq" element={<ProtectedRoute><FaqPage /></ProtectedRoute>} />
+              <Route path="/glossary" element={<ProtectedRoute><GlossaryPage /></ProtectedRoute>} />
+              <Route path="/profile/theme" element={<ProtectedRoute><ThemePage /></ProtectedRoute>} />
+              <Route path="/profile/settings" element={<ProtectedRoute><UserSettingsPage /></ProtectedRoute>} />
 
               {/* Import/Export (protected) */}
               <Route path="/import" element={<ProtectedRoute><ImportPage /></ProtectedRoute>} />

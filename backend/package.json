@@ -7,7 +7,8 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "seed:dev": "NODE_ENV=development DATA_DIR=${DATA_DIR:-../dev-data} tsx src/scripts/seedDevUser.ts"
   },
   "dependencies": {
     "argon2": "^0.41.1",
