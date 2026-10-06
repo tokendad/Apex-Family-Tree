@@ -30,6 +30,17 @@ interface ArtifactType {
   name: string;
 }
 
+interface ArtifactTypeCount {
+  id: string;
+  name: string;
+  icon: string | null;
+  sort_order: number;
+  count: number;
+}
+
+/** Sentinel for the "no type filter" chip, distinct from any real type id. */
+const ALL_TYPES = '__all__';
+
 interface EvidenceClassification {
   id: string;
   name: string;
@@ -79,6 +90,12 @@ const ArtifactsPage: React.FC = () => {
   const globalQuery = useSearchStore((state) => state.globalQuery);
   const [artifacts, setArtifacts] = useState<ArtifactRecord[]>([]);
   const [artifactTypes, setArtifactTypes] = useState<ArtifactType[]>([]);
+  const [typeCounts, setTypeCounts] = useState<ArtifactTypeCount[]>([]);
+  const [activeTypeId, setActiveTypeId] = useState<string>(ALL_TYPES);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkTypeId, setBulkTypeId] = useState('');
+  const [isBulkSaving, setIsBulkSaving] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
   const [evidenceClassifications, setEvidenceClassifications] = useState<EvidenceClassification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -100,12 +117,20 @@ const ArtifactsPage: React.FC = () => {
     setForm((current) => current.artifact_type_id ? current : { ...current, artifact_type_id: typesJson.data[0]?.id ?? '' });
   }, []);
 
+  const loadTypeCounts = useCallback(async () => {
+    const res = await fetch('/api/v1/artifacts/type-counts');
+    if (!res.ok) throw new Error('Failed to load artifact type counts');
+    const json = await res.json() as { data: ArtifactTypeCount[] };
+    setTypeCounts(json.data);
+  }, []);
+
   const loadArtifacts = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({ limit: '50' });
       if (globalQuery.trim()) params.set('q', globalQuery.trim());
+      if (activeTypeId !== ALL_TYPES) params.set('type', activeTypeId);
       const res = await fetch(`/api/v1/artifacts?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to load artifacts');
       const json = await res.json() as { data: ArtifactRecord[] };
@@ -115,15 +140,61 @@ const ArtifactsPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [globalQuery]);
+  }, [globalQuery, activeTypeId]);
 
   useEffect(() => {
     void loadLookups().catch(() => setError('Failed to load artifact lookups'));
-  }, [loadLookups]);
+    void loadTypeCounts().catch(() => setError('Failed to load artifact type counts'));
+  }, [loadLookups, loadTypeCounts]);
 
   useEffect(() => {
     void loadArtifacts();
   }, [loadArtifacts]);
+
+  // Selection is cleared whenever the visible set changes, because acting on
+  // rows that have scrolled out of the filter would be a surprise.
+  useEffect(() => {
+    setSelectedIds(new Set());
+    setBulkError(null);
+  }, [activeTypeId, globalQuery]);
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const allVisibleSelected = artifacts.length > 0 && artifacts.every((a) => selectedIds.has(a.id));
+
+  const toggleSelectAll = () => {
+    setSelectedIds(allVisibleSelected ? new Set() : new Set(artifacts.map((a) => a.id)));
+  };
+
+  const applyBulkType = async () => {
+    if (selectedIds.size === 0 || !bulkTypeId) return;
+    setIsBulkSaving(true);
+    setBulkError(null);
+    try {
+      const res = await fetch('/api/v1/artifacts/bulk-type', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds), artifact_type_id: bulkTypeId }),
+      });
+      if (!res.ok) throw new Error('Failed to update artifact types');
+
+      setSelectedIds(new Set());
+      // Both the list and the counts shift after a re-type, and when a type
+      // filter is active the re-typed rows leave the current view entirely.
+      await Promise.all([loadArtifacts(), loadTypeCounts()]);
+    } catch (err) {
+      setBulkError(err instanceof Error ? err.message : 'Failed to update artifact types');
+    } finally {
+      setIsBulkSaving(false);
+    }
+  };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -216,6 +287,90 @@ const ArtifactsPage: React.FC = () => {
           </form>
         )}
 
+        {typeCounts.length > 0 && (
+          <div className={styles.typeFilter} role="group" aria-label="Filter artifacts by type">
+            <button
+              type="button"
+              className={`${styles.typeChip} ${activeTypeId === ALL_TYPES ? styles.typeChipActive : ''}`}
+              aria-pressed={activeTypeId === ALL_TYPES}
+              onClick={() => setActiveTypeId(ALL_TYPES)}
+            >
+              All
+              <span className={styles.typeChipCount}>
+                {typeCounts.reduce((sum, type) => sum + type.count, 0)}
+              </span>
+            </button>
+
+            {typeCounts.map((type) => (
+              <button
+                key={type.id}
+                type="button"
+                // Empty types stay visible and dimmed rather than disappearing:
+                // seeing that Recipe exists but holds nothing is the prompt to
+                // go and classify something as a recipe.
+                className={[
+                  styles.typeChip,
+                  activeTypeId === type.id ? styles.typeChipActive : '',
+                  type.count === 0 ? styles.typeChipEmpty : '',
+                ].filter(Boolean).join(' ')}
+                aria-pressed={activeTypeId === type.id}
+                onClick={() => setActiveTypeId(type.id)}
+              >
+                {type.name}
+                <span className={styles.typeChipCount}>{type.count}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {canCreate && artifacts.length > 0 && (
+          <div className={styles.bulkBar}>
+            <label className={styles.selectAll}>
+              <input
+                type="checkbox"
+                checked={allVisibleSelected}
+                onChange={toggleSelectAll}
+                aria-label={allVisibleSelected ? 'Clear selection' : 'Select all shown artifacts'}
+              />
+              <span>
+                {selectedIds.size > 0
+                  ? `${selectedIds.size} selected`
+                  : `Select all ${artifacts.length} shown`}
+              </span>
+            </label>
+
+            {selectedIds.size > 0 && (
+              <div className={styles.bulkActions}>
+                <label className={styles.bulkLabel} htmlFor="bulk-type">
+                  Change type to
+                </label>
+                <select
+                  id="bulk-type"
+                  value={bulkTypeId}
+                  onChange={(e) => setBulkTypeId(e.target.value)}
+                >
+                  <option value="">Choose a type…</option>
+                  {artifactTypes.map((type) => (
+                    <option key={type.id} value={type.id}>{type.name}</option>
+                  ))}
+                </select>
+                <Button
+                  type="button"
+                  onClick={() => void applyBulkType()}
+                  loading={isBulkSaving}
+                  disabled={!bulkTypeId}
+                >
+                  Apply to {selectedIds.size}
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => setSelectedIds(new Set())}>
+                  Clear
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {bulkError && <div className={styles.error}>{bulkError}</div>}
         {error && <div className={styles.error}>{error}</div>}
         {isLoading ? (
           <div className={styles.empty}>Loading artifacts...</div>
@@ -224,16 +379,32 @@ const ArtifactsPage: React.FC = () => {
         ) : (
           <div className={styles.grid}>
             {artifacts.map((artifact) => (
-              <Link key={artifact.id} to={`/artifacts/${artifact.id}`} className={styles.card}>
-                <div className={styles.cardType}>{artifact.artifact_type_name}</div>
-                <h2>{artifact.title}</h2>
-                {artifact.summary && <p>{artifact.summary}</p>}
-                <div className={styles.meta}>
-                  {artifact.original_date_text && <span>{artifact.original_date_text}</span>}
-                  {artifact.creator_text && <span>{artifact.creator_text}</span>}
-                  {artifact.evidence_classification_name && <span>{artifact.evidence_classification_name}</span>}
-                </div>
-              </Link>
+              <div
+                key={artifact.id}
+                className={`${styles.cardWrap} ${selectedIds.has(artifact.id) ? styles.cardWrapSelected : ''}`}
+              >
+                {canCreate && (
+                  // Outside the Link, so ticking a card never navigates away
+                  // mid-triage.
+                  <input
+                    type="checkbox"
+                    className={styles.cardCheckbox}
+                    checked={selectedIds.has(artifact.id)}
+                    onChange={() => toggleSelected(artifact.id)}
+                    aria-label={`Select ${artifact.title}`}
+                  />
+                )}
+                <Link to={`/artifacts/${artifact.id}`} className={styles.card}>
+                  <div className={styles.cardType}>{artifact.artifact_type_name}</div>
+                  <h2>{artifact.title}</h2>
+                  {artifact.summary && <p>{artifact.summary}</p>}
+                  <div className={styles.meta}>
+                    {artifact.original_date_text && <span>{artifact.original_date_text}</span>}
+                    {artifact.creator_text && <span>{artifact.creator_text}</span>}
+                    {artifact.evidence_classification_name && <span>{artifact.evidence_classification_name}</span>}
+                  </div>
+                </Link>
+              </div>
             ))}
           </div>
         )}

@@ -24,10 +24,17 @@ export class ArtifactRepository extends BaseRepository {
     ).get(id) as ArtifactRecord | undefined;
   }
 
-  findAll(options?: { limit?: number; cursor?: string; search?: string }): { data: ArtifactRecord[]; next_cursor: string | null; total_count: number } {
+  findAll(options?: { limit?: number; cursor?: string; search?: string; typeId?: string }): { data: ArtifactRecord[]; next_cursor: string | null; total_count: number } {
     const limit = options?.limit ?? 50;
     const conditions = ['ao.object_type = ?', 'ao.is_deleted = 0'];
     const params: unknown[] = ['artifact'];
+
+    // Applied before the count query so total_count reflects the filtered set,
+    // which is what the UI shows next to the active type.
+    if (options?.typeId?.trim()) {
+      conditions.push('a.artifact_type_id = ?');
+      params.push(options.typeId.trim());
+    }
 
     if (options?.search?.trim()) {
       const term = `%${options.search.trim()}%`;
@@ -111,6 +118,55 @@ export class ArtifactRepository extends BaseRepository {
     });
 
     return this.findById(createArtifact())!;
+  }
+
+  /**
+   * Artifact count for every type, including types with no artifacts.
+   *
+   * The LEFT JOIN matters: the filter UI needs to show empty types (and
+   * Uncategorized when it has been worked down to zero) rather than silently
+   * dropping them, so counts come from artifact_types outwards.
+   */
+  countsByType(): Array<{ id: string; name: string; icon: string | null; sort_order: number; count: number }> {
+    return this.db.prepare(
+      `SELECT t.id, t.name, t.icon, t.sort_order, COUNT(a.id) AS count
+       FROM artifact_types t
+       LEFT JOIN artifacts a ON a.artifact_type_id = t.id
+       LEFT JOIN archive_objects ao ON ao.id = a.id AND ao.is_deleted = 0
+       GROUP BY t.id
+       ORDER BY t.sort_order ASC, t.name ASC`,
+    ).all() as Array<{ id: string; name: string; icon: string | null; sort_order: number; count: number }>;
+  }
+
+  /**
+   * Reassigns the type of many artifacts at once.
+   *
+   * Runs in a single transaction so a partial re-type cannot be left behind:
+   * the point of the bulk tool is working a queue down, and a half-applied batch
+   * would leave no way to tell which rows were done.
+   *
+   * Returns the number of rows actually changed, which may be fewer than the ids
+   * passed if some were deleted or never existed.
+   */
+  bulkUpdateType(ids: string[], artifactTypeId: string, updatedBy: string | null): number {
+    if (ids.length === 0) return 0;
+
+    const apply = this.db.transaction(() => {
+      let changed = 0;
+      const setType = this.db.prepare('UPDATE artifacts SET artifact_type_id = ? WHERE id = ?');
+
+      for (const id of ids) {
+        if (!this.findById(id)) continue;
+        setType.run(artifactTypeId, id);
+        // Keep the archive object's audit trail in step with the type change.
+        this.archiveObjects.update(id, { updated_by: updatedBy });
+        changed += 1;
+      }
+
+      return changed;
+    });
+
+    return apply();
   }
 
   update(id: string, data: UpdateArtifactInput): ArtifactRecord | undefined {

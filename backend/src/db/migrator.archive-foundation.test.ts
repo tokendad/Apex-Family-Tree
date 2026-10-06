@@ -61,7 +61,12 @@ describe('archive foundation migration', () => {
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'relationship_members'").get()).toBeTruthy();
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'places'").get()).toBeTruthy();
       expect(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'place_aliases'").get()).toBeTruthy();
-      expect(db.prepare('SELECT COUNT(*) AS count FROM artifact_types').get()).toEqual({ count: 12 });
+      // 12 seeded by 042, plus Uncategorized added by 054.
+      expect(db.prepare('SELECT COUNT(*) AS count FROM artifact_types').get()).toEqual({ count: 13 });
+      // Uncategorized must sort first: the artifact create form defaults to the
+      // first type, so anything created without a deliberate choice lands there.
+      expect(db.prepare('SELECT id FROM artifact_types ORDER BY sort_order ASC LIMIT 1').get())
+        .toEqual({ id: 'artifact_type_uncategorized' });
       expect(db.prepare('SELECT COUNT(*) AS count FROM evidence_classifications').get()).toEqual({ count: 8 });
       expect(db.prepare('SELECT COUNT(*) AS count FROM confidence_levels').get()).toEqual({ count: 6 });
       expect(db.prepare('SELECT COUNT(*) AS count FROM relationship_types').get()).toEqual({ count: 23 });

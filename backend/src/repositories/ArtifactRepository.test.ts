@@ -62,6 +62,7 @@ function seedDB(database: Database.Database) {
     );
   `);
 
+  database.prepare('INSERT INTO artifact_types (id, name, is_system, sort_order) VALUES (?, ?, 1, ?)').run('artifact_type_uncategorized', 'Uncategorized', 0);
   database.prepare('INSERT INTO artifact_types (id, name, is_system, sort_order) VALUES (?, ?, 1, ?)').run('artifact_type_photo', 'Photo', 10);
   database.prepare('INSERT INTO artifact_types (id, name, is_system, sort_order) VALUES (?, ?, 1, ?)').run('artifact_type_letter', 'Letter', 20);
   database.prepare('INSERT INTO evidence_classifications (id, name, default_weight, is_system, sort_order) VALUES (?, ?, ?, 1, ?)')
@@ -140,7 +141,63 @@ describe('ArtifactRepository', () => {
   it('returns lookup values in display order', () => {
     const repo = new ArtifactRepository();
 
-    expect(repo.findArtifactTypes().map(type => type.name)).toEqual(['Photo', 'Letter']);
+    expect(repo.findArtifactTypes().map(type => type.name)).toEqual(['Uncategorized', 'Photo', 'Letter']);
     expect(repo.findEvidenceClassifications().map(classification => classification.name)).toEqual(['Personal Artifact']);
+  });
+
+  it('filters by artifact type', () => {
+    const repo = new ArtifactRepository();
+    const photo = repo.create({ title: 'A Photo', artifact_type_id: 'artifact_type_photo', created_by: 'user-1' });
+    repo.create({ title: 'A Letter', artifact_type_id: 'artifact_type_letter', created_by: 'user-1' });
+
+    const photos = repo.findAll({ typeId: 'artifact_type_photo' });
+
+    expect(photos.data.map(row => row.id)).toEqual([photo.id]);
+    // total_count reflects the filtered set, not the whole table — the UI shows
+    // this number beside the active type.
+    expect(photos.total_count).toBe(1);
+  });
+
+  it('counts every type, including those with no artifacts', () => {
+    const repo = new ArtifactRepository();
+    repo.create({ title: 'A Photo', artifact_type_id: 'artifact_type_photo', created_by: 'user-1' });
+
+    const counts = repo.countsByType();
+
+    // Empty types must still appear so the filter UI can show a zero rather
+    // than silently dropping them.
+    expect(counts.map(row => [row.name, row.count])).toEqual([
+      ['Uncategorized', 0],
+      ['Photo', 1],
+      ['Letter', 0],
+    ]);
+  });
+
+  it('bulk re-types artifacts and reports how many changed', () => {
+    const repo = new ArtifactRepository();
+    const a = repo.create({ title: 'Scan One', artifact_type_id: 'artifact_type_uncategorized', created_by: 'user-1' });
+    const b = repo.create({ title: 'Scan Two', artifact_type_id: 'artifact_type_uncategorized', created_by: 'user-1' });
+
+    const changed = repo.bulkUpdateType([a.id, b.id], 'artifact_type_letter', 'user-9');
+
+    expect(changed).toBe(2);
+    expect(repo.findById(a.id)?.artifact_type_name).toBe('Letter');
+    expect(repo.findById(b.id)?.artifact_type_name).toBe('Letter');
+    expect(repo.findById(a.id)?.updated_by).toBe('user-9');
+  });
+
+  it('skips ids that do not exist rather than failing the whole batch', () => {
+    const repo = new ArtifactRepository();
+    const real = repo.create({ title: 'Real', artifact_type_id: 'artifact_type_uncategorized', created_by: 'user-1' });
+
+    const changed = repo.bulkUpdateType([real.id, 'does-not-exist'], 'artifact_type_photo', 'user-9');
+
+    expect(changed).toBe(1);
+    expect(repo.findById(real.id)?.artifact_type_name).toBe('Photo');
+  });
+
+  it('treats an empty id list as a no-op', () => {
+    const repo = new ArtifactRepository();
+    expect(repo.bulkUpdateType([], 'artifact_type_photo', 'user-9')).toBe(0);
   });
 });
