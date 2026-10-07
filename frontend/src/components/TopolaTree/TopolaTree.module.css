@@ -1,0 +1,15 @@
+.svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+  background: var(--color-bg-primary, #fff);
+}
+
+.svg:active {
+  cursor: grabbing;
+}
+
+.chart {
+  overflow: visible;
+}

@@ -10,6 +10,7 @@ import ModalHost from './components/modals/ModalHost';
 
 // Lazy-loaded page components
 const TreePage = React.lazy(() => import('./pages/TreePage'));
+const TopolaTreePage = React.lazy(() => import('./pages/TopolaTreePage'));
 const PeoplePage = React.lazy(() => import('./pages/PeoplePage'));
 const AdminUsersPage = React.lazy(() => import('./pages/AdminUsersPage'));
 const AdminSettingsPage = React.lazy(() => import('./pages/AdminSettingsPage'));
@@ -94,6 +95,7 @@ function App() {
               {/* Main app routes (protected) */}
               <Route path="/" element={<ProtectedRoute><TreePage /></ProtectedRoute>} />
               <Route path="/tree" element={<Navigate to="/" replace />} />
+              <Route path="/tree-topola" element={<ProtectedRoute><TopolaTreePage /></ProtectedRoute>} />
               <Route path="/people" element={<ProtectedRoute><PeoplePage /></ProtectedRoute>} />
               <Route path="/people/:id" element={<ProtectedRoute><PersonDetailPage /></ProtectedRoute>} />
               <Route path="/families" element={<ProtectedRoute><FamiliesPage /></ProtectedRoute>} />
