@@ -107,4 +107,60 @@ describe('POST /people', () => {
       { object_type: string; title: string } | undefined;
     expect(obj).toEqual({ object_type: 'person', title: 'Connectable' });
   });
+
+  it('marks a person\'s first name primary even when the caller omits is_primary', async () => {
+    const app = buildApp();
+    const person = await request(app)
+      .post('/api/v1/people')
+      .send({ display_name: 'Walter LeFort', sex: 'M', is_living: true });
+
+    // The add-person wizard does not send is_primary. Leaving the only name
+    // unflagged breaks the people list, whose surname sort and keyset cursor
+    // both read `WHERE is_primary = 1`.
+    await request(app)
+      .post(`/api/v1/people/${person.body.id}/names`)
+      .send({ given_name: 'Walter', surname: 'LeFort', name_type: 'birth' });
+
+    const rows = db.prepare('SELECT given_name, is_primary FROM names WHERE person_id = ?')
+      .all(person.body.id) as { given_name: string; is_primary: number }[];
+    expect(rows).toEqual([{ given_name: 'Walter', is_primary: 1 }]);
+  });
+
+  it('does not make later names primary', async () => {
+    const app = buildApp();
+    const person = await request(app)
+      .post('/api/v1/people')
+      .send({ display_name: 'Two Names', sex: 'F', is_living: true });
+
+    await request(app).post(`/api/v1/people/${person.body.id}/names`)
+      .send({ given_name: 'Birth', surname: 'Name', name_type: 'birth' });
+    await request(app).post(`/api/v1/people/${person.body.id}/names`)
+      .send({ given_name: 'Married', surname: 'Name', name_type: 'married' });
+
+    const rows = db.prepare('SELECT given_name, is_primary FROM names WHERE person_id = ? ORDER BY sort_order')
+      .all(person.body.id) as { given_name: string; is_primary: number }[];
+    expect(rows).toEqual([
+      { given_name: 'Birth', is_primary: 1 },
+      { given_name: 'Married', is_primary: 0 },
+    ]);
+  });
+
+  it('still honours an explicit is_primary on a later name', async () => {
+    const app = buildApp();
+    const person = await request(app)
+      .post('/api/v1/people')
+      .send({ display_name: 'Explicit', sex: 'F', is_living: true });
+
+    await request(app).post(`/api/v1/people/${person.body.id}/names`)
+      .send({ given_name: 'First', surname: 'Name' });
+    await request(app).post(`/api/v1/people/${person.body.id}/names`)
+      .send({ given_name: 'Second', surname: 'Name', is_primary: true });
+
+    const rows = db.prepare('SELECT given_name, is_primary FROM names WHERE person_id = ? ORDER BY sort_order')
+      .all(person.body.id) as { given_name: string; is_primary: number }[];
+    expect(rows).toEqual([
+      { given_name: 'First', is_primary: 0 },
+      { given_name: 'Second', is_primary: 1 },
+    ]);
+  });
 });
