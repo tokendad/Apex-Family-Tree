@@ -9,6 +9,7 @@ import CanvasLegend from '@/components/CanvasLegend/CanvasLegend';
 import ContextMenu from '@/components/ContextMenu/ContextMenu';
 import DetailPanel from '@/components/DetailPanel/DetailPanel';
 import WizardModal from '@/components/WizardModal/WizardModal';
+import PersonEditModal from '@/components/PersonEditModal/PersonEditModal';
 import StepIndicator, { WIZARD_STEPS } from '@/components/StepIndicator/StepIndicator';
 import PersonalInfoStep from '@/components/WizardSteps/PersonalInfoStep';
 import VitalEventsStep from '@/components/WizardSteps/VitalEventsStep';
@@ -254,6 +255,15 @@ const TreePage: React.FC = () => {
     setWizardOpen(true);
   }, [wizard]);
 
+  // The detail panel edits through PersonEditModal rather than the wizard: the
+  // wizard is a four-step creation flow, while the modal is built for changing
+  // one thing at a time and saves each section independently.
+  const [editModalPersonId, setEditModalPersonId] = useState<string | null>(null);
+
+  const openPersonEditor = useCallback((personId: string) => {
+    setEditModalPersonId(personId);
+  }, []);
+
   const openEditWizard = useCallback(
     (personId: string) => {
       setEditPersonId(personId);
@@ -310,7 +320,7 @@ const TreePage: React.FC = () => {
     <AppShell
       navbar={<Navbar />}
       sidebar={<Sidebar context="tree" />}
-      detail={<DetailPanel onEditPerson={openEditWizard} />}
+      detail={<DetailPanel onEditPerson={openPersonEditor} />}
       showDetail={selectedPersonId !== null}
       context="tree"
     >
@@ -348,6 +358,18 @@ const TreePage: React.FC = () => {
         onAddSpouse={(id) => openPreLinkedWizard(id, 'spouse')}
         onAddChild={(id) => openPreLinkedWizard(id, 'child')}
       />
+      <PersonEditModal
+        open={editModalPersonId !== null}
+        personId={editModalPersonId}
+        displayName={
+          nodes.find((node) => node.person.id === editModalPersonId)?.person.given_name ?? 'Person'
+        }
+        onClose={() => setEditModalPersonId(null)}
+        onSaved={() => {
+          if (treeFilter === 'all') refetch();
+        }}
+      />
+
       <WizardModal
         open={wizardOpen}
         title={wizardTitle}
