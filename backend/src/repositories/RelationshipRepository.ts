@@ -13,6 +13,22 @@ import type {
 export class RelationshipRepository extends BaseRepository {
   private archiveObjects = new ArchiveObjectRepository();
 
+  /**
+   * Relationship types available for connecting objects, newest-irrelevant first
+   * by display order.
+   *
+   * Genealogy types are excluded: parent/child and spouse links are produced by
+   * the tree and family-union flows, not by hand-connecting two archive objects,
+   * and offering them here would invite relationships the tree cannot render.
+   */
+  findConnectableTypes(): RelationshipType[] {
+    return this.db.prepare(
+      `SELECT * FROM relationship_types
+       WHERE category IS NULL OR category != 'genealogy'
+       ORDER BY category ASC, sort_order ASC, name ASC`,
+    ).all() as RelationshipType[];
+  }
+
   findTypeByCode(code: string): RelationshipType | undefined {
     return this.db.prepare('SELECT * FROM relationship_types WHERE code = ?').get(code) as RelationshipType | undefined;
   }

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import ArtifactDetailPage from './ArtifactDetailPage';
@@ -75,6 +75,17 @@ beforeEach(() => {
         }),
       });
     }
+    if (url === '/api/v1/relationships/types') {
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          data: [
+            { id: 'rel_type_depicts_event', code: 'depicts_event', name: 'Depicts Event', category: 'event', description: 'A photo taken at an event' },
+            { id: 'rel_type_appears_in', code: 'appears_in', name: 'Appears In', category: 'artifact', description: null },
+          ],
+        }),
+      });
+    }
     if (url === '/api/v1/claims/evidence/artifact-1') {
       return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
     }
@@ -111,13 +122,13 @@ describe('ArtifactDetailPage', () => {
 
     // Connections live in tabs rather than a side rail.
     expect(screen.queryByLabelText('Connected archive objects')).not.toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /people/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /connections/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^delete$/i })).not.toBeInTheDocument();
 
     fireEvent.click(await screen.findByRole('button', { name: /actions/i }));
 
-    expect(screen.getByRole('menuitem', { name: /connect person/i })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /^connect\b/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /edit artifact/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /delete artifact/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /add claim/i })).toBeInTheDocument();
@@ -125,28 +136,77 @@ describe('ArtifactDetailPage', () => {
     expect(screen.getByRole('menuitem', { name: /record provenance/i })).toBeInTheDocument();
   });
 
-  it('loads all connected people instead of only appears_in relationships', async () => {
+  it('lists every connected object, not only people', async () => {
     renderPage();
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/v1/relationships/objects/artifact-1/connected'));
 
     // The rail used to show these alongside the details; they now live behind
     // the People tab, which is the only place they are listed.
-    fireEvent.click(await screen.findByRole('tab', { name: /people/i }));
+    fireEvent.click(await screen.findByRole('tab', { name: /connections/i }));
 
     expect(await screen.findByText('Ada Lovelace')).toBeInTheDocument();
-    expect(screen.getByText('Owned By')).toBeInTheDocument();
+    expect(screen.getByText(/Owned By/)).toBeInTheDocument();
   });
 
-  it('opens the person connection form from the Actions drawer', async () => {
+  it('opens a connection form that accepts any object type and a relationship', async () => {
     renderPage();
 
     await waitFor(() => expect(screen.getByRole('button', { name: /actions/i })).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: /actions/i }));
-    fireEvent.click(screen.getByRole('menuitem', { name: /connect person/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^connect\b/i }));
 
-    expect(screen.getByRole('dialog', { name: /connect person/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/connect a person/i)).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: /connect/i })).toBeInTheDocument();
+
+    // The old form could only attach a person, always as 'appears_in'. Both the
+    // target and the kind of relationship are now chosen explicitly, which is
+    // what lets an artifact depict an event or document a record.
+    expect(screen.getByLabelText(/what should this artifact be connected to/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/how are they related/i)).toBeInTheDocument();
+  });
+
+  it('requires confirmation before removing a connection', async () => {
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('tab', { name: /connections/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^remove$/i }));
+
+    // Removal hard-deletes the relationship with no undo, so the first click
+    // only arms it.
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/v1/relationships/rel-1', { method: 'DELETE' });
+    expect(screen.getByRole('button', { name: /confirm removal/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /confirm removal/i }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith('/api/v1/relationships/rel-1', { method: 'DELETE' })
+    );
+  });
+
+  it('lets the confirmation be cancelled without deleting', async () => {
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('tab', { name: /connections/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^remove$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+
+    expect(screen.getByRole('button', { name: /^remove$/i })).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/v1/relationships/rel-1', { method: 'DELETE' });
+  });
+
+  it('offers the seeded relationship types when connecting', async () => {
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /actions/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /actions/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^connect\b/i }));
+
+    const select = await screen.findByLabelText(/how are they related/i);
+
+    // These were seeded from the start and had no way to be used: the old form
+    // always wrote 'appears_in'.
+    expect(within(select).getByRole('option', { name: 'Depicts Event' })).toBeInTheDocument();
+    expect(within(select).getByRole('option', { name: 'Appears In' })).toBeInTheDocument();
   });
 });

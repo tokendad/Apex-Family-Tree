@@ -35,6 +35,16 @@ function parseMembers(value: unknown): RelationshipMemberInput[] | null {
   return members;
 }
 
+// GET /relationships/types — Relationship types available for connecting objects
+relationshipsRouter.get('/types', (_req, res) => {
+  try {
+    const repo = new RelationshipRepository();
+    res.json({ data: repo.findConnectableTypes() });
+  } catch {
+    res.status(500).json({ error: 'Failed to list relationship types' });
+  }
+});
+
 relationshipsRouter.get('/objects/:objectId', (req, res) => {
   try {
     const repo = new RelationshipRepository();
