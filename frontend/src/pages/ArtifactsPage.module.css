@@ -398,3 +398,27 @@
 .cardWrap .cardType {
   padding-right: var(--space-6);
 }
+
+/* ── Artifact detail page ──────────────────────────────────────────────── */
+
+/* The detail page shares this stylesheet with the list page but has different
+   scrolling needs: the list makes its card grid the scroll container so the
+   filter and bulk bar stay pinned, while the detail page scrolls as a whole.
+   Reusing .page here left the detail page with a fixed height and no scrolling
+   child, so anything below the fold was unreachable.
+
+   This matches the pattern the other archive detail pages already use in
+   components/archive-object/ArchiveDetailPage.module.css. */
+.detailPage {
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--space-6) var(--space-4) var(--space-8);
+}
+
+.detailPageInner {
+  width: min(1180px, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}

@@ -299,7 +299,8 @@ const ArtifactDetailPage: React.FC = () => {
 
   return (
     <AppShell navbar={<Navbar />} sidebar={<Sidebar context="artifacts" />} context="artifacts">
-      <div className={styles.page}>
+      <div className={styles.detailPage}>
+        <div className={styles.detailPageInner}>
         <Link className={styles.backLink} to="/artifacts">Back to artifacts</Link>
         {isLoading ? (
           <div className={styles.empty}>Loading artifact...</div>
@@ -423,6 +424,7 @@ const ArtifactDetailPage: React.FC = () => {
             </ArchiveObjectLayout>
           </>
         )}
+        </div>
       </div>
       <ActionDrawer
         open={drawerMode !== null}
