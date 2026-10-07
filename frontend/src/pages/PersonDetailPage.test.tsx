@@ -142,9 +142,15 @@ describe('PersonDetailPage — archive layout', () => {
     expect(await screen.findByRole('link', { name: /the recipe box/i })).toBeInTheDocument();
   });
 
-  it('groups collections in the Connected To rail', async () => {
+  it('lists collections by name under the Collections tab', async () => {
     renderPage();
+
+    // The Connected To rail used to be the only place a person's collections
+    // were named. The tab replaces it, so the names stay reachable.
+    fireEvent.click(await screen.findByRole('tab', { name: /collections/i }));
+
     expect(await screen.findByText('Military Service')).toBeInTheDocument();
+    expect(screen.queryByText('Connected To')).not.toBeInTheDocument();
   });
 });
 

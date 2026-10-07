@@ -4,7 +4,7 @@ import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
-import ArchiveObjectLayout, { type ConnectedGroup } from '@/components/archive-object/ArchiveObjectLayout';
+import ArchiveObjectLayout from '@/components/archive-object/ArchiveObjectLayout';
 import ActionDrawer from '@/components/archive-object/ActionDrawer';
 import { type ContextActionItem } from '@/components/archive-object/ContextActionsMenu';
 import { usePageActions } from '@/contexts/PageActionsContext';
@@ -549,33 +549,6 @@ const FamilyDetailPage: React.FC = () => {
     `${childCount} ${childCount === 1 ? 'child' : 'children'}`,
   ].filter(Boolean);
 
-  const connectedGroups: ConnectedGroup[] = [
-    {
-      id: 'partners',
-      label: 'Partners',
-      items: [family.spouse1, family.spouse2]
-        .filter((p): p is PersonSummary => p !== null)
-        .map((p) => ({
-          id: p.id,
-          title: personName(p),
-          subtitle: 'Partner',
-          href: `/people/${p.id}`,
-          initials: initialsFromName(personName(p)),
-        })),
-    },
-    {
-      id: 'children',
-      label: 'Children',
-      items: family.children.slice(0, 8).map((c) => ({
-        id: c.person_id,
-        title: childName(c),
-        subtitle: ROLE_LABELS[c.role],
-        href: `/people/${c.person_id}`,
-        initials: initialsFromName(childName(c)),
-      })),
-    },
-  ].filter((group) => group.items.length > 0);
-
   return (
     <AppShell navbar={<Navbar />}>
       <div className={archiveStyles.page}>
@@ -622,7 +595,6 @@ const FamilyDetailPage: React.FC = () => {
             ]}
             activeTab={activeTab}
             onTabChange={setActiveTab}
-            connectedGroups={connectedGroups}
           >
             {activeTab === 'overview' && (
               <div className={archiveStyles.tabStack}>

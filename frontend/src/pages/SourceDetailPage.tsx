@@ -269,7 +269,6 @@ const SourceDetailPage: React.FC = () => {
               ]}
               activeTab={activeTab}
               onTabChange={setActiveTab}
-              connectedGroups={[]}
             >
               {activeTab === 'overview' && (
                 <div className={styles.tabStack}>

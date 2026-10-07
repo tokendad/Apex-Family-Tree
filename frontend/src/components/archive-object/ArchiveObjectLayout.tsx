@@ -1,5 +1,4 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
 import styles from './ArchiveObjectLayout.module.css';
 
 export interface ArchiveObjectStat {
@@ -39,7 +38,6 @@ interface ArchiveObjectLayoutProps {
   activeTab: string;
   onTabChange: (tabId: string) => void;
   children: React.ReactNode;
-  connectedGroups: ConnectedGroup[];
 }
 
 const ArchiveObjectLayout: React.FC<ArchiveObjectLayoutProps> = ({
@@ -55,7 +53,6 @@ const ArchiveObjectLayout: React.FC<ArchiveObjectLayoutProps> = ({
   activeTab,
   onTabChange,
   children,
-  connectedGroups,
 }) => {
   return (
     <section className={styles.shell}>
@@ -100,38 +97,12 @@ const ArchiveObjectLayout: React.FC<ArchiveObjectLayoutProps> = ({
         ))}
       </div>
 
-      <div className={styles.bodyGrid}>
-        <div className={styles.mainPanel}>{children}</div>
-        <aside className={styles.connectedPanel} aria-label="Connected archive objects">
-          <div className={styles.connectedHeader}>Connected To</div>
-          {connectedGroups.length === 0 ? (
-            <p className={styles.empty}>No connected objects yet.</p>
-          ) : connectedGroups.map((group) => (
-            <section key={group.id} className={styles.connectedGroup}>
-              <h2>{group.label}</h2>
-              {group.items.length === 0 ? (
-                <p className={styles.empty}>None recorded.</p>
-              ) : group.items.map((item) => {
-                const content = (
-                  <>
-                    <span className={styles.connectedAvatar}>{item.initials ?? item.title.slice(0, 1)}</span>
-                    <span>
-                      <strong>{item.title}</strong>
-                      {item.subtitle && <small>{item.subtitle}</small>}
-                    </span>
-                  </>
-                );
-
-                return item.href ? (
-                  <Link key={item.id} className={styles.connectedItem} to={item.href}>{content}</Link>
-                ) : (
-                  <div key={item.id} className={styles.connectedItem}>{content}</div>
-                );
-              })}
-            </section>
-          ))}
-        </aside>
-      </div>
+      {/* The connected-objects panel was removed: it repeated the tabs and the
+          stat row, truncated its lists, and below 980px it unstacked beneath the
+          content inside an overflow:hidden shell, where it could not be reached
+          at all. Counts live in the stat row, the objects themselves live in
+          tabs. */}
+      <div className={styles.mainPanel}>{children}</div>
     </section>
   );
 };

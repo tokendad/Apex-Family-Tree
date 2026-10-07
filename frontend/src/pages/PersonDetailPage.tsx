@@ -5,7 +5,7 @@ import Navbar from '@/components/Navbar/Navbar';
 import Button from '@/components/Button/Button';
 import PersonEditModal from '@/components/PersonEditModal/PersonEditModal';
 import ActionDrawer from '@/components/archive-object/ActionDrawer';
-import ArchiveObjectLayout, { type ConnectedGroup } from '@/components/archive-object/ArchiveObjectLayout';
+import ArchiveObjectLayout from '@/components/archive-object/ArchiveObjectLayout';
 import ArtifactCard from '@/components/archive-object/ArtifactCard';
 import { type ContextActionItem } from '@/components/archive-object/ContextActionsMenu';
 import { usePageActions } from '@/contexts/PageActionsContext';
@@ -523,8 +523,6 @@ const PersonDetailPage: React.FC = () => {
   const connectedArtifacts = connectedObjects.filter((o) => o.object_type === 'artifact');
   const connectedStories = connectedObjects.filter((o) => o.object_type === 'story');
   const connectedCollections = connectedObjects.filter((o) => o.object_type === 'collection');
-  const connectedPlaces = connectedObjects.filter((o) => o.object_type === 'place');
-
   const familyRoles = new Map<string, string>();
   childFamilies.forEach((rel) => {
     [rel.spouse1, rel.spouse2].forEach((p) => {
@@ -537,61 +535,6 @@ const PersonDetailPage: React.FC = () => {
     rel.children.forEach((c) => familyRoles.set(c.person_id, 'Child'));
   });
 
-  const familyConnections = [
-    ...childFamilies.flatMap((rel) => [rel.spouse1, rel.spouse2].filter((p): p is PersonSummary => p !== null)),
-    ...parentFamilies.flatMap((rel) => [rel.role === 'spouse1' ? rel.spouse2 : rel.spouse1].filter((p): p is PersonSummary => p !== null)),
-    ...parentFamilies.flatMap((rel) =>
-      rel.children
-        .filter((c) => c.person_id !== id)
-        .map((c) => ({ id: c.person_id, displayName: c.displayName, display_name: c.display_name, given_name: c.given_name, middle_name: c.middle_name, surname: c.surname }))),
-  ];
-  const uniqueFamilyConnections = Array.from(new Map(familyConnections.map((p) => [p.id, p])).values());
-  const connectedGroups: ConnectedGroup[] = [
-    {
-      id: 'family',
-      label: 'Family',
-      items: uniqueFamilyConnections.slice(0, 8).map((p) => ({
-        id: p.id,
-        title: personName(p),
-        subtitle: familyRoles.get(p.id) ?? 'Family relationship',
-        href: `/people/${p.id}`,
-        initials: initialsFromName(personName(p)),
-      })),
-    },
-    {
-      id: 'collections',
-      label: 'Collections',
-      items: connectedCollections.slice(0, 6).map((o) => ({
-        id: o.object_id,
-        title: o.title,
-        subtitle: o.relationship_type_name,
-        href: `/collections/${o.object_id}`,
-        initials: '★',
-      })),
-    },
-    {
-      id: 'places',
-      label: 'Places',
-      items: connectedPlaces.slice(0, 6).map((o) => ({
-        id: o.object_id,
-        title: o.title,
-        subtitle: o.relationship_type_name,
-        href: `/places/${o.object_id}`,
-        initials: '⌂',
-      })),
-    },
-    {
-      id: 'artifacts',
-      label: 'Artifacts',
-      items: connectedArtifacts.slice(0, 8).map((artifact) => ({
-        id: artifact.object_id,
-        title: artifact.title,
-        subtitle: artifact.artifact_type_name ?? artifact.relationship_type_name,
-        href: `/artifacts/${artifact.object_id}`,
-        initials: 'A',
-      })),
-    },
-  ].filter((group) => group.items.length > 0);
   // ─── Full render ───────────────────────────────────────────────────────────
 
   return (
@@ -641,12 +584,12 @@ const PersonDetailPage: React.FC = () => {
             { id: 'timeline', label: 'Timeline', count: sortedEventsList.length },
             { id: 'artifacts', label: 'Artifacts', count: connectedArtifacts.length + media.length },
             { id: 'stories', label: 'Stories', count: connectedStories.length },
+            { id: 'collections', label: 'Collections', count: connectedCollections.length },
             { id: 'family', label: 'Family', count: relationships.length },
             { id: 'claims', label: 'Claims' },
           ]}
           activeTab={activeTab}
           onTabChange={setActiveTab}
-          connectedGroups={connectedGroups}
         >
           {activeTab === 'overview' && (
             <div className={styles.tabStack}>
@@ -1068,6 +1011,35 @@ const PersonDetailPage: React.FC = () => {
                       className={styles.relPersonLink}
                     >
                       {story.title}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
+          {activeTab === 'collections' && (
+            <section className={styles.section} aria-labelledby="collections-heading">
+              <h2 className={styles.sectionTitle} id="collections-heading">
+                Collections
+                {connectedCollections.length > 0 && (
+                  <span className={styles.countBadge}>{connectedCollections.length}</span>
+                )}
+              </h2>
+
+              {connectedObjectsLoading ? (
+                <div className={styles.skeletonLine} aria-hidden="true" />
+              ) : connectedCollections.length === 0 ? (
+                <p className={styles.noInfo}>No collections include this person yet.</p>
+              ) : (
+                <div className={styles.relPersonList}>
+                  {connectedCollections.map((collection) => (
+                    <Link
+                      key={`${collection.relationship_id}-${collection.object_id}`}
+                      to={`/collections/${collection.object_id}`}
+                      className={styles.relPersonLink}
+                    >
+                      {collection.title}
                     </Link>
                   ))}
                 </div>

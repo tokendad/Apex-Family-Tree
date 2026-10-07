@@ -4,7 +4,7 @@ import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
-import ArchiveObjectLayout, { type ConnectedGroup } from '@/components/archive-object/ArchiveObjectLayout';
+import ArchiveObjectLayout from '@/components/archive-object/ArchiveObjectLayout';
 import { type ContextActionItem } from '@/components/archive-object/ContextActionsMenu';
 import { usePageActions } from '@/contexts/PageActionsContext';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -39,12 +39,6 @@ const InfoRow: React.FC<{ label: string; value: string | null }> = ({ label, val
     <strong>{value || '—'}</strong>
   </div>
 );
-
-const CONNECTED_GROUP_DEFS: Array<{ type: string; label: string; initials: string; route: string }> = [
-  { type: 'person', label: 'People', initials: 'P', route: 'people' },
-  { type: 'place', label: 'Places', initials: '⌂', route: 'places' },
-  { type: 'artifact', label: 'Artifacts', initials: 'A', route: 'artifacts' },
-];
 
 const EventDetailPage: React.FC = () => {
   const { id } = useParams();
@@ -143,21 +137,6 @@ const EventDetailPage: React.FC = () => {
   const eventTitle = event ? formatEventType(event.event_type) : '';
   usePageActions(event ? `Actions for ${eventTitle}` : '', event ? contextActions : []);
 
-  const connectedGroups: ConnectedGroup[] = CONNECTED_GROUP_DEFS.map((def) => ({
-    id: def.type,
-    label: def.label,
-    items: connected
-      .filter((object) => object.object_type === def.type)
-      .slice(0, 8)
-      .map((object) => ({
-        id: object.object_id,
-        title: object.title,
-        subtitle: object.relationship_type_code.replace(/_/g, ' '),
-        href: `/${def.route}/${object.object_id}`,
-        initials: def.initials,
-      })),
-  })).filter((group) => group.items.length > 0);
-
   return (
     <AppShell navbar={<Navbar />} context="events">
       <div className={styles.page}>
@@ -183,7 +162,6 @@ const EventDetailPage: React.FC = () => {
               ]}
               activeTab={activeTab}
               onTabChange={setActiveTab}
-              connectedGroups={connectedGroups}
             >
               {activeTab === 'overview' && (
                 <div className={styles.tabStack}>
