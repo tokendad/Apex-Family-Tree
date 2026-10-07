@@ -10,6 +10,8 @@ interface WizardModalProps {
   totalSteps: number;
   isDirty: boolean;
   isSaving?: boolean;
+  /** Surfaced above the footer when a save fails. */
+  error?: string | null;
   onClose: () => void;
   onBack: () => void;
   onNext: () => void;
@@ -29,6 +31,7 @@ const WizardModal: React.FC<WizardModalProps> = ({
   onBack,
   onNext,
   onSave,
+  error,
   children,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
@@ -135,6 +138,14 @@ const WizardModal: React.FC<WizardModalProps> = ({
         </div>
 
         <div className={styles.body}>{children}</div>
+
+        {/* A failed save previously left the modal open with no explanation,
+            because the error was stored but never rendered. */}
+        {error && (
+          <div className={styles.errorBanner} role="alert">
+            {error}
+          </div>
+        )}
 
         <div className={styles.footer}>
           <div className={styles.footerLeft}>
