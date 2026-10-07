@@ -3,8 +3,15 @@ import path from 'path';
 import { BaseRepository } from './base.js';
 import type { MediaItem, PersonMedia, FamilyMedia, EventMedia, MediaPersonRegion } from '../types/db.js';
 
+// TIFF is included because scanned documents in family archives are routinely
+// saved as .tif — death certificates, discharge papers, obituaries. Excluding it
+// meant the scanner walked past some of the most genealogically valuable files
+// in the library without comment.
+//
+// Browsers cannot render TIFF inline, so anything displaying these needs a
+// generated preview or a download link rather than an <img> tag.
 const SCANNABLE_EXTENSIONS = new Set([
-  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf',
+  '.jpg', '.jpeg', '.png', '.gif', '.webp', '.tif', '.tiff', '.pdf',
 ]);
 
 function mimeFromExt(ext: string): string {
@@ -13,6 +20,7 @@ function mimeFromExt(ext: string): string {
     case '.png': return 'image/png';
     case '.gif': return 'image/gif';
     case '.webp': return 'image/webp';
+    case '.tif': case '.tiff': return 'image/tiff';
     case '.pdf': return 'application/pdf';
     default: return 'application/octet-stream';
   }

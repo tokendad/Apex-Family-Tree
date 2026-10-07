@@ -158,6 +158,43 @@ describe('MediaRepository scanDirectory', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it('scans TIFF documents and records their mime type', () => {
+    const repo = new MediaRepository();
+
+    // Scanned certificates and discharge papers in family archives are commonly
+    // .tif. They were excluded from the scanner, so they never reached the
+    // archive at all.
+    fs.writeFileSync(path.join(tmpDir, 'death cert.tif'), 'tiff-bytes');
+    fs.writeFileSync(path.join(tmpDir, 'discharge.TIFF'), 'tiff-bytes-2');
+
+    const result = repo.scanDirectory(tmpDir);
+
+    expect(result.added).toBe(2);
+    const rows = db.prepare('SELECT filename, mime_type FROM media_items ORDER BY filename').all() as
+      { filename: string; mime_type: string }[];
+    expect(rows.map((row) => [row.filename, row.mime_type])).toEqual([
+      ['death cert.tif', 'image/tiff'],
+      ['discharge.TIFF', 'image/tiff'],
+    ]);
+  });
+
+  it('still ignores files it has no business importing', () => {
+    const repo = new MediaRepository();
+
+    // exiftool leaves .jpg_original backups beside files it edits, and desktop
+    // tooling leaves Thumbs.db; neither belongs in the archive.
+    fs.writeFileSync(path.join(tmpDir, 'photo.jpg_original'), 'backup');
+    fs.writeFileSync(path.join(tmpDir, 'Thumbs.db'), 'thumbs');
+    fs.writeFileSync(path.join(tmpDir, 'tree.ged'), 'gedcom');
+    fs.writeFileSync(path.join(tmpDir, 'keep.tif'), 'tiff');
+
+    const result = repo.scanDirectory(tmpDir);
+
+    expect(result.added).toBe(1);
+    const rows = db.prepare('SELECT filename FROM media_items').all() as { filename: string }[];
+    expect(rows.map((row) => row.filename)).toEqual(['keep.tif']);
+  });
+
   it('relinks a file that moved into a subfolder instead of creating a duplicate row', () => {
     const repo = new MediaRepository();
 
