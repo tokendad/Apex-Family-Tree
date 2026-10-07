@@ -5,6 +5,7 @@ import { PersonRepository } from '../repositories/PersonRepository.js';
 import { EventRepository } from '../repositories/EventRepository.js';
 import { FamilyRepository } from '../repositories/FamilyRepository.js';
 import type { Name } from '../types/db.js';
+import { toSqliteBool } from '../utils/sqliteBool.js';
 
 function paramStr(val: string | string[]): string {
   return Array.isArray(val) ? val[0] : val;
@@ -120,8 +121,8 @@ peopleRouter.post(
 
       const person = repo.create({
         sex: sex || 'U',
-        is_living: is_living ?? 1,
-        is_private: is_private ?? 0,
+        is_living: toSqliteBool(is_living, 1),
+        is_private: toSqliteBool(is_private, 0),
         notes,
         display_name,
         created_by: req.user!.userId,
@@ -138,7 +139,7 @@ peopleRouter.post(
             surname: nameData.surname,
             suffix: nameData.suffix,
             nickname: nameData.nickname,
-            is_primary: nameData.is_primary,
+            is_primary: toSqliteBool(nameData.is_primary, 0),
           });
           addedNames.push(name);
         }
@@ -185,7 +186,15 @@ peopleRouter.put(
       const { sex, is_living, is_private, notes, display_name } = req.body;
       const id = paramStr(req.params.id);
 
-      const person = repo.update(id, { sex, is_living, is_private, notes, display_name });
+      const person = repo.update(id, {
+        sex,
+        // Coerced only when present: an absent flag must still mean "unchanged"
+        // rather than being reset to a default.
+        ...(is_living !== undefined ? { is_living: toSqliteBool(is_living, 1) } : {}),
+        ...(is_private !== undefined ? { is_private: toSqliteBool(is_private, 0) } : {}),
+        notes,
+        display_name,
+      });
       if (!person) {
         res.status(404).json({ error: 'Person not found' });
         return;
@@ -304,7 +313,8 @@ peopleRouter.post(
       }
 
       const { name_type, given_name, middle_name, surname, prefix, suffix, nickname, is_primary } = req.body;
-      const name = repo.addName(personId, { name_type, given_name, middle_name, surname, prefix, suffix, nickname, is_primary });
+      const isPrimary = is_primary !== undefined ? toSqliteBool(is_primary, 0) : undefined;
+      const name = repo.addName(personId, { name_type, given_name, middle_name, surname, prefix, suffix, nickname, is_primary: isPrimary });
       res.status(201).json(name);
     } catch (error) {
       res.status(500).json({ error: 'Failed to add name' });
@@ -335,7 +345,8 @@ peopleRouter.put(
       }
 
       const { name_type, given_name, middle_name, surname, prefix, suffix, nickname, is_primary } = req.body;
-      const updated = repo.updateName(nameId, { name_type, given_name, middle_name, surname, prefix, suffix, nickname, is_primary });
+      const isPrimary = is_primary !== undefined ? toSqliteBool(is_primary, 0) : undefined;
+      const updated = repo.updateName(nameId, { name_type, given_name, middle_name, surname, prefix, suffix, nickname, is_primary: isPrimary });
       res.json(updated);
     } catch (error) {
       res.status(500).json({ error: 'Failed to update name' });

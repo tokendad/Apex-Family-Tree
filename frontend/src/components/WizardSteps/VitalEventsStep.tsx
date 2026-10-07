@@ -131,19 +131,29 @@ const VitalEventsStep: React.FC<VitalEventsStepProps> = ({ data, onChange, editP
         onEventChange={handleEventChange}
         onRemoveEvent={handleRemoveEvent}
       />
+      {/* Marriage sits with the other additional events rather than in its own
+          section: it is one more thing that can be recorded here, not a
+          separate category. */}
       <div className={styles.marriageSection}>
-        <div className={styles.marriageSectionHeader}>
-          <h4 className={styles.sectionTitle}>Marriage</h4>
-          <button
-            type="button"
-            className={styles.addMarriageBtn}
-            onClick={handleAddMarriage}
-            disabled={!editPersonId}
-            title={!editPersonId ? 'Save the person first, then add the marriage' : undefined}
-          >
-            + Add Marriage
-          </button>
-        </div>
+        <button
+          type="button"
+          className={styles.addMarriageBtn}
+          onClick={handleAddMarriage}
+          disabled={!editPersonId}
+        >
+          + Add Marriage
+        </button>
+
+        {/* A title attribute on a disabled button never appears, because
+            disabled elements do not fire mouse events — so the reason it is
+            unavailable has to be rendered. */}
+        {!editPersonId && (
+          <p className={styles.marriageHint}>
+            A marriage links two people, so this becomes available once this person
+            has been saved. Finish adding them, then reopen to record it.
+          </p>
+        )}
+
         {marriageChips.map((chip, i) => (
           <span key={i} className={styles.marriageChip}>
             {chip}

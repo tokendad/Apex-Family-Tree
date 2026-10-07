@@ -362,6 +362,7 @@ const TreePage: React.FC = () => {
         totalSteps={wizard.totalSteps}
         isDirty={wizard.isDirty}
         isSaving={wizard.isSaving}
+        error={wizard.errors.submit ?? null}
         onClose={closeWizard}
         onBack={wizard.goBack}
         onNext={wizard.goNext}

@@ -189,13 +189,21 @@ export function usePersonWizard(options: UsePersonWizardOptions = {}) {
 
       let personId = editPersonId;
 
+      // Report what the server actually said. Swallowing the response body
+      // meant a failed save surfaced as nothing at all.
+      const describeFailure = async (res: Response, fallback: string) => {
+        const body = await res.json().catch(() => null) as { error?: string } | null;
+        return body?.error ? `${fallback}: ${body.error}` : `${fallback} (HTTP ${res.status})`;
+      };
+
       if (isEditMode && personId) {
-        await fetch(`/api/v1/people/${personId}`, {
+        const res = await fetch(`/api/v1/people/${personId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify(personPayload),
         });
+        if (!res.ok) throw new Error(await describeFailure(res, 'Could not save this person'));
       } else {
         const res = await fetch('/api/v1/people', {
           method: 'POST',
@@ -203,13 +211,12 @@ export function usePersonWizard(options: UsePersonWizardOptions = {}) {
           credentials: 'include',
           body: JSON.stringify(personPayload),
         });
-        if (res.ok) {
-          const created = await res.json();
-          personId = created.id;
-        }
+        if (!res.ok) throw new Error(await describeFailure(res, 'Could not create this person'));
+        const created = await res.json();
+        personId = created.id;
       }
 
-      if (!personId) throw new Error('Failed to create/update person');
+      if (!personId) throw new Error('The server did not return an id for the new person');
 
       // 2. Create name record
       if (data.prefix || data.givenName || data.middleName || data.surname || data.suffix || data.nickname) {

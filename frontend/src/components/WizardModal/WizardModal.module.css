@@ -106,3 +106,15 @@
     transform: translate(-50%, -50%) scale(1);
   }
 }
+
+/* Sits directly above the footer so it is adjacent to the Save button that
+   failed, rather than scrolled away at the top of a long step. */
+.errorBanner {
+  margin: 0 var(--space-5);
+  padding: var(--space-3);
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-md);
+  background: var(--color-error-bg, #fef2f2);
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+}

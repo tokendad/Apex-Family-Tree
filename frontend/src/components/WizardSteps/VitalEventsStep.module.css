@@ -86,3 +86,12 @@
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
 }
+
+/* Explains why Add Marriage is unavailable while creating a person. A title
+   attribute cannot do this job on a disabled control. */
+.marriageHint {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+}
