@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useCanvasStore } from '@/stores/canvasStore';
 import Avatar from '@/components/Avatar/Avatar';
 import Button from '@/components/Button/Button';
@@ -18,6 +18,14 @@ function sexLabel(sex: string): string {
   }
 }
 
+interface PanelMediaItem {
+  id: string;
+  title: string | null;
+  filename: string | null;
+  thumbnail_url?: string | null;
+  url?: string | null;
+}
+
 interface DetailPanelProps {
   /** Opens the person wizard in edit mode. Required, so the Edit button cannot
       silently do nothing the way it did when it had no handler at all. */
@@ -26,6 +34,33 @@ interface DetailPanelProps {
 
 const DetailPanel: React.FC<DetailPanelProps> = ({ onEditPerson }) => {
   const { selectedPersonId, nodes, families, setSelectedPerson } = useCanvasStore();
+  const [media, setMedia] = useState<PanelMediaItem[]>([]);
+  const [mediaLoading, setMediaLoading] = useState(false);
+
+  const loadMedia = useCallback(async (personId: string) => {
+    setMediaLoading(true);
+    try {
+      const res = await fetch(`/api/v1/media/people/${personId}/media`, { credentials: 'include' });
+      if (!res.ok) {
+        setMedia([]);
+        return;
+      }
+      setMedia(await res.json() as PanelMediaItem[]);
+    } catch {
+      // The panel is a summary; a media failure should not blank the rest of it.
+      setMedia([]);
+    } finally {
+      setMediaLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!selectedPersonId) {
+      setMedia([]);
+      return;
+    }
+    void loadMedia(selectedPersonId);
+  }, [selectedPersonId, loadMedia]);
 
   const selectedNode = nodes.find((n) => n.person.id === selectedPersonId);
   if (!selectedNode) return null;
@@ -143,9 +178,29 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ onEditPerson }) => {
 
         <div className={styles.section}>
           <span className={styles.sectionTitle}>Media</span>
+          {/* Previously a hardcoded "No media" placeholder, so a person with
+              photographs was still told they had none. */}
           <div className={styles.mediaGrid}>
-            <div className={styles.mediaPlaceholder}>No media</div>
+            {mediaLoading ? (
+              <div className={styles.mediaPlaceholder}>Loading…</div>
+            ) : media.length === 0 ? (
+              <div className={styles.mediaPlaceholder}>No media</div>
+            ) : (
+              media.slice(0, 6).map((item) => (
+                <img
+                  key={item.id}
+                  className={styles.mediaThumb}
+                  src={item.thumbnail_url ?? item.url ?? `/api/v1/media/${item.id}`}
+                  alt={item.title ?? item.filename ?? 'Media'}
+                  title={item.title ?? item.filename ?? undefined}
+                  loading="lazy"
+                />
+              ))
+            )}
           </div>
+          {media.length > 6 && (
+            <span className={styles.emptyRel}>+{media.length - 6} more</span>
+          )}
         </div>
       </div>
 
