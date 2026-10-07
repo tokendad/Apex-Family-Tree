@@ -255,24 +255,14 @@ const TreePage: React.FC = () => {
     setWizardOpen(true);
   }, [wizard]);
 
-  // The detail panel edits through PersonEditModal rather than the wizard: the
-  // wizard is a four-step creation flow, while the modal is built for changing
-  // one thing at a time and saves each section independently.
+  // Both edit routes — the detail panel and the tree's right-click menu — open
+  // PersonEditModal. The wizard is a four-step creation flow; the modal is built
+  // for changing one thing at a time and saves each section independently.
   const [editModalPersonId, setEditModalPersonId] = useState<string | null>(null);
 
   const openPersonEditor = useCallback((personId: string) => {
     setEditModalPersonId(personId);
   }, []);
-
-  const openEditWizard = useCallback(
-    (personId: string) => {
-      setEditPersonId(personId);
-      setPreLink(null);
-      wizard.reset();
-      setWizardOpen(true);
-    },
-    [wizard],
-  );
 
   const openPreLinkedWizard = useCallback(
     (personId: string, type: PreLinkedRelationship['type']) => {
@@ -353,7 +343,7 @@ const TreePage: React.FC = () => {
       <TreeCanvas onAddPerson={openCreateWizard} />
       <CanvasLegend />
       <ContextMenu
-        onEditPerson={openEditWizard}
+        onEditPerson={openPersonEditor}
         onAddParent={(id) => openPreLinkedWizard(id, 'parent')}
         onAddSpouse={(id) => openPreLinkedWizard(id, 'spouse')}
         onAddChild={(id) => openPreLinkedWizard(id, 'child')}
