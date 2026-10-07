@@ -18,7 +18,13 @@ function sexLabel(sex: string): string {
   }
 }
 
-const DetailPanel: React.FC = () => {
+interface DetailPanelProps {
+  /** Opens the person wizard in edit mode. Required, so the Edit button cannot
+      silently do nothing the way it did when it had no handler at all. */
+  onEditPerson: (personId: string) => void;
+}
+
+const DetailPanel: React.FC<DetailPanelProps> = ({ onEditPerson }) => {
   const { selectedPersonId, nodes, families, setSelectedPerson } = useCanvasStore();
 
   const selectedNode = nodes.find((n) => n.person.id === selectedPersonId);
@@ -147,7 +153,7 @@ const DetailPanel: React.FC = () => {
         <Button variant="ghost" size="sm" onClick={() => setSelectedPerson(null)}>
           Close
         </Button>
-        <Button variant="primary" size="sm">
+        <Button variant="primary" size="sm" onClick={() => onEditPerson(person.id)}>
           Edit
         </Button>
       </div>
