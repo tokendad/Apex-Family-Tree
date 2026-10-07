@@ -584,6 +584,7 @@ const PersonDetailPage: React.FC = () => {
             { id: 'timeline', label: 'Timeline', count: sortedEventsList.length },
             { id: 'artifacts', label: 'Artifacts', count: connectedArtifacts.length + media.length },
             { id: 'stories', label: 'Stories', count: connectedStories.length },
+            { id: 'collections', label: 'Collections', count: connectedCollections.length },
             { id: 'family', label: 'Family', count: relationships.length },
             { id: 'claims', label: 'Claims' },
           ]}
@@ -1010,6 +1011,35 @@ const PersonDetailPage: React.FC = () => {
                       className={styles.relPersonLink}
                     >
                       {story.title}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+
+          {activeTab === 'collections' && (
+            <section className={styles.section} aria-labelledby="collections-heading">
+              <h2 className={styles.sectionTitle} id="collections-heading">
+                Collections
+                {connectedCollections.length > 0 && (
+                  <span className={styles.countBadge}>{connectedCollections.length}</span>
+                )}
+              </h2>
+
+              {connectedObjectsLoading ? (
+                <div className={styles.skeletonLine} aria-hidden="true" />
+              ) : connectedCollections.length === 0 ? (
+                <p className={styles.noInfo}>No collections include this person yet.</p>
+              ) : (
+                <div className={styles.relPersonList}>
+                  {connectedCollections.map((collection) => (
+                    <Link
+                      key={`${collection.relationship_id}-${collection.object_id}`}
+                      to={`/collections/${collection.object_id}`}
+                      className={styles.relPersonLink}
+                    >
+                      {collection.title}
                     </Link>
                   ))}
                 </div>
