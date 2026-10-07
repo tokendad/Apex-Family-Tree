@@ -7,7 +7,7 @@ import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import PersonPicker from '@/components/entity-pickers/PersonPicker';
 import ActionDrawer from '@/components/archive-object/ActionDrawer';
-import ArchiveObjectLayout, { type ConnectedGroup } from '@/components/archive-object/ArchiveObjectLayout';
+import ArchiveObjectLayout from '@/components/archive-object/ArchiveObjectLayout';
 import { type ContextActionItem } from '@/components/archive-object/ContextActionsMenu';
 import { usePageActions } from '@/contexts/PageActionsContext';
 import type { PersonResult } from '@/components/PersonSearch/PersonSearch';
@@ -244,31 +244,6 @@ const ArtifactDetailPage: React.FC = () => {
         ? 'Add Transcript'
         : 'Record Provenance';
 
-  const connectedGroups: ConnectedGroup[] = [
-    {
-      id: 'people',
-      label: 'People',
-      items: connectedPeople.slice(0, 8).map((person) => ({
-        id: person.object_id,
-        title: person.title,
-        subtitle: person.relationship_type_name,
-        href: `/people/${person.object_id}`,
-        initials: person.title.slice(0, 2),
-      })),
-    },
-    {
-      id: 'claims',
-      label: 'Claims',
-      items: relatedClaims.slice(0, 8).map((claim) => ({
-        id: claim.id,
-        title: claim.statement,
-        subtitle: claim.confidence_level_name ?? claim.status,
-        href: `/claims/${claim.id}`,
-        initials: 'C',
-      })),
-    },
-  ];
-
   const contextActions: ContextActionItem[] = [
     {
       id: 'connect-person',
@@ -353,7 +328,6 @@ const ArtifactDetailPage: React.FC = () => {
                 setActiveTab(tabId);
                 if (tabId !== 'details') setEditMode(false);
               }}
-              connectedGroups={connectedGroups}
             >
               {activeTab === 'details' && (editMode ? (
                 <form className={styles.formCard} onSubmit={handleSave}>

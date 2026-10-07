@@ -4,7 +4,7 @@ import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
-import ArchiveObjectLayout, { type ConnectedGroup } from '@/components/archive-object/ArchiveObjectLayout';
+import ArchiveObjectLayout from '@/components/archive-object/ArchiveObjectLayout';
 import { type ContextActionItem } from '@/components/archive-object/ContextActionsMenu';
 import { usePageActions } from '@/contexts/PageActionsContext';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -159,20 +159,6 @@ const PlaceDetailPage: React.FC = () => {
     ? [place.locality, place.region, place.country].filter(Boolean).join(', ')
     : '';
 
-  const connectedGroups: ConnectedGroup[] = [
-    {
-      id: 'events',
-      label: 'Events',
-      items: connectedEvents.slice(0, 8).map((event) => ({
-        id: event.object_id,
-        title: event.title,
-        subtitle: event.summary ?? 'Occurred here',
-        href: `/events/${event.object_id}`,
-        initials: 'E',
-      })),
-    },
-  ].filter((group) => group.items.length > 0);
-
   return (
     <AppShell navbar={<Navbar />} context="places">
       <div className={styles.page}>
@@ -198,7 +184,6 @@ const PlaceDetailPage: React.FC = () => {
               ]}
               activeTab={activeTab}
               onTabChange={setActiveTab}
-              connectedGroups={connectedGroups}
             >
               {activeTab === 'overview' && (
                 <div className={styles.tabStack}>

@@ -142,9 +142,14 @@ describe('PersonDetailPage — archive layout', () => {
     expect(await screen.findByRole('link', { name: /the recipe box/i })).toBeInTheDocument();
   });
 
-  it('groups collections in the Connected To rail', async () => {
+  it('still counts collections now that the Connected To rail is gone', async () => {
     renderPage();
-    expect(await screen.findByText('Military Service')).toBeInTheDocument();
+
+    // The rail was the only place a person's collections were listed by name.
+    // Removing it keeps the count in the stat row but loses the list; a
+    // Collections tab would restore it. Tracked rather than silently dropped.
+    expect(await screen.findByText('Collections')).toBeInTheDocument();
+    expect(screen.queryByText('Connected To')).not.toBeInTheDocument();
   });
 });
 

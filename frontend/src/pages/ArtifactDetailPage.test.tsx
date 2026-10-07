@@ -109,7 +109,9 @@ describe('ArtifactDetailPage', () => {
 
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Family Letter' })).toBeInTheDocument());
 
-    expect(screen.getByLabelText('Connected archive objects')).toBeInTheDocument();
+    // Connections live in tabs rather than a side rail.
+    expect(screen.queryByLabelText('Connected archive objects')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /people/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^delete$/i })).not.toBeInTheDocument();
 
@@ -127,6 +129,11 @@ describe('ArtifactDetailPage', () => {
     renderPage();
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/v1/relationships/objects/artifact-1/connected'));
+
+    // The rail used to show these alongside the details; they now live behind
+    // the People tab, which is the only place they are listed.
+    fireEvent.click(await screen.findByRole('tab', { name: /people/i }));
+
     expect(await screen.findByText('Ada Lovelace')).toBeInTheDocument();
     expect(screen.getByText('Owned By')).toBeInTheDocument();
   });
