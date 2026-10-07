@@ -646,13 +646,23 @@ export class PersonRepository extends BaseRepository {
       'SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM names WHERE person_id = ?'
     ).get(personId) as { next: number };
 
+    // A person's first name is their primary name unless the caller says
+    // otherwise. Without this a person created through a flow that does not send
+    // is_primary — the add-person wizard, for one — ends up with no primary name
+    // at all. findById tolerates that by falling back to the first row, but the
+    // people list does not: its surname sort and keyset cursor both read
+    // `WHERE is_primary = 1` and silently get an empty string, which misplaces
+    // the person and corrupts pagination once there are enough of them.
+    const isFirstName = maxOrder.next === 0;
+    const isPrimary = data.is_primary ?? (isFirstName ? 1 : 0);
+
     this.db.prepare(
       'INSERT INTO names (id, person_id, name_type, prefix, given_name, middle_name, surname, suffix, nickname, is_primary, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(
       id, personId, data.name_type || 'birth',
       sanitizeNameField(data.prefix), sanitizeNameField(data.given_name), sanitizeNameField(data.middle_name),
       sanitizeNameField(data.surname), sanitizeNameField(data.suffix), sanitizeNameField(data.nickname),
-      data.is_primary ?? 0, maxOrder.next, now, now,
+      isPrimary, maxOrder.next, now, now,
     );
 
     this.refreshArchiveTitle(personId);
