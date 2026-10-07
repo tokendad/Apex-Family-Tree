@@ -131,5 +131,28 @@
     bottom: 0;
     z-index: var(--z-modal);
     box-shadow: var(--shadow-xl);
+    /* Never let the panel swallow the whole screen; leave enough of the page
+       visible that it reads as an overlay you can dismiss rather than as the
+       page itself. */
+    max-width: 82vw;
+  }
+
+  /* A 20px sliver is not a usable touch target. Widen it, keep it above the
+     overlaying sidebar, and make it look like a control rather than a stray
+     chevron on the canvas. */
+  .toggleBtn {
+    width: 44px;
+    height: 48px;
+    z-index: calc(var(--z-modal) + 1);
+    font-size: var(--font-size-lg);
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--color-border);
+    border-left: none;
+  }
+
+  /* When open, the sidebar is capped at 82vw, so the toggle follows that edge
+     instead of the fixed 260px the inline style assumes. */
+  .sidebar:not(.sidebarCollapsed) ~ .toggleBtn {
+    left: min(260px, 82vw) !important;
   }
 }

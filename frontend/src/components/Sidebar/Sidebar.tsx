@@ -13,7 +13,14 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ context = 'tree' }) => {
-  const [collapsed, setCollapsed] = useState(false);
+  // Start collapsed on small screens. The sidebar is 260px and becomes an
+  // overlay below 768px, so defaulting to open buried the page under it on a
+  // phone — two thirds of a 390px viewport — before the user had done anything.
+  // matchMedia is guarded because jsdom does not implement it.
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+    return window.matchMedia('(max-width: 768px)').matches;
+  });
   const [viewMode, setViewMode] = useState<ViewMode>('full');
   const { generations, setGenerations, nodes } = useCanvasStore();
 
@@ -82,9 +89,10 @@ const Sidebar: React.FC<SidebarProps> = ({ context = 'tree' }) => {
         className={styles.toggleBtn}
         onClick={() => setCollapsed((v) => !v)}
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        aria-expanded={!collapsed}
         style={{ left: collapsed ? 0 : 260 }}
       >
-        {collapsed ? '›' : '‹'}
+        <span aria-hidden="true">{collapsed ? '›' : '‹'}</span>
       </button>
     </>
   );
