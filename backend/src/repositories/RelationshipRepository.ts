@@ -10,6 +10,16 @@ import type {
   RelationshipTypeRole,
 } from '../types/relationship.js';
 
+export interface ConnectableRelationshipRole {
+  role: string;
+  allowed_object_types: string[];
+  is_required: boolean;
+}
+
+export interface ConnectableRelationshipType extends RelationshipType {
+  roles: ConnectableRelationshipRole[];
+}
+
 export class RelationshipRepository extends BaseRepository {
   private archiveObjects = new ArchiveObjectRepository();
 
@@ -21,12 +31,51 @@ export class RelationshipRepository extends BaseRepository {
    * the tree and family-union flows, not by hand-connecting two archive objects,
    * and offering them here would invite relationships the tree cannot render.
    */
-  findConnectableTypes(): RelationshipType[] {
-    return this.db.prepare(
+  findConnectableTypes(): ConnectableRelationshipType[] {
+    const types = this.db.prepare(
       `SELECT * FROM relationship_types
        WHERE category IS NULL OR category != 'genealogy'
        ORDER BY category ASC, sort_order ASC, name ASC`,
     ).all() as RelationshipType[];
+
+    // Each type defines its own role names and the object types each role
+    // accepts — depicts_event wants roles 'artifact' and 'event', while
+    // belongs_to_collection wants 'collection' and 'item'. A caller that
+    // guesses role names gets a validation error, so the roles ship with the
+    // type rather than being looked up separately.
+    const roleRows = this.db.prepare(
+      `SELECT relationship_type_id, role, allowed_object_type, is_required, sort_order
+       FROM relationship_type_roles
+       ORDER BY sort_order ASC, role ASC`,
+    ).all() as Array<{
+      relationship_type_id: string;
+      role: string;
+      allowed_object_type: string;
+      is_required: number;
+      sort_order: number;
+    }>;
+
+    const byType = new Map<string, Map<string, { role: string; allowed_object_types: string[]; is_required: boolean }>>();
+    for (const row of roleRows) {
+      if (!byType.has(row.relationship_type_id)) byType.set(row.relationship_type_id, new Map());
+      const roles = byType.get(row.relationship_type_id)!;
+      const existing = roles.get(row.role);
+      if (existing) {
+        existing.allowed_object_types.push(row.allowed_object_type);
+        existing.is_required = existing.is_required || row.is_required === 1;
+      } else {
+        roles.set(row.role, {
+          role: row.role,
+          allowed_object_types: [row.allowed_object_type],
+          is_required: row.is_required === 1,
+        });
+      }
+    }
+
+    return types.map((type) => ({
+      ...type,
+      roles: Array.from(byType.get(type.id)?.values() ?? []),
+    }));
   }
 
   findTypeByCode(code: string): RelationshipType | undefined {

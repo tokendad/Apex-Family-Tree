@@ -35,12 +35,53 @@ interface ArtifactRecord {
 interface ArtifactType { id: string; name: string }
 interface EvidenceClassification { id: string; name: string }
 
+interface RelationshipRole {
+  role: string;
+  allowed_object_types: string[];
+  is_required: boolean;
+}
+
 interface RelationshipTypeOption {
   id: string;
   code: string;
   name: string;
   category: string | null;
   description: string | null;
+  roles: RelationshipRole[];
+}
+
+/**
+ * Works out which role this artifact takes and which role the other object
+ * takes, for a given relationship type.
+ *
+ * Role names are per-type: depicts_event uses 'artifact' and 'event',
+ * belongs_to_collection uses 'collection' and 'item'. Guessing produces a
+ * validation error from the API, so the roles are derived from the type's own
+ * definition. The artifact claims the first role that accepts an artifact, and
+ * the other object takes a different remaining role.
+ */
+function resolveRoles(type: RelationshipTypeOption | undefined, targetType: string): {
+  artifactRole: string;
+  targetRole: string;
+} | null {
+  if (!type) return null;
+
+  const artifactRole = type.roles.find((role) => role.allowed_object_types.includes('artifact'));
+  const targetRole = type.roles.find(
+    (role) => role.role !== artifactRole?.role && role.allowed_object_types.includes(targetType),
+  );
+
+  if (!artifactRole || !targetRole) return null;
+  return { artifactRole: artifactRole.role, targetRole: targetRole.role };
+}
+
+/** Object types this relationship can attach an artifact to. */
+function allowedTargetTypes(type: RelationshipTypeOption | undefined): string[] {
+  if (!type) return [];
+  const artifactRole = type.roles.find((role) => role.allowed_object_types.includes('artifact'));
+  return type.roles
+    .filter((role) => role.role !== artifactRole?.role)
+    .flatMap((role) => role.allowed_object_types);
 }
 
 interface ConnectedObject {
@@ -230,12 +271,21 @@ const ArtifactDetailPage: React.FC = () => {
     if (res.ok) navigate('/artifacts');
   };
 
+  const selectedConnectType = relationshipTypes.find((type) => type.code === connectTypeCode);
+
   const handleConnect = async () => {
     if (!id || !connectTarget || !connectTypeCode) return;
     setIsConnecting(true);
     setConnectError(null);
     try {
-      const typeName = relationshipTypes.find((type) => type.code === connectTypeCode)?.name ?? connectTypeCode;
+      const type = relationshipTypes.find((option) => option.code === connectTypeCode);
+      const roles = resolveRoles(type, connectTarget.object_type);
+      if (!roles) {
+        throw new Error(
+          `A ${connectTarget.object_type} cannot be connected with "${type?.name ?? connectTypeCode}".`,
+        );
+      }
+      const typeName = type?.name ?? connectTypeCode;
       const res = await fetch('/api/v1/relationships', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -243,8 +293,8 @@ const ArtifactDetailPage: React.FC = () => {
           relationship_type_code: connectTypeCode,
           label: `${artifact?.title ?? 'Artifact'} — ${typeName} — ${connectTarget.title}`,
           members: [
-            { object_id: id, role: 'artifact' },
-            { object_id: connectTarget.id, role: 'subject' },
+            { object_id: id, role: roles.artifactRole },
+            { object_id: connectTarget.id, role: roles.targetRole },
           ],
         }),
       });
@@ -510,21 +560,19 @@ const ArtifactDetailPage: React.FC = () => {
       >
         {drawerMode === 'connect' ? (
           <div className={styles.connectBox}>
-            <ObjectPicker
-              label="What should this artifact be connected to?"
-              value={connectTarget}
-              excludeIds={connectedObjects.map((object) => object.object_id)}
-              onSelect={setConnectTarget}
-              onClear={() => setConnectTarget(null)}
-            />
-
+            {/* Relationship first: it determines which kinds of object are
+                valid, so choosing it narrows the search rather than letting the
+                user pick something the relationship cannot accept. */}
             <label className={styles.connectLabel} htmlFor="connect-type">
               How are they related?
             </label>
             <select
               id="connect-type"
               value={connectTypeCode}
-              onChange={(event) => setConnectTypeCode(event.target.value)}
+              onChange={(event) => {
+                setConnectTypeCode(event.target.value);
+                setConnectTarget(null);
+              }}
             >
               <option value="">Choose a relationship…</option>
               {relationshipTypes.map((type) => (
@@ -533,10 +581,19 @@ const ArtifactDetailPage: React.FC = () => {
                 </option>
               ))}
             </select>
+            {selectedConnectType?.description && (
+              <p className={styles.muted}>{selectedConnectType.description}</p>
+            )}
+
             {connectTypeCode && (
-              <p className={styles.muted}>
-                {relationshipTypes.find((type) => type.code === connectTypeCode)?.description}
-              </p>
+              <ObjectPicker
+                label="What should this artifact be connected to?"
+                objectTypes={allowedTargetTypes(selectedConnectType)}
+                value={connectTarget}
+                excludeIds={connectedObjects.map((object) => object.object_id)}
+                onSelect={setConnectTarget}
+                onClear={() => setConnectTarget(null)}
+              />
             )}
 
             {connectError && <div className={styles.error}>{connectError}</div>}

@@ -19,8 +19,8 @@ export interface ArchiveObjectResult {
 
 interface ObjectPickerProps {
   label: string;
-  /** Restrict results to one kind of object. Omit to search everything. */
-  objectType?: ArchiveObjectType;
+  /** Restrict results to these kinds of object. Omit to search everything. */
+  objectTypes?: string[];
   /** Objects already connected, so they can be marked rather than offered again. */
   excludeIds?: string[];
   value: ArchiveObjectResult | null;
@@ -38,7 +38,7 @@ interface ObjectPickerProps {
  */
 const ObjectPicker: React.FC<ObjectPickerProps> = ({
   label,
-  objectType,
+  objectTypes,
   excludeIds = [],
   value,
   onSelect,
@@ -68,7 +68,9 @@ const ObjectPicker: React.FC<ObjectPickerProps> = ({
       if (requestId !== requestRef.current) return;
 
       setResults(
-        json.data.filter((row) => (objectType ? row.object_type === objectType : true)),
+        json.data.filter((row) =>
+          objectTypes && objectTypes.length > 0 ? objectTypes.includes(row.object_type) : true,
+        ),
       );
     } catch (err) {
       if (requestId !== requestRef.current) return;
@@ -76,7 +78,7 @@ const ObjectPicker: React.FC<ObjectPickerProps> = ({
     } finally {
       if (requestId === requestRef.current) setIsSearching(false);
     }
-  }, [objectType]);
+  }, [objectTypes]);
 
   // Debounced so typing does not fire a request per keystroke; the search
   // endpoint rebuilds its index on each call.
@@ -107,7 +109,7 @@ const ObjectPicker: React.FC<ObjectPickerProps> = ({
       <Input
         id="object-picker-search"
         value={query}
-        placeholder={objectType ? `Search ${objectType}s…` : 'Search the archive…'}
+        placeholder={objectTypes?.length === 1 ? `Search ${objectTypes[0]}s…` : 'Search the archive…'}
         onChange={(event) => setQuery(event.target.value)}
       />
 

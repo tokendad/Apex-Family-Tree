@@ -43,9 +43,8 @@ const artifact = {
 
 const fetchMock = vi.fn();
 
-beforeEach(() => {
-  vi.clearAllMocks();
-  fetchMock.mockImplementation((url: string) => {
+/** Default responses for the page's own loads; tests override selectively. */
+function baseFetch(url: string): Promise<unknown> {
     if (url === '/api/v1/artifacts/artifact-1') {
       return Promise.resolve({ ok: true, json: async () => artifact });
     }
@@ -80,8 +79,28 @@ beforeEach(() => {
         ok: true,
         json: async () => ({
           data: [
-            { id: 'rel_type_depicts_event', code: 'depicts_event', name: 'Depicts Event', category: 'event', description: 'A photo taken at an event' },
-            { id: 'rel_type_appears_in', code: 'appears_in', name: 'Appears In', category: 'artifact', description: null },
+            {
+              id: 'rel_type_depicts_event',
+              code: 'depicts_event',
+              name: 'Depicts Event',
+              category: 'event',
+              description: 'A photo taken at an event',
+              roles: [
+                { role: 'artifact', allowed_object_types: ['artifact'], is_required: true },
+                { role: 'event', allowed_object_types: ['event'], is_required: true },
+              ],
+            },
+            {
+              id: 'rel_type_appears_in',
+              code: 'appears_in',
+              name: 'Appears In',
+              category: 'artifact',
+              description: null,
+              roles: [
+                { role: 'artifact', allowed_object_types: ['artifact'], is_required: true },
+                { role: 'subject', allowed_object_types: ['person'], is_required: true },
+              ],
+            },
           ],
         }),
       });
@@ -90,7 +109,11 @@ beforeEach(() => {
       return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
     }
     return Promise.resolve({ ok: false, json: async () => ({}) });
-  });
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  fetchMock.mockImplementation((url: string) => baseFetch(url));
   global.fetch = fetchMock;
 });
 
@@ -162,8 +185,16 @@ describe('ArtifactDetailPage', () => {
     // The old form could only attach a person, always as 'appears_in'. Both the
     // target and the kind of relationship are now chosen explicitly, which is
     // what lets an artifact depict an event or document a record.
-    expect(screen.getByLabelText(/what should this artifact be connected to/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/how are they related/i)).toBeInTheDocument();
+    const typeSelect = screen.getByLabelText(/how are they related/i);
+    expect(typeSelect).toBeInTheDocument();
+
+    // The relationship is chosen first, because it decides which object types
+    // are valid — so the picker only appears once one is selected.
+    expect(screen.queryByLabelText(/what should this artifact be connected to/i)).not.toBeInTheDocument();
+
+    fireEvent.change(typeSelect, { target: { value: 'depicts_event' } });
+
+    expect(await screen.findByLabelText(/what should this artifact be connected to/i)).toBeInTheDocument();
   });
 
   it('requires confirmation before removing a connection', async () => {
@@ -208,5 +239,57 @@ describe('ArtifactDetailPage', () => {
     // always wrote 'appears_in'.
     expect(within(select).getByRole('option', { name: 'Depicts Event' })).toBeInTheDocument();
     expect(within(select).getByRole('option', { name: 'Appears In' })).toBeInTheDocument();
+  });
+
+  it('sends the role names the chosen relationship defines', async () => {
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (url === '/api/v1/search?q=funeral&limit=50') {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            data: [{ id: 'event-1', object_type: 'event', title: 'Grandpa funeral', summary: null }],
+          }),
+        });
+      }
+      if (url === '/api/v1/relationships' && init?.method === 'POST') {
+        return Promise.resolve({ ok: true, json: async () => ({ id: 'rel-new' }) });
+      }
+      return baseFetch(url);
+    });
+
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /actions/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /actions/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /^connect\b/i }));
+
+    fireEvent.change(await screen.findByLabelText(/how are they related/i), {
+      target: { value: 'depicts_event' },
+    });
+    fireEvent.change(await screen.findByLabelText(/what should this artifact be connected to/i), {
+      target: { value: 'funeral' },
+    });
+    fireEvent.click(await screen.findByRole('option', { name: /Grandpa funeral/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^connect$/i }));
+
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(
+        (call) => call[0] === '/api/v1/relationships' && (call[1] as RequestInit | undefined)?.method === 'POST'
+      );
+      expect(post).toBeTruthy();
+      const body = JSON.parse(String((post?.[1] as RequestInit).body)) as {
+        relationship_type_code: string;
+        members: Array<{ object_id: string; role: string }>;
+      };
+
+      // depicts_event defines roles 'artifact' and 'event'. Sending a generic
+      // 'subject' here is rejected by the API with
+      // "role subject does not allow object type event".
+      expect(body.relationship_type_code).toBe('depicts_event');
+      expect(body.members).toEqual([
+        { object_id: 'artifact-1', role: 'artifact' },
+        { object_id: 'event-1', role: 'event' },
+      ]);
+    });
   });
 });
