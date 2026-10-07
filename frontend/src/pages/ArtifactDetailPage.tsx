@@ -5,13 +5,14 @@ import Navbar from '@/components/Navbar/Navbar';
 import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
-import PersonPicker from '@/components/entity-pickers/PersonPicker';
 import ActionDrawer from '@/components/archive-object/ActionDrawer';
 import ArchiveObjectLayout from '@/components/archive-object/ArchiveObjectLayout';
 import { type ContextActionItem } from '@/components/archive-object/ContextActionsMenu';
 import { usePageActions } from '@/contexts/PageActionsContext';
-import type { PersonResult } from '@/components/PersonSearch/PersonSearch';
 import { usePermissions } from '@/hooks/usePermissions';
+import ObjectPicker from '@/components/entity-pickers/ObjectPicker';
+import type { ArchiveObjectResult } from '@/components/entity-pickers/ObjectPicker';
+import { objectPath } from '@/utils/objectPath';
 import styles from './ArtifactsPage.module.css';
 
 interface ArtifactRecord {
@@ -33,6 +34,55 @@ interface ArtifactRecord {
 
 interface ArtifactType { id: string; name: string }
 interface EvidenceClassification { id: string; name: string }
+
+interface RelationshipRole {
+  role: string;
+  allowed_object_types: string[];
+  is_required: boolean;
+}
+
+interface RelationshipTypeOption {
+  id: string;
+  code: string;
+  name: string;
+  category: string | null;
+  description: string | null;
+  roles: RelationshipRole[];
+}
+
+/**
+ * Works out which role this artifact takes and which role the other object
+ * takes, for a given relationship type.
+ *
+ * Role names are per-type: depicts_event uses 'artifact' and 'event',
+ * belongs_to_collection uses 'collection' and 'item'. Guessing produces a
+ * validation error from the API, so the roles are derived from the type's own
+ * definition. The artifact claims the first role that accepts an artifact, and
+ * the other object takes a different remaining role.
+ */
+function resolveRoles(type: RelationshipTypeOption | undefined, targetType: string): {
+  artifactRole: string;
+  targetRole: string;
+} | null {
+  if (!type) return null;
+
+  const artifactRole = type.roles.find((role) => role.allowed_object_types.includes('artifact'));
+  const targetRole = type.roles.find(
+    (role) => role.role !== artifactRole?.role && role.allowed_object_types.includes(targetType),
+  );
+
+  if (!artifactRole || !targetRole) return null;
+  return { artifactRole: artifactRole.role, targetRole: targetRole.role };
+}
+
+/** Object types this relationship can attach an artifact to. */
+function allowedTargetTypes(type: RelationshipTypeOption | undefined): string[] {
+  if (!type) return [];
+  const artifactRole = type.roles.find((role) => role.allowed_object_types.includes('artifact'));
+  return type.roles
+    .filter((role) => role.role !== artifactRole?.role)
+    .flatMap((role) => role.allowed_object_types);
+}
 
 interface ConnectedObject {
   relationship_id: string;
@@ -109,14 +159,20 @@ const ArtifactDetailPage: React.FC = () => {
   const [artifactTypes, setArtifactTypes] = useState<ArtifactType[]>([]);
   const [evidenceClassifications, setEvidenceClassifications] = useState<EvidenceClassification[]>([]);
   const [form, setForm] = useState<ArtifactForm | null>(null);
-  const [connectedPeople, setConnectedPeople] = useState<ConnectedObject[]>([]);
+  const [connectedObjects, setConnectedObjects] = useState<ConnectedObject[]>([]);
+  const [relationshipTypes, setRelationshipTypes] = useState<RelationshipTypeOption[]>([]);
+  const [connectTarget, setConnectTarget] = useState<ArchiveObjectResult | null>(null);
+  const [connectTypeCode, setConnectTypeCode] = useState('');
+  // Removal is two-step rather than immediate: a relationship carries
+  // provenance, and the API hard-deletes it with no undo.
+  const [pendingRemoval, setPendingRemoval] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
   const [relatedClaims, setRelatedClaims] = useState<RelatedClaim[]>([]);
-  const [selectedPerson, setSelectedPerson] = useState<PersonResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [activeTab, setActiveTab] = useState('details');
-  const [drawerMode, setDrawerMode] = useState<'connect-person' | 'add-claim' | 'add-transcript' | 'record-provenance' | null>(null);
+  const [drawerMode, setDrawerMode] = useState<'connect' | 'add-claim' | 'add-transcript' | 'record-provenance' | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -148,13 +204,22 @@ const ArtifactDetailPage: React.FC = () => {
     }
   }, [id]);
 
-  const loadConnectedPeople = useCallback(async () => {
+  const loadConnectedObjects = useCallback(async () => {
     if (!id) return;
     const res = await fetch(`/api/v1/relationships/objects/${id}/connected`);
     if (!res.ok) return;
     const json = await res.json() as { data: ConnectedObject[] };
-    setConnectedPeople(json.data.filter((object) => object.object_type === 'person'));
+    // Everything connected, not just people — an artifact belongs to events,
+    // places, stories and collections as much as to the people in it.
+    setConnectedObjects(json.data);
   }, [id]);
+
+  const loadRelationshipTypes = useCallback(async () => {
+    const res = await fetch('/api/v1/relationships/types');
+    if (!res.ok) return;
+    const json = await res.json() as { data: RelationshipTypeOption[] };
+    setRelationshipTypes(json.data);
+  }, []);
 
   const loadRelatedClaims = useCallback(async () => {
     if (!id) return;
@@ -169,8 +234,9 @@ const ArtifactDetailPage: React.FC = () => {
   }, [loadArtifact]);
 
   useEffect(() => {
-    void loadConnectedPeople();
-  }, [loadConnectedPeople]);
+    void loadConnectedObjects();
+    void loadRelationshipTypes();
+  }, [loadConnectedObjects, loadRelationshipTypes]);
 
   useEffect(() => {
     void loadRelatedClaims();
@@ -205,38 +271,63 @@ const ArtifactDetailPage: React.FC = () => {
     if (res.ok) navigate('/artifacts');
   };
 
-  const handleConnectPerson = async () => {
-    if (!id || !selectedPerson) return;
+  const selectedConnectType = relationshipTypes.find((type) => type.code === connectTypeCode);
+
+  const handleConnect = async () => {
+    if (!id || !connectTarget || !connectTypeCode) return;
     setIsConnecting(true);
     setConnectError(null);
     try {
+      const type = relationshipTypes.find((option) => option.code === connectTypeCode);
+      const roles = resolveRoles(type, connectTarget.object_type);
+      if (!roles) {
+        throw new Error(
+          `A ${connectTarget.object_type} cannot be connected with "${type?.name ?? connectTypeCode}".`,
+        );
+      }
+      const typeName = type?.name ?? connectTypeCode;
       const res = await fetch('/api/v1/relationships', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          relationship_type_code: 'appears_in',
-          label: `${selectedPerson.displayName ?? selectedPerson.display_name ?? selectedPerson.given_name ?? 'Person'} appears in ${artifact?.title ?? 'artifact'}`,
+          relationship_type_code: connectTypeCode,
+          label: `${artifact?.title ?? 'Artifact'} — ${typeName} — ${connectTarget.title}`,
           members: [
-            { object_id: selectedPerson.id, role: 'subject' },
-            { object_id: id, role: 'artifact' },
+            { object_id: id, role: roles.artifactRole },
+            { object_id: connectTarget.id, role: roles.targetRole },
           ],
         }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null) as { error?: string } | null;
-        throw new Error(body?.error ?? 'Failed to connect person');
+        throw new Error(body?.error ?? 'Failed to connect');
       }
-      setSelectedPerson(null);
+
+      setConnectTarget(null);
+      setConnectTypeCode('');
       setDrawerMode(null);
-      await loadConnectedPeople();
+      await loadConnectedObjects();
     } catch (err) {
-      setConnectError(err instanceof Error ? err.message : 'Failed to connect person');
+      setConnectError(err instanceof Error ? err.message : 'Failed to connect');
     } finally {
       setIsConnecting(false);
     }
   };
 
-  const drawerTitle = drawerMode === 'connect-person'
+  const handleRemoveConnection = async (relationshipId: string) => {
+    setRemoveError(null);
+    try {
+      const res = await fetch(`/api/v1/relationships/${relationshipId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to remove connection');
+      setPendingRemoval(null);
+      await loadConnectedObjects();
+    } catch (err) {
+      setRemoveError(err instanceof Error ? err.message : 'Failed to remove connection');
+    }
+  };
+
+
+  const drawerTitle = drawerMode === 'connect'
     ? 'Connect Person'
     : drawerMode === 'add-claim'
       ? 'Add Claim'
@@ -246,11 +337,11 @@ const ArtifactDetailPage: React.FC = () => {
 
   const contextActions: ContextActionItem[] = [
     {
-      id: 'connect-person',
-      label: 'Connect Person',
-      description: 'Link a person to this artifact',
+      id: 'connect',
+      label: 'Connect',
+      description: 'Link this artifact to a person, event, place, story or collection',
       disabled: !canEdit,
-      onSelect: () => setDrawerMode('connect-person'),
+      onSelect: () => setDrawerMode('connect'),
     },
     {
       id: 'edit-artifact',
@@ -315,13 +406,13 @@ const ArtifactDetailPage: React.FC = () => {
               summary={artifact.summary}
               avatar={<span>{artifact.artifact_type_name.slice(0, 2).toUpperCase()}</span>}
               stats={[
-                { label: 'People', value: connectedPeople.length },
+                { label: 'Connections', value: connectedObjects.length },
                 { label: 'Claims', value: relatedClaims.length },
                 { label: 'Type', value: artifact.artifact_type_name },
               ]}
               tabs={[
                 { id: 'details', label: 'Details' },
-                { id: 'people', label: 'People', count: connectedPeople.length },
+                { id: 'connections', label: 'Connections', count: connectedObjects.length },
                 { id: 'claims', label: 'Claims', count: relatedClaims.length },
               ]}
               activeTab={activeTab}
@@ -380,21 +471,56 @@ const ArtifactDetailPage: React.FC = () => {
                 </section>
               ))}
 
-              {activeTab === 'people' && (
+              {activeTab === 'connections' && (
                 <section className={styles.detailCard}>
                   <div className={styles.sectionTitleRow}>
-                    <h2>Connected People</h2>
-                    {connectedPeople.length > 0 && <span className={styles.cardType}>{connectedPeople.length}</span>}
+                    <h2>Connections</h2>
+                    {connectedObjects.length > 0 && <span className={styles.cardType}>{connectedObjects.length}</span>}
                   </div>
-                  {connectedPeople.length === 0 ? (
-                    <p className={styles.muted}>No people connected to this artifact yet.</p>
+
+                  {removeError && <div className={styles.error}>{removeError}</div>}
+
+                  {connectedObjects.length === 0 ? (
+                    <p className={styles.muted}>
+                      Nothing connected yet. Use Actions &rarr; Connect to link this artifact to the
+                      people in it, the event it depicts, or a collection it belongs to.
+                    </p>
                   ) : (
                     <div className={styles.connectedList}>
-                      {connectedPeople.map((person) => (
-                        <Link key={`${person.relationship_id}-${person.object_id}`} to={`/people/${person.object_id}`} className={styles.connectedItem}>
-                          <strong>{person.title}</strong>
-                          <span>{person.relationship_type_name}</span>
-                        </Link>
+                      {connectedObjects.map((object) => (
+                        <div key={object.relationship_id} className={styles.connectedItem}>
+                          <Link to={objectPath(object.object_type, object.object_id)}>
+                            <strong>{object.title}</strong>
+                          </Link>
+                          <span>
+                            {object.relationship_type_name} &middot; {object.object_type}
+                          </span>
+
+                          {canEdit && (
+                            pendingRemoval === object.relationship_id ? (
+                              <span className={styles.confirmRow}>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => void handleRemoveConnection(object.relationship_id)}
+                                >
+                                  Confirm removal
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => setPendingRemoval(null)}>
+                                  Cancel
+                                </Button>
+                              </span>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setPendingRemoval(object.relationship_id)}
+                              >
+                                Remove
+                              </Button>
+                            )
+                          )}
+                        </div>
                       ))}
                     </div>
                   )}
@@ -429,19 +555,55 @@ const ArtifactDetailPage: React.FC = () => {
       <ActionDrawer
         open={drawerMode !== null}
         title={drawerTitle}
-        description={drawerMode === 'connect-person' ? 'Link this artifact to a person through the relationship engine.' : 'This action is part of the shared artifact command surface.'}
+        description={drawerMode === 'connect' ? 'Link this artifact to another object in the archive.' : 'This action is part of the shared artifact command surface.'}
         onClose={() => setDrawerMode(null)}
       >
-        {drawerMode === 'connect-person' ? (
+        {drawerMode === 'connect' ? (
           <div className={styles.connectBox}>
-            <PersonPicker
-              label="Connect a person who appears in this artifact"
-              value={selectedPerson?.id ?? null}
-              onSelect={setSelectedPerson}
-              onClear={() => setSelectedPerson(null)}
-            />
+            {/* Relationship first: it determines which kinds of object are
+                valid, so choosing it narrows the search rather than letting the
+                user pick something the relationship cannot accept. */}
+            <label className={styles.connectLabel} htmlFor="connect-type">
+              How are they related?
+            </label>
+            <select
+              id="connect-type"
+              value={connectTypeCode}
+              onChange={(event) => {
+                setConnectTypeCode(event.target.value);
+                setConnectTarget(null);
+              }}
+            >
+              <option value="">Choose a relationship…</option>
+              {relationshipTypes.map((type) => (
+                <option key={type.id} value={type.code}>
+                  {type.name}
+                </option>
+              ))}
+            </select>
+            {selectedConnectType?.description && (
+              <p className={styles.muted}>{selectedConnectType.description}</p>
+            )}
+
+            {connectTypeCode && (
+              <ObjectPicker
+                label="What should this artifact be connected to?"
+                objectTypes={allowedTargetTypes(selectedConnectType)}
+                value={connectTarget}
+                excludeIds={connectedObjects.map((object) => object.object_id)}
+                onSelect={setConnectTarget}
+                onClear={() => setConnectTarget(null)}
+              />
+            )}
+
             {connectError && <div className={styles.error}>{connectError}</div>}
-            <Button onClick={handleConnectPerson} loading={isConnecting} disabled={!selectedPerson}>Connect Person</Button>
+            <Button
+              onClick={handleConnect}
+              loading={isConnecting}
+              disabled={!connectTarget || !connectTypeCode}
+            >
+              Connect
+            </Button>
           </div>
         ) : (
           <div className={styles.connectBox}>

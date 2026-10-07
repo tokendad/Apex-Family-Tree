@@ -1,4 +1,5 @@
 import React, { FormEvent, useCallback, useEffect, useState } from 'react';
+import { objectPath } from '@/utils/objectPath';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
@@ -26,16 +27,6 @@ interface ClaimRecord {
   notes: string | null;
   subjects: ClaimSubject[];
   evidence: ClaimEvidence[];
-}
-
-function objectPath(type: string, id: string): string {
-  if (type === 'person') return `/people/${id}`;
-  if (type === 'artifact') return `/artifacts/${id}`;
-  if (type === 'event') return `/events/${id}`;
-  if (type === 'place') return `/places/${id}`;
-  if (type === 'collection') return `/collections/${id}`;
-  if (type === 'claim') return `/claims/${id}`;
-  return '#';
 }
 
 function formFromClaim(claim: ClaimRecord) {

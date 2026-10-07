@@ -84,6 +84,8 @@ function seedDB(database: Database.Database) {
   database.prepare('INSERT INTO artifacts (id, artifact_type_id) VALUES (?, ?)').run('artifact-1', 'artifact_type_photo');
   database.prepare('INSERT INTO relationship_types (id, code, name) VALUES (?, ?, ?)').run('rel_type_appears_in', 'appears_in', 'Appears In');
   database.prepare('INSERT INTO relationship_types (id, code, name) VALUES (?, ?, ?)').run('rel_type_identified_by', 'identified_by', 'Identified By');
+  database.prepare('INSERT INTO relationship_types (id, code, name, category) VALUES (?, ?, ?, ?)')
+    .run('rel_type_bio_parent', 'biological_parent_of', 'Biological Parent Of', 'genealogy');
   database.prepare(`
     INSERT INTO relationship_type_roles (id, relationship_type_id, role, allowed_object_type, min_count, max_count, sort_order, is_required)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -204,5 +206,18 @@ describe('RelationshipRepository and RelationshipService', () => {
         artifact_type_name: 'Photo',
       },
     ]);
+  });
+
+  it('offers connectable types but not genealogy ones', () => {
+    const repo = new RelationshipRepository();
+
+    const codes = repo.findConnectableTypes().map((type) => type.code);
+
+    expect(codes).toContain('appears_in');
+    expect(codes).toContain('identified_by');
+    // Parent/child and spouse links come from the tree and family-union flows.
+    // Offering them when hand-connecting two archive objects would invite
+    // relationships the tree cannot render.
+    expect(codes).not.toContain('biological_parent_of');
   });
 });

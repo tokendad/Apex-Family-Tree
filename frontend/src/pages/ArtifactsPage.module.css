@@ -422,3 +422,15 @@
   flex-direction: column;
   gap: var(--space-4);
 }
+
+.connectLabel {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.confirmRow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}

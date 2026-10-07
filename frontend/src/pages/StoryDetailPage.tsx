@@ -1,4 +1,5 @@
 import React, { FormEvent, ReactNode, useCallback, useEffect, useState } from 'react';
+import { objectPath } from '@/utils/objectPath';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
@@ -21,17 +22,6 @@ interface StoryRecord {
   date_text: string | null;
   notes: string | null;
   connected_objects: ConnectedObject[];
-}
-
-function objectPath(type: string, id: string): string {
-  if (type === 'person') return `/people/${id}`;
-  if (type === 'artifact') return `/artifacts/${id}`;
-  if (type === 'event') return `/events/${id}`;
-  if (type === 'place') return `/places/${id}`;
-  if (type === 'collection') return `/collections/${id}`;
-  if (type === 'claim') return `/claims/${id}`;
-  if (type === 'story') return `/stories/${id}`;
-  return '#';
 }
 
 function formFromStory(story: StoryRecord) {
