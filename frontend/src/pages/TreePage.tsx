@@ -310,7 +310,7 @@ const TreePage: React.FC = () => {
     <AppShell
       navbar={<Navbar />}
       sidebar={<Sidebar context="tree" />}
-      detail={<DetailPanel />}
+      detail={<DetailPanel onEditPerson={openEditWizard} />}
       showDetail={selectedPersonId !== null}
       context="tree"
     >
