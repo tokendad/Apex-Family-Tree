@@ -58,9 +58,11 @@ interface PersonSummary {
   id: string;
   displayName?: string | null;
   display_name?: string | null;
+  prefix?: string | null;
   given_name: string | null;
   middle_name?: string | null;
   surname: string | null;
+  suffix?: string | null;
 }
 
 interface ChildMember {
@@ -68,9 +70,11 @@ interface ChildMember {
   person_id: string;
   displayName?: string | null;
   display_name?: string | null;
+  prefix?: string | null;
   given_name: string | null;
   middle_name?: string | null;
   surname: string | null;
+  suffix?: string | null;
   role: ChildRole;
 }
 

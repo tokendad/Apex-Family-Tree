@@ -52,3 +52,38 @@ describe('getFamilyDisplayName', () => {
     expect(getFamilyDisplayName({ spouse1: null, spouse2: null })).toBe('Unknown Family');
   });
 });
+
+describe('getPersonDisplayName — prefix and suffix', () => {
+  // Regression: a father and son recorded as Sr and Jr rendered identically,
+  // so two distinct people looked like one duplicated card.
+  const senior = {
+    prefix: null,
+    given_name: 'Raymond',
+    middle_name: 'Earl',
+    surname: 'LeFort',
+    suffix: 'Sr',
+  };
+  const junior = { ...senior, suffix: 'Jr' };
+
+  it('distinguishes Sr from Jr', () => {
+    expect(getPersonDisplayName(senior)).toBe('Raymond Earl LeFort Sr');
+    expect(getPersonDisplayName(junior)).toBe('Raymond Earl LeFort Jr');
+    expect(getPersonDisplayName(senior)).not.toBe(getPersonDisplayName(junior));
+  });
+
+  it('includes a prefix', () => {
+    expect(getPersonDisplayName({ ...senior, prefix: 'Rev.', suffix: null })).toBe(
+      'Rev. Raymond Earl LeFort',
+    );
+  });
+
+  it('still prefers a backend-formatted displayName', () => {
+    expect(getPersonDisplayName({ ...senior, displayName: 'Ray LeFort Sr' })).toBe('Ray LeFort Sr');
+  });
+
+  it('omits absent parts without leaving gaps', () => {
+    expect(getPersonDisplayName({ given_name: 'Mabel', surname: 'Merandith' })).toBe(
+      'Mabel Merandith',
+    );
+  });
+});

@@ -6,7 +6,7 @@ import styles from './AdminSettingsPage.module.css';
 
 type Tab = 'instance' | 'smtp' | 'features';
 
-const DEFAULT_NAME_FORMAT = '%f %m %s';
+const DEFAULT_NAME_FORMAT = '%t %f %m %s %x';
 const SAMPLE_NAME = {
   prefix: 'Dr.',
   givenName: 'Jane',
