@@ -18,7 +18,7 @@ const events = [
   { id: 'e2', person_id: 'p1', family_id: null, event_type: 'occupation', event_date: '1982', event_place: null, description: 'Segment Treater' },
   { id: 'e3', person_id: 'p1', family_id: null, event_type: 'residence', event_date: '1930', event_place: 'Worcester', description: null },
   { id: 'e4', person_id: null, family_id: 'f1', event_type: 'marriage', event_date: '6 JUN 1945', event_place: null, description: null },
-  { id: 'e5', person_id: 'p2', family_id: null, event_type: 'military', event_date: '1942', event_place: null, description: null },
+  { id: 'e5', person_id: 'p2', family_id: null, event_type: 'military_service', event_date: '1942', event_place: null, description: null },
 ];
 
 beforeEach(() => {

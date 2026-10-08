@@ -119,6 +119,9 @@ const INDIVIDUAL_EVENT_TAGS: Record<string, string> = {
   PROB: 'probate',
   WILL: 'will',
   RETI: 'retirement',
+  // _MILT is the de-facto extension tag for military service; 5.5.1 has no
+  // standard one, and without this every service record is dropped on import.
+  _MILT: 'military_service',
   EVEN: 'other',
   OCCU: 'occupation',
   RESI: 'residence',

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ATTRIBUTE_TYPES,
+  EVENT_TYPE_LABELS,
   formatEventType,
   isAttributeType,
   partitionByKind,
@@ -31,7 +32,7 @@ describe('eventTypes', () => {
 
   it('humanizes unknown types instead of showing the raw key', () => {
     expect(formatEventType('birth')).toBe('Birth');
-    expect(formatEventType('military')).toBe('Military Service');
+    expect(formatEventType('military_service')).toBe('Military Service');
     expect(formatEventType('bar_mitzvah')).toBe('Bar Mitzvah');
   });
 
@@ -51,5 +52,35 @@ describe('eventTypes', () => {
     for (const type of ATTRIBUTE_TYPES) {
       expect(formatEventType(type)).not.toBe(type);
     }
+  });
+});
+
+describe('eventTypes — database agreement', () => {
+  // The picker used to offer 'military', which events.event_type's CHECK
+  // constraint rejects, so saving a military event failed outright.
+  const ALLOWED = new Set([
+    'birth', 'death', 'burial', 'cremation', 'baptism', 'christening',
+    'bar_mitzvah', 'bat_mitzvah', 'confirmation', 'first_communion',
+    'graduation', 'immigration', 'emigration', 'naturalization',
+    'census', 'residence', 'occupation', 'retirement',
+    'military_service', 'medical', 'custom',
+    'probate', 'will', 'other', 'education', 'religion', 'ssn', 'title',
+    'marriage', 'divorce', 'annulment', 'engagement',
+    'marriage_bann', 'marriage_contract', 'marriage_license',
+    'marriage_settlement',
+  ]);
+
+  it('offers only types the events table accepts', () => {
+    const offered = Object.keys(EVENT_TYPE_LABELS);
+    expect(offered.filter((t) => !ALLOWED.has(t))).toEqual([]);
+  });
+
+  it('spells military service the way the database does', () => {
+    expect(EVENT_TYPE_LABELS.military_service).toBe('Military Service');
+    expect(EVENT_TYPE_LABELS.military).toBeUndefined();
+  });
+
+  it('classifies military service as an event, not an attribute', () => {
+    expect(isAttributeType('military_service')).toBe(false);
   });
 });

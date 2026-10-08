@@ -289,6 +289,7 @@ function getEventTag551(eventType: string): string | null {
     probate: 'PROB',
     will: 'WILL',
     retirement: 'RETI',
+    military_service: '_MILT',
     other: 'EVEN',
     occupation: 'OCCU',
     residence: 'RESI',
