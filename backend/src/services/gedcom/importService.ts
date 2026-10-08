@@ -1,5 +1,5 @@
 import { parseGedcom, type ParseResult } from './parser.js';
-import { mapGedcomRecords } from './tagMapper.js';
+import { mapGedcomRecords, type MappedCitation, type MappedData } from './tagMapper.js';
 import { PersonRepository } from '../../repositories/PersonRepository.js';
 import { FamilyRepository } from '../../repositories/FamilyRepository.js';
 import { EventRepository } from '../../repositories/EventRepository.js';
@@ -16,6 +16,8 @@ export interface ImportStats {
   sources: number;
   repositories: number;
   events: number;
+  /** source_citations rows written, linking records to the sources that attest them. */
+  citations: number;
   conflicts: number;
   warnings: string[];
 }
@@ -42,7 +44,7 @@ export function validateGedcom(jobId: string, content: string): ValidationResult
     importRepo.updateJobStatus(jobId, 'failed', { error_message: 'Parse error: ' + String(err) });
     return {
       valid: false,
-      stats: { persons: 0, families: 0, sources: 0, repositories: 0, events: 0, conflicts: 0, warnings: [] },
+      stats: { persons: 0, families: 0, sources: 0, repositories: 0, events: 0, citations: 0, conflicts: 0, warnings: [] },
       version: null,
       encoding: null,
       warnings: ['Parse error: ' + String(err)],
@@ -79,6 +81,15 @@ export function validateGedcom(jobId: string, content: string): ValidationResult
 
   const totalEvents = mapped.persons.reduce((sum, p) => sum + p.events.length, 0);
   const totalRecords = mapped.persons.length + mapped.families.length + mapped.sources.length + mapped.repositories.length;
+  const totalCitations = countMappedCitations(mapped);
+
+  const warnings = [...parseResult.warnings];
+  if (mapped.inlineSourceCount > 0) {
+    warnings.push(
+      `${mapped.inlineSourceCount} inline SOUR ${mapped.inlineSourceCount === 1 ? 'entry' : 'entries'} ` +
+      'cannot be imported as citations because they embed their text instead of pointing at a SOUR record',
+    );
+  }
 
   const stats: ImportStats = {
     persons: mapped.persons.length,
@@ -86,8 +97,9 @@ export function validateGedcom(jobId: string, content: string): ValidationResult
     sources: mapped.sources.length,
     repositories: mapped.repositories.length,
     events: totalEvents,
+    citations: totalCitations,
     conflicts: conflicts.length,
-    warnings: parseResult.warnings,
+    warnings,
   };
 
   importRepo.updateJobStatus(jobId, conflicts.length > 0 ? 'awaiting_review' : 'processing', {
@@ -100,9 +112,24 @@ export function validateGedcom(jobId: string, content: string): ValidationResult
     stats,
     version: parseResult.version,
     encoding: parseResult.encoding,
-    warnings: parseResult.warnings,
+    warnings,
     conflicts,
   };
+}
+
+/** Every citation carried by the mapped records, across all subject types. */
+function countMappedCitations(mapped: MappedData): number {
+  let total = 0;
+  for (const person of mapped.persons) {
+    total += person.citations.length;
+    for (const name of person.names) total += name.citations.length;
+    for (const event of person.events) total += event.citations.length;
+  }
+  for (const family of mapped.families) {
+    total += family.citations.length;
+    for (const event of family.events) total += event.citations.length;
+  }
+  return total;
 }
 
 // ─── Analyze Merge ──────────────────────────────────────────────────────────
@@ -176,6 +203,56 @@ export function processImport(jobId: string, content: string, userId: string, mo
   const xrefMap = new Map<string, string>();
   let processedCount = 0;
   let eventCount = 0;
+  let citationCount = 0;
+  const unresolvedCitations: string[] = [];
+
+  /**
+   * Write the SOUR pointers carried by one record as source_citations rows.
+   * Sources are processed before persons and families, so xrefMap already holds
+   * their internal ids by the time this runs.
+   *
+   * A citation whose source xref never resolved is logged and skipped rather
+   * than failing the whole import — a dangling pointer is a flaw in the file,
+   * not a reason to lose the other 90 records.
+   */
+  const writeCitations = (
+    citations: MappedCitation[],
+    subject: { person_id?: string; family_id?: string; event_id?: string },
+  ) => {
+    for (const citation of citations) {
+      const sourceId = xrefMap.get(citation.sourceXref);
+      if (!sourceId) {
+        unresolvedCitations.push(citation.sourceXref);
+        importRepo.logAction({
+          import_job_id: jobId,
+          action: 'skipped',
+          record_type: 'SOUR',
+          xref: citation.sourceXref,
+          details: 'Citation skipped: source xref did not resolve',
+        });
+        continue;
+      }
+
+      // _APID is Ancestry-proprietary rather than 5.5.1, but it is a stable
+      // pointer back to the original record, so it is kept alongside the text.
+      const notes = [citation.text, citation.apid ? `Ancestry _APID: ${citation.apid}` : null]
+        .filter(Boolean)
+        .join('\n\n') || null;
+
+      db.prepare(
+        `INSERT INTO source_citations (source_id, person_id, family_id, event_id, page, notes)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      ).run(
+        sourceId,
+        subject.person_id ?? null,
+        subject.family_id ?? null,
+        subject.event_id ?? null,
+        citation.page,
+        notes,
+      );
+      citationCount++;
+    }
+  };
 
   try {
     const transaction = db.transaction(() => {
@@ -295,6 +372,9 @@ export function processImport(jobId: string, content: string, userId: string, mo
             personRepo.update(existing.id, { sex: person.sex });
             // Delete old names and events, re-create
             db.prepare('DELETE FROM names WHERE person_id = ?').run(existing.id);
+            // Citations on the person are replaced alongside the records they
+            // annotate; event citations go with their events via ON DELETE CASCADE.
+            db.prepare('DELETE FROM source_citations WHERE person_id = ?').run(existing.id);
             db.prepare('DELETE FROM events WHERE person_id = ?').run(existing.id);
             for (const name of person.names) {
               personRepo.addName(existing.id, {
@@ -307,17 +387,20 @@ export function processImport(jobId: string, content: string, userId: string, mo
                 nickname: name.nickname || undefined,
                 is_primary: name.isPrimary ? 1 : 0,
               });
+              writeCitations(name.citations, { person_id: existing.id });
             }
             for (const event of person.events) {
-              eventRepo.create({
+              const createdEvent = eventRepo.create({
                 person_id: existing.id,
                 event_type: event.eventType,
                 event_date: event.date || undefined,
                 event_place: event.place || undefined,
                 description: event.description || undefined,
               });
+              writeCitations(event.citations, { event_id: createdEvent.id });
               eventCount++;
             }
+            writeCitations(person.citations, { person_id: existing.id });
             xrefMap.set(person.xref, existing.id);
             importRepo.logAction({
               import_job_id: jobId,
@@ -563,18 +646,24 @@ export function processImport(jobId: string, content: string, userId: string, mo
             nickname: name.nickname || undefined,
             is_primary: name.isPrimary ? 1 : 0,
           });
+          // source_citations has no name subject, so a NAME-level SOUR attaches
+          // to the person it names.
+          writeCitations(name.citations, { person_id: created.id });
         }
 
         for (const event of person.events) {
-          eventRepo.create({
+          const createdEvent = eventRepo.create({
             person_id: created.id,
             event_type: event.eventType,
             event_date: event.date || undefined,
             event_place: event.place || undefined,
             description: event.description || undefined,
           });
+          writeCitations(event.citations, { event_id: createdEvent.id });
           eventCount++;
         }
+
+        writeCitations(person.citations, { person_id: created.id });
 
         xrefMap.set(person.xref, created.id);
         importRepo.createXrefMapping({
@@ -626,13 +715,14 @@ export function processImport(jobId: string, content: string, userId: string, mo
         for (const event of familyEvents) {
           const key = familyEventKey(event.eventType, event.date, event.place, event.description);
           if (existingKeys.has(key)) continue;
-          eventRepo.create({
+          const createdEvent = eventRepo.create({
             family_id: familyId,
             event_type: event.eventType,
             event_date: event.date || undefined,
             event_place: event.place || undefined,
             description: event.description || undefined,
           });
+          writeCitations(event.citations, { event_id: createdEvent.id });
           eventCount++;
           existingKeys.add(key);
         }
@@ -667,6 +757,7 @@ export function processImport(jobId: string, content: string, userId: string, mo
               syncFamilyLifecycleEvent(existingFamilyId, 'divorce', family.divorceDate, family.divorcePlace);
             }
             syncFamilyEvents(existingFamilyId, family.events);
+            writeCitations(family.citations, { family_id: existingFamilyId });
 
             importRepo.logAction({
               import_job_id: jobId,
@@ -695,6 +786,8 @@ export function processImport(jobId: string, content: string, userId: string, mo
             divorce_place: family.divorcePlace || undefined,
           });
         }
+
+        writeCitations(family.citations, { family_id: created.id });
 
         if (family.marriageDate || family.marriagePlace) {
           syncFamilyLifecycleEvent(created.id, 'marriage', family.marriageDate, family.marriagePlace);
@@ -745,14 +838,30 @@ export function processImport(jobId: string, content: string, userId: string, mo
       processed_records: processedCount,
     });
 
+    const warnings = [...parseResult.warnings];
+    if (mapped.inlineSourceCount > 0) {
+      warnings.push(
+        `${mapped.inlineSourceCount} inline SOUR ${mapped.inlineSourceCount === 1 ? 'entry' : 'entries'} ` +
+        'skipped: embedded source text cannot become a citation',
+      );
+    }
+    if (unresolvedCitations.length > 0) {
+      const distinct = [...new Set(unresolvedCitations)];
+      warnings.push(
+        `${unresolvedCitations.length} citation(s) skipped: unknown source ${distinct.slice(0, 5).join(', ')}` +
+        (distinct.length > 5 ? ` and ${distinct.length - 5} more` : ''),
+      );
+    }
+
     return {
       persons: mapped.persons.length,
       families: mapped.families.length,
       sources: mapped.sources.length,
       repositories: mapped.repositories.length,
       events: eventCount,
+      citations: citationCount,
       conflicts: allConflicts.length,
-      warnings: parseResult.warnings,
+      warnings,
     };
   } catch (err) {
     importRepo.updateJobStatus(jobId, 'failed', {
