@@ -1,13 +1,51 @@
 import { Router } from 'express';
+import type { Event } from '../types/db.js';
 import { requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { EventRepository } from '../repositories/EventRepository.js';
+import { FamilyRepository } from '../repositories/FamilyRepository.js';
 import { PersonRepository } from '../repositories/PersonRepository.js';
 
 export const eventsRouter = Router();
 
 function paramStr(val: string | string[]): string {
   return Array.isArray(val) ? val[0] : val;
+}
+
+function toPersonSummary(person: ReturnType<PersonRepository['findById']> | null | undefined) {
+  if (!person) return null;
+  return {
+    id: person.id,
+    displayName: person.displayName ?? null,
+    display_name: person.display_name ?? null,
+    given_name: person.primary_name?.given_name ?? null,
+    middle_name: person.primary_name?.middle_name ?? null,
+    surname: person.primary_name?.surname ?? null,
+  };
+}
+
+/**
+ * Every event belongs to exactly one subject — a person or a family — but the
+ * row carries only its id, which left clients unable to name it. Resolve that
+ * subject so a single event can be rendered on its own.
+ */
+function withSubject(event: Event) {
+  const personRepo = new PersonRepository();
+  const person = event.person_id ? toPersonSummary(personRepo.findById(event.person_id)) : null;
+
+  let family = null;
+  if (event.family_id) {
+    const row = new FamilyRepository().findById(event.family_id);
+    if (row) {
+      family = {
+        id: row.id,
+        spouse1: toPersonSummary(row.spouse1_id ? personRepo.findById(row.spouse1_id) : null),
+        spouse2: toPersonSummary(row.spouse2_id ? personRepo.findById(row.spouse2_id) : null),
+      };
+    }
+  }
+
+  return { ...event, person, family };
 }
 
 // GET /events — List all events
@@ -33,7 +71,7 @@ eventsRouter.get('/:id', (req, res) => {
       return;
     }
 
-    res.json(event);
+    res.json(withSubject(event));
   } catch {
     res.status(500).json({ error: 'Failed to get event' });
   }
@@ -121,7 +159,7 @@ eventsRouter.put(
         return;
       }
 
-      res.json(event);
+      res.json(withSubject(event));
     } catch {
       res.status(500).json({ error: 'Failed to update event' });
     }
