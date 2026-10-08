@@ -9,6 +9,7 @@ import { type ContextActionItem } from '@/components/archive-object/ContextActio
 import { usePageActions } from '@/contexts/PageActionsContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
+import { formatEventType, isAttributeType, payloadLabel } from '@/utils/eventTypes';
 import styles from '@/components/archive-object/ArchiveDetailPage.module.css';
 
 interface PersonSummary {
@@ -41,10 +42,6 @@ interface ConnectedObject {
   object_type: string;
   title: string;
   summary: string | null;
-}
-
-function formatEventType(type: string): string {
-  return type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 const InfoRow: React.FC<{ label: string; value: string | null }> = ({ label, value }) => (
@@ -238,7 +235,7 @@ const EventDetailPage: React.FC = () => {
                         </label>
                       </div>
                       <label className={styles.field}>
-                        <span>Description</span>
+                        <span>{payloadLabel(form.event_type)}</span>
                         <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} />
                       </label>
                       <div className={styles.formActions}>
@@ -253,10 +250,16 @@ const EventDetailPage: React.FC = () => {
                       </div>
                       <div className={styles.infoGrid}>
                         <SubjectRow event={event} />
-                        <InfoRow label="Type" value={formatEventType(event.event_type)} />
+                        <InfoRow
+                          label={isAttributeType(event.event_type) ? 'Attribute' : 'Event Type'}
+                          value={formatEventType(event.event_type)}
+                        />
                         <InfoRow label="Date" value={event.event_date} />
                         <InfoRow label="Place Text" value={event.event_place} />
-                        <InfoRow label="Description" value={event.description} />
+                        <InfoRow
+                          label={payloadLabel(event.event_type)}
+                          value={event.description}
+                        />
                       </div>
                     </section>
                   )}

@@ -12,6 +12,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import PersonPicker from '@/components/entity-pickers/PersonPicker';
 import type { PersonResult } from '@/components/PersonSearch/PersonSearch';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
+import { formatEventType } from '@/utils/eventTypes';
 import archiveStyles from '@/components/archive-object/ArchiveDetailPage.module.css';
 import styles from './FamilyDetailPage.module.css';
 
@@ -85,16 +86,6 @@ const ROLE_CSS: Record<ChildMember['role'], string> = {
   step: styles.roleStep,
 };
 
-const EVENT_TYPE_LABELS: Record<string, string> = {
-  marriage: 'Marriage',
-  divorce: 'Divorce',
-  residence: 'Residence',
-  custom: 'Event',
-};
-
-function formatEventType(type: string): string {
-  return EVENT_TYPE_LABELS[type] ?? type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 function sortEvents(events: FamilyEvent[]): FamilyEvent[] {
   return [...events].sort((a, b) => {

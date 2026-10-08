@@ -4,6 +4,13 @@ import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import Select from '@/components/Form/Select';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
+import {
+  EVENT_EARLY_ORDER,
+  formatEventType,
+  groupedTypeOptions,
+  partitionByKind,
+  payloadLabel,
+} from '@/utils/eventTypes';
 import { useModal } from '@/components/modals/useModal';
 import styles from './PersonEditModal.module.css';
 
@@ -97,24 +104,6 @@ interface PersonEditModalProps {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const EVENT_TYPE_LABELS: Record<string, string> = {
-  birth: 'Birth',
-  death: 'Death',
-  marriage: 'Marriage',
-  burial: 'Burial',
-  baptism: 'Baptism',
-  christening: 'Christening',
-  graduation: 'Graduation',
-  military: 'Military Service',
-  immigration: 'Immigration',
-  emigration: 'Emigration',
-  naturalization: 'Naturalization',
-  divorce: 'Divorce',
-  residence: 'Residence',
-  occupation: 'Occupation',
-  education: 'Education',
-};
-
 const NAME_TYPE_LABELS: Record<NameType, string> = {
   birth: 'Birth',
   married: 'Married',
@@ -133,10 +122,30 @@ const NAME_TYPE_CSS: Record<NameType, string> = {
   religious: styles.nameTypeReligious,
 };
 
-const EVENT_EARLY_ORDER: Record<string, number> = {
-  birth: 0,
-  baptism: 1,
-  christening: 1,
+/**
+ * Event types, grouped so an attribute is not offered as if it were something
+ * that happened at a moment in time (#32).
+ */
+const TypeOptions: React.FC = () => {
+  const { events, attributes } = groupedTypeOptions();
+  return (
+    <>
+      <optgroup label="Events">
+        {events.map(([val, label]) => (
+          <option key={val} value={val}>
+            {label}
+          </option>
+        ))}
+      </optgroup>
+      <optgroup label="Facts &amp; Attributes">
+        {attributes.map(([val, label]) => (
+          <option key={val} value={val}>
+            {label}
+          </option>
+        ))}
+      </optgroup>
+    </>
+  );
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -162,13 +171,6 @@ function sortEvents(events: PersonEvent[]): PersonEvent[] {
     if (b.event_date) return 1;
     return 0;
   });
-}
-
-function formatEventType(type: string): string {
-  return (
-    EVENT_TYPE_LABELS[type] ??
-    type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-  );
 }
 
 function mediaDisplayName(item: MediaItem): string {
@@ -852,6 +854,7 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
     ? person.names.filter((n) => n.id !== primaryNameEntry?.id)
     : [];
   const sortedEvents = person ? sortEvents(person.events) : [];
+  const { events: timelineEvents, attributes } = partitionByKind(sortedEvents);
   const childFamilies = relationships.filter((r) => r.type === 'child_family');
   const parentFamilies = relationships.filter((r) => r.type === 'parent_family');
 
@@ -1290,32 +1293,9 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
 
   // ─── Tab: Events ───────────────────────────────────────────────────────────
 
-  const renderEventsTab = () => (
-    <>
-      <div className={styles.sectionHeader}>
-        <span />
-        {!showAddEvent && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setAddEventForm({ ...DEFAULT_EVENT_FORM });
-              setAddEventError(null);
-              setShowAddEvent(true);
-            }}
-          >
-            + Add Event
-          </Button>
-        )}
-      </div>
-
-      {sortedEvents.length === 0 && !showAddEvent && (
-        <p className={styles.emptyState}>No events recorded.</p>
-      )}
-
-      {sortedEvents.length > 0 && (
-        <ol className={styles.eventsList} aria-label="Life events timeline">
-          {sortedEvents.map((event) => (
+  // One timeline entry, including its inline edit form. Shared by the events
+  // list and the attributes list so editing behaves identically in both.
+  const renderEventItem = (event: PersonEvent) => (
             <li key={event.id} className={styles.eventItem}>
               <div className={styles.eventDot} aria-hidden="true" />
               {editingEventId === event.id ? (
@@ -1329,11 +1309,7 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
                           setEventEditForm((f) => ({ ...f, event_type: e.target.value }))
                         }
                       >
-                        {Object.entries(EVENT_TYPE_LABELS).map(([val, label]) => (
-                          <option key={val} value={val}>
-                            {label}
-                          </option>
-                        ))}
+                        <TypeOptions />
                       </Select>
                     </label>
                     <label className={styles.formLabel}>
@@ -1357,7 +1333,7 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
                       />
                     </label>
                     <label className={[styles.formLabel, styles.fullWidth].join(' ')}>
-                      Description
+                      {payloadLabel(eventEditForm.event_type)}
                       <textarea
                         className={styles.notesTextarea}
                         value={eventEditForm.description}
@@ -1433,8 +1409,45 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
                 </div>
               )}
             </li>
-          ))}
+  );
+
+  const renderEventsTab = () => (
+    <>
+      <div className={styles.sectionHeader}>
+        <span />
+        {!showAddEvent && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setAddEventForm({ ...DEFAULT_EVENT_FORM });
+              setAddEventError(null);
+              setShowAddEvent(true);
+            }}
+          >
+            + Add Event
+          </Button>
+        )}
+      </div>
+
+      {sortedEvents.length === 0 && !showAddEvent && (
+        <p className={styles.emptyState}>No events recorded.</p>
+      )}
+
+      {timelineEvents.length > 0 && (
+        <ol className={styles.eventsList} aria-label="Life events timeline">
+          {timelineEvents.map(renderEventItem)}
         </ol>
+      )}
+
+      {/* Attributes describe the person rather than occurring at a moment (#32). */}
+      {attributes.length > 0 && (
+        <>
+          <p className={styles.relGroupTitle}>Facts &amp; Attributes</p>
+          <ol className={styles.eventsList} aria-label="Facts and attributes">
+            {attributes.map(renderEventItem)}
+          </ol>
+        </>
       )}
 
       {/* Add event form */}
@@ -1447,11 +1460,7 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
                 value={addEventForm.event_type}
                 onChange={(e) => setAddEventForm((f) => ({ ...f, event_type: e.target.value }))}
               >
-                {Object.entries(EVENT_TYPE_LABELS).map(([val, label]) => (
-                  <option key={val} value={val}>
-                    {label}
-                  </option>
-                ))}
+                <TypeOptions />
               </Select>
             </label>
             {addEventForm.event_type === 'marriage' ? (
@@ -1487,7 +1496,7 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
                   />
                 </label>
                 <label className={[styles.formLabel, styles.fullWidth].join(' ')}>
-                  Description
+                  {payloadLabel(addEventForm.event_type)}
                   <textarea
                     className={styles.notesTextarea}
                     value={addEventForm.description}

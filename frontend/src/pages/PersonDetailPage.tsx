@@ -13,6 +13,11 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { useModal } from '@/components/modals/useModal';
 import type { FamilySummary } from '@/types/genealogy';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
+import {
+  EVENT_EARLY_ORDER,
+  formatEventType,
+  partitionByKind,
+} from '@/utils/eventTypes';
 import { lifespanLabel } from '@/utils/personEvents';
 import styles from './PersonDetailPage.module.css';
 
@@ -132,31 +137,6 @@ const NAME_TYPE_CSS: Record<NameType, string> = {
   religious: styles.nameTypeReligious,
 };
 
-const EVENT_TYPE_LABELS: Record<string, string> = {
-  birth: 'Birth',
-  death: 'Death',
-  marriage: 'Marriage',
-  burial: 'Burial',
-  baptism: 'Baptism',
-  christening: 'Christening',
-  graduation: 'Graduation',
-  military: 'Military Service',
-  immigration: 'Immigration',
-  emigration: 'Emigration',
-  naturalization: 'Naturalization',
-  divorce: 'Divorce',
-  residence: 'Residence',
-  occupation: 'Occupation',
-  education: 'Education',
-};
-
-/** Events that should appear first, keyed to their sort priority (lower = earlier). */
-const EVENT_EARLY_ORDER: Record<string, number> = {
-  birth: 0,
-  baptism: 1,
-  christening: 1,
-};
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function personName(p: { displayName?: string | null; display_name?: string | null; given_name: string | null; middle_name?: string | null; surname: string | null } | null): string {
@@ -172,13 +152,6 @@ function fullName(name: PersonName): string {
 
 function primaryName(names: PersonName[]): PersonName | null {
   return names.find((n) => n.is_primary === 1) ?? names[0] ?? null;
-}
-
-function formatEventType(type: string): string {
-  return (
-    EVENT_TYPE_LABELS[type] ??
-    type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-  );
 }
 
 function sortEvents(events: PersonEvent[]): PersonEvent[] {
@@ -517,6 +490,9 @@ const PersonDetailPage: React.FC = () => {
   // ─── Derived values ────────────────────────────────────────────────────────
 
   const sortedEventsList = sortEvents(person.events);
+  // Attributes describe the person rather than occurring at a moment, so they
+  // are listed separately instead of interleaved into the timeline (#32).
+  const { events: timelineEvents, attributes } = partitionByKind(sortedEventsList);
   const childFamilies = relationships.filter((r) => r.type === 'child_family');
   const parentFamilies = relationships.filter((r) => r.type === 'parent_family');
 
@@ -633,11 +609,11 @@ const PersonDetailPage: React.FC = () => {
                   Timeline
                 </Button>
               </div>
-              {sortedEventsList.length === 0 ? (
+              {timelineEvents.length === 0 ? (
                 <p className={styles.noInfo}>No events recorded.</p>
               ) : (
                 <ol className={styles.eventsList} aria-label="Key life events">
-                  {sortedEventsList.slice(0, 3).map((event) => (
+                  {timelineEvents.slice(0, 3).map((event) => (
                     <li key={event.id} className={styles.eventItem}>
                       <div className={styles.eventDot} aria-hidden="true" />
                       <div className={styles.eventContent}>
@@ -759,17 +735,17 @@ const PersonDetailPage: React.FC = () => {
               <div className={styles.sectionHeader}>
                 <h2 className={styles.sectionTitle} id="events-heading">
                   Events
-                  {sortedEventsList.length > 0 && (
-                    <span className={styles.countBadge}>{sortedEventsList.length}</span>
+                  {timelineEvents.length > 0 && (
+                    <span className={styles.countBadge}>{timelineEvents.length}</span>
                   )}
                 </h2>
               </div>
 
-              {sortedEventsList.length === 0 ? (
+              {timelineEvents.length === 0 ? (
                 <p className={styles.noInfo}>No events recorded.</p>
               ) : (
                 <ol className={styles.eventsList} aria-label="Life events timeline">
-                  {sortedEventsList.map((event) => (
+                  {timelineEvents.map((event) => (
                     <li key={event.id} className={styles.eventItem}>
                       <div className={styles.eventDot} aria-hidden="true" />
                       <div className={styles.eventContent}>
@@ -795,6 +771,37 @@ const PersonDetailPage: React.FC = () => {
                 </ol>
               )}
             </section>
+
+            {/* ── Facts & attributes ── */}
+            {attributes.length > 0 && (
+              <section className={styles.section} aria-labelledby="attributes-heading">
+                <div className={styles.sectionHeader}>
+                  <h2 className={styles.sectionTitle} id="attributes-heading">
+                    Facts &amp; Attributes
+                    <span className={styles.countBadge}>{attributes.length}</span>
+                  </h2>
+                </div>
+
+                <div className={styles.infoGrid}>
+                  {attributes.map((attribute) => (
+                    <div key={attribute.id} className={styles.infoRow}>
+                      <span className={styles.infoLabel}>
+                        {formatEventType(attribute.event_type)}
+                      </span>
+                      <span className={styles.infoValue}>
+                        {attribute.description || '—'}
+                        {attribute.event_date && (
+                          <span className={styles.eventDate}> · {attribute.event_date}</span>
+                        )}
+                        {attribute.event_place && (
+                          <span className={styles.eventPlace}> 📍 {attribute.event_place}</span>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
             </div>
           )}
 
