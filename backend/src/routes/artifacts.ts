@@ -47,7 +47,7 @@ artifactsRouter.get('/types', (_req, res) => {
   try {
     const repo = new ArtifactRepository();
     res.json({ data: repo.findArtifactTypes() });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list artifact types' });
   }
 });
@@ -67,7 +67,7 @@ artifactsRouter.get('/evidence-classifications', (_req, res) => {
   try {
     const repo = new ArtifactRepository();
     res.json({ data: repo.findEvidenceClassifications() });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list evidence classifications' });
   }
 });
@@ -82,7 +82,7 @@ artifactsRouter.get('/', (req, res) => {
     const typeId = req.query.type as string | undefined;
 
     res.json(repo.findAll({ limit, cursor, search, typeId }));
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list artifacts' });
   }
 });
@@ -98,7 +98,7 @@ artifactsRouter.get('/:id', (req, res) => {
     }
 
     res.json(artifact);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to get artifact' });
   }
 });
@@ -129,7 +129,7 @@ artifactsRouter.post(
         created_by: req.user?.userId ?? null,
       });
       res.status(201).json(artifact);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to create artifact' });
     }
   },
@@ -158,7 +158,7 @@ artifactsRouter.put(
       }
 
       res.json(artifact);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to update artifact' });
     }
   },
@@ -220,7 +220,7 @@ artifactsRouter.delete(
       }
 
       res.status(204).send();
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to delete artifact' });
     }
   },

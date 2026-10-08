@@ -42,7 +42,7 @@ collectionsRouter.get('/tags', (_req, res) => {
   try {
     const repo = new CollectionRepository();
     res.json({ data: repo.findTags() });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list tags' });
   }
 });
@@ -67,7 +67,7 @@ collectionsRouter.delete('/objects/:objectId/tags/:tagId', requireRole('admin', 
       return;
     }
     res.status(204).send();
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to remove tag' });
   }
 });
@@ -79,7 +79,7 @@ collectionsRouter.get('/', (req, res) => {
     const cursor = req.query.cursor as string | undefined;
     const search = req.query.q as string | undefined;
     res.json(repo.findAll({ limit, cursor, search }));
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list collections' });
   }
 });
@@ -94,7 +94,7 @@ collectionsRouter.get('/:id', (req, res) => {
       return;
     }
     res.json({ ...collection, items: repo.findItems(id), tags: repo.findTagsForObject(id) });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to get collection' });
   }
 });
@@ -116,7 +116,7 @@ collectionsRouter.post(
       }
       const collection = repo.create({ ...body, title: body.title, created_by: req.user?.userId ?? null });
       res.status(201).json(collection);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to create collection' });
     }
   },
@@ -141,7 +141,7 @@ collectionsRouter.put(
         return;
       }
       res.json(collection);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to update collection' });
     }
   },
@@ -156,7 +156,7 @@ collectionsRouter.delete('/:id', requireRole('admin', 'editor'), (req, res) => {
       return;
     }
     res.status(204).send();
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to delete collection' });
   }
 });
@@ -194,7 +194,7 @@ collectionsRouter.put('/:id/items/:itemId', requireRole('admin', 'editor', 'limi
       return;
     }
     res.json(item);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to update collection item' });
   }
 });
@@ -208,7 +208,7 @@ collectionsRouter.delete('/:id/items/:itemId', requireRole('admin', 'editor'), (
       return;
     }
     res.status(204).send();
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to remove collection item' });
   }
 });

@@ -65,7 +65,7 @@ familiesRouter.get('/', (req, res) => {
       filter: filterParam === 'unlinked' ? 'unlinked' : undefined,
     });
     res.json(result);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list families' });
   }
 });
@@ -90,7 +90,7 @@ familiesRouter.post(
       const spouse1 = toSpouseSummary(family.spouse1_id ? personRepo.findById(family.spouse1_id) : null);
       const spouse2 = toSpouseSummary(family.spouse2_id ? personRepo.findById(family.spouse2_id) : null);
       res.status(201).json({ ...family, spouse1, spouse2 });
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to create family' });
     }
   },
@@ -103,7 +103,7 @@ familiesRouter.get('/person/:personId/active', (req, res) => {
     const personId = paramStr(req.params.personId);
     const activeMarriages = repo.findActiveByPerson(personId);
     res.json({ activeMarriages });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to get active marriages' });
   }
 });
@@ -131,7 +131,7 @@ familiesRouter.get('/:id', (req, res) => {
     const events = eventRepo.findByFamily(family.id);
 
     res.json({ ...family, spouse1, spouse2, children, events });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to get family' });
   }
 });
@@ -176,7 +176,7 @@ familiesRouter.put(
       const spouse1 = toSpouseSummary(family.spouse1_id ? personRepo.findById(family.spouse1_id) : null);
       const spouse2 = toSpouseSummary(family.spouse2_id ? personRepo.findById(family.spouse2_id) : null);
       res.json({ ...family, spouse1, spouse2 });
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to update family' });
     }
   },
@@ -196,7 +196,7 @@ familiesRouter.delete(
       }
 
       res.status(204).send();
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to delete family' });
     }
   },
@@ -232,7 +232,7 @@ familiesRouter.post(
 
       const member = familyRepo.addMember(familyId, person_id as string, role as 'child' | 'adopted' | 'foster' | 'step');
       res.status(201).json(member);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to add family member' });
     }
   },
@@ -261,7 +261,7 @@ familiesRouter.delete(
       }
 
       res.status(204).send();
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to remove family member' });
     }
   },

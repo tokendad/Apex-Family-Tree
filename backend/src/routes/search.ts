@@ -18,7 +18,7 @@ searchRouter.get('/', (req, res) => {
     // startup rebuild, or write-through updates as archive object writes mature.
     repo.rebuildIndex();
     res.json(repo.search(q, { limit, allowedPrivacyLevels: privacyForRole(req.user?.role) }));
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to search archive' });
   }
 });

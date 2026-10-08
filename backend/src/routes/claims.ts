@@ -52,7 +52,7 @@ claimsRouter.get('/confidence-levels', (_req, res) => {
   try {
     const repo = new ClaimRepository();
     res.json({ data: repo.findConfidenceLevels() });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list confidence levels' });
   }
 });
@@ -61,7 +61,7 @@ claimsRouter.get('/evidence/:objectId', (req, res) => {
   try {
     const repo = new ClaimRepository();
     res.json({ data: repo.findClaimsForEvidence(paramStr(req.params.objectId)) });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list claims for evidence' });
   }
 });
@@ -73,7 +73,7 @@ claimsRouter.get('/', (req, res) => {
     const cursor = req.query.cursor as string | undefined;
     const search = req.query.q as string | undefined;
     res.json(repo.findAll({ limit, cursor, search }));
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list claims' });
   }
 });
@@ -88,7 +88,7 @@ claimsRouter.get('/:id', (req, res) => {
       return;
     }
     res.json({ ...claim, subjects: repo.findSubjects(id), evidence: repo.findEvidence(id) });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to get claim' });
   }
 });
@@ -152,7 +152,7 @@ claimsRouter.delete('/:id', requireRole('admin', 'editor'), (req, res) => {
       return;
     }
     res.status(204).send();
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to delete claim' });
   }
 });
@@ -196,7 +196,7 @@ claimsRouter.delete('/:id/evidence/:evidenceId', requireRole('admin', 'editor'),
       return;
     }
     res.status(204).send();
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to remove claim evidence' });
   }
 });

@@ -23,7 +23,7 @@ homePersonRouter.get('/', (req, res) => {
 
     const person = personRepo.findById(user.home_person_id);
     res.json({ home_person: person || null });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to get home person' });
   }
 });
@@ -52,7 +52,7 @@ homePersonRouter.put('/', (req, res) => {
       : null;
 
     res.json({ home_person: homePerson || null });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to set home person' });
   }
 });

@@ -45,7 +45,7 @@ storiesRouter.get('/', (req, res) => {
     const cursor = req.query.cursor as string | undefined;
     const search = req.query.q as string | undefined;
     res.json(repo.findAll({ limit, cursor, search }));
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list stories' });
   }
 });
@@ -59,7 +59,7 @@ storiesRouter.get('/:id', (req, res) => {
       return;
     }
     res.json(story);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to get story' });
   }
 });
@@ -131,7 +131,7 @@ storiesRouter.delete('/:id', requireRole('admin', 'editor'), (req, res) => {
       return;
     }
     res.status(204).send();
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to delete story' });
   }
 });

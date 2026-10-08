@@ -18,7 +18,7 @@ eventsRouter.get('/', (req, res) => {
     const cursor = req.query.cursor as string | undefined;
     const result = repo.findAll({ limit, cursor });
     res.json(result);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list events' });
   }
 });
@@ -34,7 +34,7 @@ eventsRouter.get('/:id', (req, res) => {
     }
 
     res.json(event);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to get event' });
   }
 });
@@ -65,7 +65,7 @@ eventsRouter.post(
       });
 
       res.status(201).json(event);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to create event' });
     }
   },
@@ -100,7 +100,7 @@ eventsRouter.post(
       });
 
       res.status(201).json(event);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to create event' });
     }
   },
@@ -122,7 +122,7 @@ eventsRouter.put(
       }
 
       res.json(event);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to update event' });
     }
   },
@@ -142,7 +142,7 @@ eventsRouter.delete(
       }
 
       res.status(204).send();
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to delete event' });
     }
   },

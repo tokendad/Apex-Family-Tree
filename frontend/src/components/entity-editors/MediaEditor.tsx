@@ -137,7 +137,6 @@ const EditableDetailField: React.FC<EditableDetailFieldProps> = ({
             onChange={(e) => onChangeValue(e.target.value)}
             placeholder={`Enter ${label.toLowerCase()}…`}
             rows={3}
-            // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
             disabled={isSaving}
           />
@@ -147,7 +146,6 @@ const EditableDetailField: React.FC<EditableDetailFieldProps> = ({
             value={editValue}
             onChange={(e) => onChangeValue(e.target.value)}
             placeholder={`Enter ${label.toLowerCase()}…`}
-            // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
             disabled={isSaving}
           />

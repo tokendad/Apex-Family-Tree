@@ -142,7 +142,7 @@ mediaRouter.post(
       if (event_id) repo.linkToEvent(media.id, event_id);
 
       res.status(201).json(media);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to upload media' });
     }
   },
@@ -161,7 +161,7 @@ mediaRouter.post(
         message: `Scan complete: ${result.added} added, ${result.relinked} relinked, ${result.removed} removed, ${result.skipped} skipped`,
         ...result,
       });
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to scan media directory' });
     }
   },
@@ -178,7 +178,7 @@ mediaRouter.get('/', (req, res) => {
 
     const result = repo.findAll({ limit, cursor, search, filter });
     res.json(result);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list media' });
   }
 });
@@ -199,7 +199,7 @@ mediaRouter.put(
       const { title, description, date_taken } = req.body;
       const updated = repo.update(paramStr(req.params.id), { title, description, date_taken });
       res.json(updated);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to update media' });
     }
   },
@@ -216,7 +216,7 @@ mediaRouter.get('/:id/links', (req, res) => {
     }
     const links = repo.findLinks(paramStr(req.params.id));
     res.json(links);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to fetch media links' });
   }
 });
@@ -232,7 +232,7 @@ mediaRouter.get('/:id/regions', (req, res) => {
       return;
     }
     res.json({ regions: repo.findRegions(mediaId) });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to fetch media tags' });
   }
 });
@@ -265,7 +265,7 @@ mediaRouter.post(
         height: body.height,
       });
       res.status(201).json({ region });
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to create media tag' });
     }
   },
@@ -320,7 +320,7 @@ mediaRouter.put(
         height: body.height,
       });
       res.json({ region });
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to update media tag' });
     }
   },
@@ -343,7 +343,7 @@ mediaRouter.delete(
 
       repo.deleteRegion(regionId);
       res.status(204).send();
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to delete media tag' });
     }
   },
@@ -367,7 +367,7 @@ mediaRouter.get('/:id', (req, res) => {
     res.setHeader('Content-Type', media.mime_type);
     res.setHeader('Content-Disposition', `inline; filename="${media.original_filename}"`);
     res.sendFile(path.resolve(media.file_path));
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to serve media' });
   }
 });
@@ -386,7 +386,7 @@ mediaRouter.delete(
         return;
       }
       res.status(204).send();
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to delete media' });
     }
   },
@@ -428,7 +428,7 @@ mediaRouter.post(
       }
 
       res.status(201).json(link);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to link media' });
     }
   },
@@ -467,7 +467,7 @@ mediaRouter.delete(
       }
 
       res.status(204).send();
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to unlink media' });
     }
   },
@@ -488,7 +488,7 @@ mediaRouter.get('/people/:id/media', (req, res) => {
 
     const media = mediaRepo.findByPerson(personId);
     res.json(media);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list media' });
   }
 });
@@ -523,7 +523,7 @@ mediaRouter.post(
 
       const link = mediaRepo.linkToPerson(media_id, personId, is_primary ?? false);
       res.status(201).json(link);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to link media to person' });
     }
   },

@@ -3,6 +3,14 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { MatchPersonInput } from '../services/gedcom/matcher.js';
 import { soundex } from '../utils/soundex.js';
 
+/** A row read back from the persons_fts virtual table; columns vary per probe. */
+interface FtsRow {
+  person_id: string;
+  given_name?: string;
+  surname?: string;
+  notes?: string;
+}
+
 // ---- In-memory DB setup ----
 let db: Database.Database;
 
@@ -374,7 +382,7 @@ describe('PersonRepository.findAll filters', () => {
     const repo = new PersonRepository();
     const result = repo.findAll({ placeCountry: 'LA' });
     // p8 "New Orleans, LA", p9 "Baton Rouge, LA"
-    expect(result.data.map((p: any) => p.id).sort()).toEqual(['p8', 'p9']);
+    expect(result.data.map((p) => p.id).sort()).toEqual(['p8', 'p9']);
   });
 
   it('filters by placeState (structured)', () => {
@@ -503,7 +511,7 @@ describe('PersonRepository.findAll hasMissingData filter', () => {
     const result = repo.findAll({ hasMissingData: true, sex: 'F' });
     // p7 (F, no birth) and p14 (F, deceased, no death event) have missing data
     expect(result.data).toHaveLength(2);
-    const ids = result.data.map((r: any) => r.id).sort();
+    const ids = result.data.map((r) => r.id).sort();
     expect(ids).toEqual(['p14', 'p7']);
   });
 });
@@ -665,13 +673,13 @@ describe('FTS5 global search', () => {
   it('finds person by partial prefix (Wal → Walter)', () => {
     const repo = new PersonRepository();
     const result = repo.findAll({ search: 'Wal' });
-    expect(result.data.some((p: any) => p.id === 'p8')).toBe(true); // Walter Earl LeFort
+    expect(result.data.some((p) => p.id === 'p8')).toBe(true); // Walter Earl LeFort
   });
 
   it('finds person by multi-token FTS query', () => {
     const repo = new PersonRepository();
     const result = repo.findAll({ search: 'Walter LeFort' });
-    expect(result.data.some((p: any) => p.id === 'p8')).toBe(true);
+    expect(result.data.some((p) => p.id === 'p8')).toBe(true);
   });
 
   it('falls back to LIKE for single-char queries', () => {
@@ -690,7 +698,7 @@ describe('FTS5 global search', () => {
 
   it('FTS trigger: name insert populates FTS', () => {
     // Verify FTS row exists for p1 (inserted via trigger during seed)
-    const row = db.prepare("SELECT person_id, given_name, surname FROM persons_fts WHERE persons_fts MATCH 'John'").get() as any;
+    const row = db.prepare("SELECT person_id, given_name, surname FROM persons_fts WHERE persons_fts MATCH 'John'").get() as FtsRow;
     expect(row).toBeDefined();
     expect(row.person_id).toBe('p1');
     expect(row.given_name).toContain('John');
@@ -699,7 +707,7 @@ describe('FTS5 global search', () => {
   it('FTS trigger: name update syncs FTS', () => {
     // Update p5's name and verify FTS reflects it
     db.prepare("UPDATE names SET given_name = 'Ulysses' WHERE id = 'n5'").run();
-    const row = db.prepare("SELECT person_id, given_name FROM persons_fts WHERE persons_fts MATCH 'Ulysses'").get() as any;
+    const row = db.prepare("SELECT person_id, given_name FROM persons_fts WHERE persons_fts MATCH 'Ulysses'").get() as FtsRow;
     expect(row).toBeDefined();
     expect(row.person_id).toBe('p5');
     // Restore
@@ -708,7 +716,7 @@ describe('FTS5 global search', () => {
 
   it('FTS trigger: notes update syncs FTS', () => {
     db.prepare("UPDATE persons SET notes = 'important genealogy note' WHERE id = 'p1'").run();
-    const row = db.prepare("SELECT person_id, notes FROM persons_fts WHERE persons_fts MATCH 'genealogy'").get() as any;
+    const row = db.prepare("SELECT person_id, notes FROM persons_fts WHERE persons_fts MATCH 'genealogy'").get() as FtsRow;
     expect(row).toBeDefined();
     expect(row.person_id).toBe('p1');
     // Clean up
@@ -725,7 +733,7 @@ describe('PersonRepository.findAll date qualifier filters', () => {
       birthYearTo: 2000,
       dateQualifier: 'exact',
     });
-    const ids = result.data.map((r: any) => r.id);
+    const ids = result.data.map((r) => r.id);
     // p1 (1980, null/exact), p2 (1950, null/exact), p3 (1945, null/exact), p4 (1990, null/exact)
     // p8 (1950, null/exact), p9 (1952, null/exact), p10 (1975, null/exact), p11 (1978, null/exact), p12 (1920, null/exact)
     expect(ids).toContain('p1');
@@ -743,7 +751,7 @@ describe('PersonRepository.findAll date qualifier filters', () => {
       birthYearTo: 1900,
       dateQualifier: 'approximate',
     });
-    const ids = result.data.map((r: any) => r.id);
+    const ids = result.data.map((r) => r.id);
     // p13 has birth 1850 with 'about' qualifier — included
     expect(ids).toContain('p13');
     // p14 has birth 1860 with 'after' qualifier — excluded
@@ -757,7 +765,7 @@ describe('PersonRepository.findAll date qualifier filters', () => {
       deathYearTo: 1950,
       dateQualifier: 'before',
     });
-    const ids = result.data.map((r: any) => r.id);
+    const ids = result.data.map((r) => r.id);
     // p13 has death 1920 with 'before' qualifier — included
     expect(ids).toContain('p13');
     // p2 has death 2020 with NULL qualifier (exact) — excluded by qualifier + range
@@ -771,7 +779,7 @@ describe('PersonRepository.findAll date qualifier filters', () => {
       birthYearTo: 1870,
       dateQualifier: 'after',
     });
-    const ids = result.data.map((r: any) => r.id);
+    const ids = result.data.map((r) => r.id);
     // p14 has birth 1860 with 'after' — included
     expect(ids).toContain('p14');
     // p13 has birth 1850 with 'about' — excluded
@@ -785,7 +793,7 @@ describe('PersonRepository.findAll date qualifier filters', () => {
       marriageYearTo: 1890,
       dateQualifier: 'approximate',
     });
-    const ids = result.data.map((r: any) => r.id);
+    const ids = result.data.map((r) => r.id);
     // p13 + p14 married in family f4 with 'about' qualifier at 1880 — both included
     expect(ids).toContain('p13');
     expect(ids).toContain('p14');
@@ -798,7 +806,7 @@ describe('PersonRepository.findAll date qualifier filters', () => {
       marriageYearTo: 1890,
       dateQualifier: 'exact',
     });
-    const ids = result.data.map((r: any) => r.id);
+    const ids = result.data.map((r) => r.id);
     // f4 has 'about' qualifier — not exact, so p13/p14 excluded
     expect(ids).not.toContain('p13');
     expect(ids).not.toContain('p14');
@@ -810,7 +818,7 @@ describe('PersonRepository.findAll date qualifier filters', () => {
     const result = repo.findAll({
       dateQualifier: 'approximate',
     });
-    const ids = result.data.map((r: any) => r.id);
+    const ids = result.data.map((r) => r.id);
     // p13 has birth with 'about' — included
     expect(ids).toContain('p13');
     // p1 has birth with NULL (exact) — excluded
@@ -822,7 +830,7 @@ describe('PersonRepository.findAll date qualifier filters', () => {
     const result = repo.findAll({
       dateQualifier: 'exact',
     });
-    const ids = result.data.map((r: any) => r.id);
+    const ids = result.data.map((r) => r.id);
     // p1 has birth with NULL qualifier (coalesced to exact) — included
     expect(ids).toContain('p1');
     // p13 has birth with 'about' — excluded

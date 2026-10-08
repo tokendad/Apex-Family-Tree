@@ -91,7 +91,7 @@ gedcomRouter.get('/import/:jobId', (req: Request, res: Response) => {
       return;
     }
     res.json({ job });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to get import status' });
   }
 });
@@ -107,7 +107,7 @@ gedcomRouter.get('/import/:jobId/conflicts', (req: Request, res: Response) => {
     }
     const conflicts = importRepo.findUnresolvedConflicts(job.id);
     res.json({ conflicts });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to get conflicts' });
   }
 });
@@ -137,7 +137,7 @@ gedcomRouter.post(
 
       const remaining = importRepo.findUnresolvedConflicts(job.id);
       res.json({ resolved: resolutions.length, remaining: remaining.length });
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to resolve conflicts' });
     }
   },
@@ -266,7 +266,7 @@ gedcomRouter.get('/export/:jobId', (req: Request, res: Response) => {
       return;
     }
     res.json({ job });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to get export status' });
   }
 });
@@ -289,7 +289,7 @@ gedcomRouter.get('/export/:jobId/download', (req: Request, res: Response) => {
       return;
     }
     res.download(job.file_path, `export_${job.id}.ged`);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Download failed' });
   }
 });

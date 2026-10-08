@@ -14,7 +14,7 @@ function buildApp() {
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {
-    (req as any).user = { userId: 'user-1', role: 'admin' };
+    req.user = { userId: 'user-1', email: 'test@example.com', role: 'admin' };
     next();
   });
   app.use('/api/v1/families', familiesRouter);

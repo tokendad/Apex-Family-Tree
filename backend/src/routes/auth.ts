@@ -89,7 +89,7 @@ authRouter.post('/setup', async (req, res) => {
     userRepo.updateLastLogin(user.id);
     setAuthCookies(res, accessToken, rawRefreshToken, refreshExpiryMs);
     res.status(201).json({ user: toSafeUser(user) });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to create admin account' });
   }
 });
@@ -140,7 +140,7 @@ authRouter.post('/login', async (req, res) => {
     userRepo.updateLastLogin(user.id);
     setAuthCookies(res, accessToken, rawRefreshToken, refreshExpiryMs);
     res.json({ user: toSafeUser(user) });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Login failed' });
   }
 });
@@ -156,7 +156,7 @@ authRouter.post('/logout', (req, res) => {
 
     clearAuthCookies(res);
     res.json({ message: 'Logged out' });
-  } catch (error) {
+  } catch {
     clearAuthCookies(res);
     res.json({ message: 'Logged out' });
   }
@@ -218,7 +218,7 @@ authRouter.post('/refresh', (req, res) => {
 
     setAuthCookies(res, newAccessToken, newRawRefreshToken, refreshExpiryMs);
     res.json({ user: toSafeUser(user) });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Token refresh failed' });
   }
 });
@@ -233,7 +233,7 @@ authRouter.get('/me', requireAuth, (req, res) => {
     }
 
     res.json({ user: toSafeUser(user) });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to fetch user' });
   }
 });
