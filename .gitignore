@@ -47,3 +47,6 @@ dev-data/
 
 # Docker
 .docker/
+
+# TypeScript incremental build info
+*.tsbuildinfo

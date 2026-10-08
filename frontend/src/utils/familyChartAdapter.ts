@@ -10,11 +10,23 @@ function years(person: TreePerson): string {
 }
 
 /**
+ * family-chart's published types only admit 'M' | 'F', but its renderer has a
+ * third genderless state (`card-genderless`) for any other value, which is
+ * what we want for sexes recorded as unknown or non-binary.
+ */
+type Gender = Datum['data']['gender'];
+const GENDERLESS = 'U' as Gender;
+
+function gender(sex: TreePerson['sex']): Gender {
+  return sex === 'M' || sex === 'F' ? sex : GENDERLESS;
+}
+
+/**
  * Converts AFT persons/families into family-chart's per-person relationship
  * model (rels.parents / spouses / children). family-chart has no family
- * entity, so marriage dates are not carried over, and every person needs a
- * gender of M or F: unknown sexes are filled in from the spouse (opposite) or
- * default to M. A child keeps only its first parent family.
+ * entity, so marriage dates are not carried over. A sex of U or X renders as a
+ * genderless card rather than being guessed at. A child keeps only its first
+ * parent family.
  */
 export function toFamilyChartData(persons: TreePerson[], families: TreeFamily[]): Data {
   const known = new Set(persons.map((p) => p.id));
@@ -24,7 +36,7 @@ export function toFamilyChartData(persons: TreePerson[], families: TreeFamily[])
     byId.set(p.id, {
       id: p.id,
       data: {
-        gender: p.sex === 'F' ? 'F' : 'M',
+        gender: gender(p.sex),
         'first name': [p.given_name, p.middle_name].filter(Boolean).join(' '),
         'last name': p.surname ?? '',
         birthday: p.birth_date ?? '',
@@ -46,13 +58,6 @@ export function toFamilyChartData(persons: TreePerson[], families: TreeFamily[])
 
     if (parents.length === 2) {
       const [a, b] = parents.map((id) => byId.get(id)!);
-      const aSex = persons.find((p) => p.id === a.id)!.sex;
-      const bSex = persons.find((p) => p.id === b.id)!.sex;
-      if (aSex !== 'M' && aSex !== 'F' && (bSex === 'M' || bSex === 'F')) {
-        a.data.gender = bSex === 'M' ? 'F' : 'M';
-      } else if (bSex !== 'M' && bSex !== 'F') {
-        b.data.gender = a.data.gender === 'M' ? 'F' : 'M';
-      }
       add(a.rels.spouses, b.id);
       add(b.rels.spouses, a.id);
     }

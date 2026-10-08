@@ -32,11 +32,31 @@ describe('toFamilyChartData', () => {
     expect(data.find((d) => d.id === 'kid')!.rels.parents).toEqual(['dad', 'mom']);
   });
 
-  it('gives unknown-sex spouses the opposite gender of their partner', () => {
+  it('renders unknown and non-binary sexes as genderless rather than guessing', () => {
+    const data = toFamilyChartData(
+      [person('unknown', 'U'), person('nonbinary', 'X'), person('male', 'M'), person('female', 'F')],
+      [],
+    );
+    const genderOf = (id: string) => data.find((d) => d.id === id)!.data.gender;
+    expect(genderOf('unknown')).toBe('U');
+    expect(genderOf('nonbinary')).toBe('U');
+    expect(genderOf('male')).toBe('M');
+    expect(genderOf('female')).toBe('F');
+  });
+
+  it('does not infer a spouse gender from their partner', () => {
     const data = toFamilyChartData([person('a', 'F'), person('b', 'U')], [family('f1', 'a', 'b')]);
-    expect(data.find((d) => d.id === 'b')!.data.gender).toBe('M');
+    expect(data.find((d) => d.id === 'b')!.data.gender).toBe('U');
     const data2 = toFamilyChartData([person('a', 'U'), person('b', 'M')], [family('f1', 'a', 'b')]);
-    expect(data2.find((d) => d.id === 'a')!.data.gender).toBe('F');
+    expect(data2.find((d) => d.id === 'a')!.data.gender).toBe('U');
+  });
+
+  it('still lists a known father first when the other parent is genderless', () => {
+    const data = toFamilyChartData(
+      [person('dad', 'M'), person('other', 'U'), person('kid')],
+      [family('f1', 'other', 'dad', ['kid'])],
+    );
+    expect(data.find((d) => d.id === 'kid')!.rels.parents).toEqual(['dad', 'other']);
   });
 
   it('supports multiple marriages and drops unknown ids', () => {

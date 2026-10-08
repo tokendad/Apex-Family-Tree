@@ -356,6 +356,21 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
     }
   }, [personId, onSaved]);
 
+  const refreshRelationships = useCallback(async () => {
+    if (!personId) return;
+    try {
+      const res = await fetch(`/api/v1/people/${personId}/relationships`, {
+        credentials: 'include',
+      });
+      if (!res.ok) return;
+      const rels = await res.json();
+      setRelationships(Array.isArray(rels) ? (rels as Relationship[]) : []);
+      onSaved();
+    } catch {
+      // fail silently — parent data will refresh on next onSaved call
+    }
+  }, [personId, onSaved]);
+
   // ─── Load data when modal opens ────────────────────────────────────────────
 
   useEffect(() => {
@@ -749,6 +764,18 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
     }
   };
 
+  const handleAddSpouseFamily = async () => {
+    if (!personId) return;
+    const result = await openModal('FamilyEditor', {
+      mode: 'create',
+      defaults: { spouse1_id: personId },
+    });
+    if (result.action === 'created') {
+      // The family's marriage event also lands on this person's timeline
+      await Promise.all([refreshRelationships(), refreshPersonData()]);
+    }
+  };
+
   const handleAddMarriage = async () => {
     if (!personId) return;
     await openModal('MarriageEditor', {
@@ -1129,12 +1156,27 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
   // ─── Tab: Relationships ────────────────────────────────────────────────────
 
   const renderRelationshipsTab = () => {
+    const addFamilyHeader = (
+      <div className={styles.sectionHeader}>
+        <span />
+        <Button variant="ghost" size="sm" onClick={handleAddSpouseFamily}>
+          + Add Spouse / Family
+        </Button>
+      </div>
+    );
+
     if (childFamilies.length === 0 && parentFamilies.length === 0) {
-      return <p className={styles.emptyState}>No family relationships recorded.</p>;
+      return (
+        <>
+          {addFamilyHeader}
+          <p className={styles.emptyState}>No family relationships recorded.</p>
+        </>
+      );
     }
 
     return (
       <>
+        {addFamilyHeader}
         {/* As a child */}
         {childFamilies.length > 0 && (
           <div className={styles.relGroup}>

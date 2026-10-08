@@ -71,7 +71,7 @@ const FamilyChartTreePage: React.FC = () => {
   const focusedName = focused ? [focused.given_name, focused.surname].filter(Boolean).join(' ') : '';
 
   return (
-    <AppShell navbar={<Navbar />} sidebar={<Sidebar context="tree" />} context="tree">
+    <AppShell navbar={<Navbar />} sidebar={demo ? undefined : <Sidebar context="tree" />} context="tree">
       <div className={styles.wrap}>
         <div className={styles.toolbar}>
           <span className={styles.badge}>family-chart prototype{demo ? ' (demo data)' : ''}</span>
