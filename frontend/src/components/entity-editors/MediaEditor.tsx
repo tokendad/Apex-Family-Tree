@@ -28,6 +28,8 @@ interface MediaLinks {
   persons: { person_id: string; name: string; is_primary: number }[];
   families: { family_id: string; label: string }[];
   events: { event_id: string; label: string }[];
+  /** Sources this image documents — a census sheet, a register page. */
+  sources: { source_id: string; label: string }[];
 }
 
 interface LinkOption {
@@ -209,7 +211,7 @@ const MediaEditor: React.FC<MediaEditorProps> = ({
   const { canEdit, canDelete } = usePermissions();
 
   const [item, setItem] = useState<MediaItem>(initialItem);
-  const [links, setLinks] = useState<MediaLinks>({ persons: [], families: [], events: [] });
+  const [links, setLinks] = useState<MediaLinks>({ persons: [], families: [], events: [], sources: [] });
   const [isLoadingLinks, setIsLoadingLinks] = useState(true);
 
   const [editingField, setEditingField] = useState<EditableField | null>(null);
@@ -223,12 +225,13 @@ const MediaEditor: React.FC<MediaEditorProps> = ({
 
   const [isLinking, setIsLinking] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
-  const [addLinkType, setAddLinkType] = useState<'person' | 'family' | 'event'>('person');
+  const [addLinkType, setAddLinkType] = useState<'person' | 'family' | 'event' | 'source'>('person');
   const [addLinkId, setAddLinkId] = useState('');
 
   const [personOptions, setPersonOptions] = useState<LinkOption[]>([]);
   const [familyOptions, setFamilyOptions] = useState<LinkOption[]>([]);
   const [eventOptions, setEventOptions] = useState<LinkOption[]>([]);
+  const [sourceOptions, setSourceOptions] = useState<LinkOption[]>([]);
 
   // ── Fetch links ──────────────────────────────────────────────────────────
 
@@ -255,10 +258,11 @@ const MediaEditor: React.FC<MediaEditorProps> = ({
   useEffect(() => {
     const load = async () => {
       try {
-        const [peopleRes, familiesRes, eventsRes] = await Promise.all([
+        const [peopleRes, familiesRes, eventsRes, sourcesRes] = await Promise.all([
           fetch('/api/v1/people?limit=500', { credentials: 'include' }),
           fetch('/api/v1/families?limit=500', { credentials: 'include' }),
           fetch('/api/v1/events?limit=500', { credentials: 'include' }),
+          fetch('/api/v1/sources?limit=500', { credentials: 'include' }),
         ]);
         if (peopleRes.ok) {
           const data = await peopleRes.json();
@@ -287,6 +291,16 @@ const MediaEditor: React.FC<MediaEditorProps> = ({
             items.map((e: Record<string, unknown>) => ({
               id: e.id as string,
               label: `${(e.event_type as string | undefined) ?? 'Event'} - ${(e.event_date as string | undefined) ?? ''}`.trim(),
+            })),
+          );
+        }
+        if (sourcesRes.ok) {
+          const data = await sourcesRes.json();
+          const items = data.data ?? data.sources ?? [];
+          setSourceOptions(
+            items.map((src: Record<string, unknown>) => ({
+              id: src.id as string,
+              label: (src.title as string | undefined) ?? (src.id as string),
             })),
           );
         }
@@ -377,7 +391,7 @@ const MediaEditor: React.FC<MediaEditorProps> = ({
     }
   };
 
-  const handleRemoveLink = async (type: 'person' | 'family' | 'event', targetId: string) => {
+  const handleRemoveLink = async (type: 'person' | 'family' | 'event' | 'source', targetId: string) => {
     setIsLinking(true);
     setLinkError(null);
     try {
@@ -559,10 +573,25 @@ const MediaEditor: React.FC<MediaEditorProps> = ({
                 )}
               </span>
             ))}
+            {links.sources.map((src) => (
+              <span key={src.source_id} className={`${styles.chip} ${styles.chipSource}`}>
+                {src.label.trim() || src.source_id}
+                {canEdit && (
+                  <button
+                    type="button"
+                    className={styles.chipRemove}
+                    onClick={() => handleRemoveLink('source', src.source_id)}
+                    disabled={isLinking}
+                    aria-label={`Remove link to source ${src.label.trim()}`}
+                  >×</button>
+                )}
+              </span>
+            ))}
             {!isLoadingLinks &&
               links.persons.length === 0 &&
               links.families.length === 0 &&
-              links.events.length === 0 && (
+              links.events.length === 0 &&
+              links.sources.length === 0 && (
                 <span className={styles.emptyChips}>No connections</span>
               )}
           </div>
@@ -581,6 +610,7 @@ const MediaEditor: React.FC<MediaEditorProps> = ({
                 <option value="person">Person</option>
                 <option value="family">Family</option>
                 <option value="event">Event</option>
+                <option value="source">Source</option>
               </select>
               <select
                 className={styles.select}
@@ -596,6 +626,9 @@ const MediaEditor: React.FC<MediaEditorProps> = ({
                   <option key={o.id} value={o.id}>{o.label}</option>
                 ))}
                 {addLinkType === 'event' && eventOptions.map((o) => (
+                  <option key={o.id} value={o.id}>{o.label}</option>
+                ))}
+                {addLinkType === 'source' && sourceOptions.map((o) => (
                   <option key={o.id} value={o.id}>{o.label}</option>
                 ))}
               </select>
