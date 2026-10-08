@@ -172,6 +172,26 @@ describe('GEDCOM import — source citations', () => {
     expect(stats.warnings.join(' ')).toMatch(/inline SOUR/i);
   });
 
+  it('collapses a NAME citation that repeats the record-level one', () => {
+    // The same source and page cited both on the INDI and on its NAME would
+    // otherwise show twice on the person, since neither has a name subject.
+    const repeated = GED.replace(
+      "'2 NSFX Sr',\n  '2 SOUR @S0017@',",
+      "'2 NSFX Sr',\n  '2 SOUR @S0010@',\n  '3 PAGE Household record',\n  '2 SOUR @S0017@',",
+    );
+    const job = startJob('repeat.ged', repeated);
+    processImport(job.id, repeated, 'u1', 'new');
+
+    const rows = db
+      .prepare(
+        `SELECT COUNT(*) c FROM source_citations sc
+           JOIN persons p ON p.id = sc.person_id
+          WHERE p.gedcom_id = '@I0188@' AND sc.page = 'Household record'`,
+      )
+      .get() as { c: number };
+    expect(rows.c).toBe(1);
+  });
+
   it('keeps a MARR citation even though the marriage event is written twice', () => {
     const job = startJob('marr.ged', GED);
     processImport(job.id, GED, 'u1', 'new');

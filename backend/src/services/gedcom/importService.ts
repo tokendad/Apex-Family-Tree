@@ -205,6 +205,11 @@ export function processImport(jobId: string, content: string, userId: string, mo
   let eventCount = 0;
   let citationCount = 0;
   const unresolvedCitations: string[] = [];
+  // source_citations has no name subject, so a NAME-level SOUR attaches to the
+  // person — which collides with the same SOUR repeated at record level. On a
+  // real Ancestry export that duplicated 27 of 111 citations, each showing
+  // twice on the person. Identical (subject, source, page) triples collapse.
+  const seenCitations = new Set<string>();
 
   /**
    * Write the SOUR pointers carried by one record as source_citations rows.
@@ -232,6 +237,16 @@ export function processImport(jobId: string, content: string, userId: string, mo
         });
         continue;
       }
+
+      const dedupeKey = [
+        subject.person_id ?? '',
+        subject.family_id ?? '',
+        subject.event_id ?? '',
+        sourceId,
+        citation.page ?? '',
+      ].join('|');
+      if (seenCitations.has(dedupeKey)) continue;
+      seenCitations.add(dedupeKey);
 
       // _APID is Ancestry-proprietary rather than 5.5.1, but it is a stable
       // pointer back to the original record, so it is kept alongside the text.
