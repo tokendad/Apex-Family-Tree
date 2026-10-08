@@ -60,6 +60,8 @@ const GED = [
   '1 WIFE @I0189@',
   '1 MARR',
   '2 DATE 6 JUN 1945',
+  '2 SOUR @S0010@',
+  '3 PAGE Marriage certificate no. 42',
   '1 SOUR @S0017@',
   '2 PAGE Marriage register, p. 14',
   '0 TRLR',
@@ -93,7 +95,7 @@ describe('GEDCOM import — source citations', () => {
     const job = startJob('citations.ged', GED);
     const stats = processImport(job.id, GED, 'u1', 'new');
 
-    expect(stats.citations).toBe(4);
+    expect(stats.citations).toBe(5);
 
     const rows = db
       .prepare(
@@ -106,12 +108,12 @@ describe('GEDCOM import — source citations', () => {
       )
       .all() as Array<Record<string, unknown>>;
 
-    expect(rows).toHaveLength(4);
+    expect(rows).toHaveLength(5);
 
     // Subjects: two on the person (record-level and NAME-level), one on the
     // birth event, one on the family.
     expect(rows.filter((r) => r.on_person === 1)).toHaveLength(2);
-    expect(rows.filter((r) => r.on_event === 1)).toHaveLength(1);
+    expect(rows.filter((r) => r.on_event === 1)).toHaveLength(2);
     expect(rows.filter((r) => r.on_family === 1)).toHaveLength(1);
 
     // Each citation resolves to the right source and keeps its locator.
@@ -138,7 +140,7 @@ describe('GEDCOM import — source citations', () => {
     const result = validateGedcom(job.id, GED);
 
     expect(result.valid).toBe(true);
-    expect(result.stats.citations).toBe(4);
+    expect(result.stats.citations).toBe(5);
     expect(db.prepare('SELECT COUNT(*) c FROM source_citations').get()).toEqual({ c: 0 });
   });
 
@@ -148,7 +150,7 @@ describe('GEDCOM import — source citations', () => {
     const stats = processImport(job.id, dangling, 'u1', 'new');
 
     // The other three still land, and the person is still imported.
-    expect(stats.citations).toBe(3);
+    expect(stats.citations).toBe(4);
     expect(stats.persons).toBe(2);
     expect(stats.warnings.join(' ')).toContain('@S9999@');
 
@@ -166,8 +168,34 @@ describe('GEDCOM import — source citations', () => {
     const job = startJob('inline.ged', inline);
     const stats = processImport(job.id, inline, 'u1', 'new');
 
-    expect(stats.citations).toBe(3);
+    expect(stats.citations).toBe(4);
     expect(stats.warnings.join(' ')).toMatch(/inline SOUR/i);
+  });
+
+  it('keeps a MARR citation even though the marriage event is written twice', () => {
+    const job = startJob('marr.ged', GED);
+    processImport(job.id, GED, 'u1', 'new');
+
+    // A marriage arrives both as marriageDate/marriagePlace and inside
+    // family.events. The second pass finds the event already created and must
+    // attach the citation to it rather than skipping both.
+    const row = db
+      .prepare(
+        `SELECT e.event_type, e.family_id IS NOT NULL AS on_family_event, s.title
+           FROM source_citations c
+           JOIN events e ON e.id = c.event_id
+           JOIN sources s ON s.id = c.source_id
+          WHERE c.page = 'Marriage certificate no. 42'`,
+      )
+      .get() as { event_type: string; on_family_event: number; title: string } | undefined;
+
+    expect(row).toBeDefined();
+    expect(row!.event_type).toBe('marriage');
+    expect(row!.on_family_event).toBe(1);
+    expect(row!.title).toBe('1930 United States Federal Census');
+
+    // And the marriage itself is still a single event.
+    expect(db.prepare("SELECT COUNT(*) c FROM events WHERE event_type = 'marriage'").get()).toEqual({ c: 1 });
   });
 
   it('does not duplicate a person\'s citations when an overwrite replaces their records', () => {

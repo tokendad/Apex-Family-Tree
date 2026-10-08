@@ -709,12 +709,24 @@ export function processImport(jobId: string, content: string, userId: string, mo
 
       const syncFamilyEvents = (familyId: string, familyEvents: typeof mapped.families[number]['events']) => {
         const existingEvents = eventRepo.findByFamily(familyId);
-        const existingKeys = new Set(
-          existingEvents.map((event) => familyEventKey(event.event_type, event.event_date, event.event_place, event.description))
+        // Keyed by id, not just presence: a MARR arrives twice — once through
+        // marriageDate/marriagePlace, which syncFamilyLifecycleEvent writes
+        // without citations, and again in family.events with them. Skipping the
+        // duplicate event must not also skip its citations, so they are
+        // attached to the event that already exists.
+        const existingByKey = new Map(
+          existingEvents.map((event) => [
+            familyEventKey(event.event_type, event.event_date, event.event_place, event.description),
+            event.id,
+          ])
         );
         for (const event of familyEvents) {
           const key = familyEventKey(event.eventType, event.date, event.place, event.description);
-          if (existingKeys.has(key)) continue;
+          const existingId = existingByKey.get(key);
+          if (existingId) {
+            writeCitations(event.citations, { event_id: existingId });
+            continue;
+          }
           const createdEvent = eventRepo.create({
             family_id: familyId,
             event_type: event.eventType,
@@ -724,7 +736,7 @@ export function processImport(jobId: string, content: string, userId: string, mo
           });
           writeCitations(event.citations, { event_id: createdEvent.id });
           eventCount++;
-          existingKeys.add(key);
+          existingByKey.set(key, createdEvent.id);
         }
       };
 
