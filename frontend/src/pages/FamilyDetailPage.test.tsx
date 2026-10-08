@@ -128,12 +128,70 @@ describe('FamilyDetailPage — spouse assignment', () => {
     fireEvent.click(screen.getByTestId('pick-spouse-1'));
 
     await waitFor(() => {
-      const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls;
-      const putCall = calls.find(
-        (c: any) => (c[1]?.method ?? 'GET') === 'PUT'
-      );
+      const calls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls as [
+        string,
+        RequestInit?,
+      ][];
+      const putCall = calls.find((c) => (c[1]?.method ?? 'GET') === 'PUT');
       expect(putCall).toBeTruthy();
       expect(JSON.parse(putCall![1]!.body as string).spouse1_id).toBe('p-999');
     });
+  });
+});
+
+describe('FamilyDetailPage — Family Summary', () => {
+  const familyWithEightChildren = {
+    id: 'f-2',
+    spouse1_id: 's1',
+    spouse2_id: 's2',
+    spouse1: { id: 's1', given_name: 'Gustave', surname: 'LeFort' },
+    spouse2: { id: 's2', given_name: 'Mabel', surname: 'Merandith' },
+    marriage_date: null,
+    marriage_place: null,
+    divorce_date: null,
+    divorce_place: null,
+    children: ['Louisa', 'Alphina', 'Mary', 'Corina', 'Aug', 'Clara', 'Alta', 'Etta'].map(
+      (given, i) => ({
+        id: `m-${i}`,
+        person_id: `c-${i}`,
+        role: 'child' as const,
+        person: {
+          displayName: null,
+          display_name: null,
+          primary_name: { given_name: given, middle_name: null, surname: 'LeFort' },
+        },
+      }),
+    ),
+    events: [],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // Regression: the summary used to cap the list at 4 cards while the stat tile
+  // above it reported the true count, so a family of 8 appeared to have lost 4.
+  it('lists every child in the summary, not just the first four', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => familyWithEightChildren,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/families/f-2']}>
+        <Routes>
+          <Route path="/families/:id" element={<FamilyDetailPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: /children \(8\)/i })).toBeInTheDocument(),
+    );
+    for (const given of ['Louisa', 'Alphina', 'Mary', 'Corina', 'Aug', 'Clara', 'Alta', 'Etta']) {
+      expect(screen.getByRole('link', { name: `${given} LeFort` })).toBeInTheDocument();
+    }
+    expect(screen.getByRole('heading', { name: /parents \(2\)/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Gustave LeFort' })).toBeInTheDocument();
   });
 });

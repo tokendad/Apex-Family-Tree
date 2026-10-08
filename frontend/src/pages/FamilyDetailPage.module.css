@@ -129,6 +129,56 @@
   margin-top: var(--space-4);
 }
 
+/* ── Family Summary: compact name lists ─────────────────────────────────── */
+
+.summaryGroups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+  align-items: start;
+}
+
+@media (max-width: 740px) {
+  .summaryGroups {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+}
+
+.nameList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  /* Long sibling sets stay compact instead of running down the page. */
+  columns: 2;
+  column-gap: var(--space-4);
+}
+
+@media (max-width: 980px) {
+  .nameList {
+    columns: 1;
+  }
+}
+
+.nameList li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 2px 0;
+  break-inside: avoid;
+}
+
+.nameLink {
+  color: var(--color-text-primary);
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+}
+
+.nameLink:hover {
+  color: var(--color-primary-700);
+  text-decoration: underline;
+}
+
 /* ── Role badges (children) ─────────────────────────────────────────────── */
 
 .roleBadge {
