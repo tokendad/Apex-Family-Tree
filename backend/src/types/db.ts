@@ -190,6 +190,13 @@ export interface EventMedia {
   created_at: string;
 }
 
+export interface SourceMedia {
+  source_id: string;
+  media_id: string;
+  sort_order: number;
+  created_at: string;
+}
+
 export interface MediaPersonRegion {
   id: string;
   media_id: string;

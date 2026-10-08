@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { BaseRepository } from './base.js';
-import type { MediaItem, PersonMedia, FamilyMedia, EventMedia, MediaPersonRegion } from '../types/db.js';
+import type { MediaItem, PersonMedia, FamilyMedia, EventMedia, SourceMedia, MediaPersonRegion } from '../types/db.js';
 
 // TIFF is included because scanned documents in family archives are routinely
 // saved as .tif — death certificates, discharge papers, obituaries. Excluding it
@@ -88,10 +88,20 @@ export class MediaRepository extends BaseRepository {
     ).all(personId) as MediaItem[];
   }
 
+  findBySource(sourceId: string): MediaItem[] {
+    return this.db.prepare(
+      `SELECT mi.* FROM media_items mi
+       INNER JOIN source_media sm ON mi.id = sm.media_id
+       WHERE sm.source_id = ?
+       ORDER BY sm.sort_order ASC`
+    ).all(sourceId) as MediaItem[];
+  }
+
   findLinks(mediaId: string): {
     persons: { person_id: string; name: string; is_primary: number }[];
     families: { family_id: string; label: string }[];
     events: { event_id: string; label: string }[];
+    sources: { source_id: string; label: string }[];
   } {
     const persons = this.db.prepare(
       `SELECT pm.person_id, pm.is_primary,
@@ -123,7 +133,15 @@ export class MediaRepository extends BaseRepository {
        ORDER BY em.sort_order ASC`
     ).all(mediaId) as { event_id: string; label: string }[];
 
-    return { persons, families, events };
+    const sources = this.db.prepare(
+      `SELECT sm.source_id, s.title AS label
+       FROM source_media sm
+       INNER JOIN sources s ON s.id = sm.source_id
+       WHERE sm.media_id = ?
+       ORDER BY sm.sort_order ASC`
+    ).all(mediaId) as { source_id: string; label: string }[];
+
+    return { persons, families, events, sources };
   }
 
   findRegions(mediaId: string): MediaPersonRegionRow[] {
@@ -483,5 +501,25 @@ export class MediaRepository extends BaseRepository {
     return this.db.prepare(
       'DELETE FROM event_media WHERE event_id = ? AND media_id = ?'
     ).run(eventId, mediaId).changes > 0;
+  }
+
+  linkToSource(mediaId: string, sourceId: string): SourceMedia {
+    const maxOrder = this.db.prepare(
+      'SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM source_media WHERE source_id = ?'
+    ).get(sourceId) as { next: number };
+
+    this.db.prepare(
+      'INSERT OR IGNORE INTO source_media (source_id, media_id, sort_order, created_at) VALUES (?, ?, ?, ?)'
+    ).run(sourceId, mediaId, maxOrder.next, this.now());
+
+    return this.db.prepare(
+      'SELECT * FROM source_media WHERE source_id = ? AND media_id = ?'
+    ).get(sourceId, mediaId) as SourceMedia;
+  }
+
+  unlinkFromSource(mediaId: string, sourceId: string): boolean {
+    return this.db.prepare(
+      'DELETE FROM source_media WHERE source_id = ? AND media_id = ?'
+    ).run(sourceId, mediaId).changes > 0;
   }
 }
