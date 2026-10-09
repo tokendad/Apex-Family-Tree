@@ -213,6 +213,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  /* See ArchiveDetailPage: without this a long value overflows its grid cell. */
+  min-width: 0;
 }
 
 .infoLabel {
@@ -226,6 +228,7 @@
 .infoValue {
   font-size: var(--font-size-sm);
   color: var(--color-text-primary);
+  overflow-wrap: anywhere;
 }
 
 /* ── Status badges ───────────────────────────────────────────────────────── */
