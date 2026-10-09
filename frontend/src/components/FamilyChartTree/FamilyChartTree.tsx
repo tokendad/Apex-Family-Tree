@@ -21,6 +21,12 @@ interface FamilyChartTreeProps {
   onPersonContextMenu?: (personId: string, x: number, y: number) => void;
   /** Double-click on a person's card. */
   onPersonOpen?: (personId: string) => void;
+  /**
+   * Single click on a person's card. family-chart already re-centres the
+   * chart on that person; this fires alongside, so a host page can also
+   * select them and open a detail panel.
+   */
+  onPersonSelect?: (personId: string) => void;
 }
 
 /**
@@ -58,14 +64,15 @@ const FamilyChartTree: React.FC<FamilyChartTreeProps> = ({
   onMainChange,
   onPersonContextMenu,
   onPersonOpen,
+  onPersonSelect,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const changeRef = useRef(onMainChange);
   changeRef.current = onMainChange;
   // Held in a ref so the delegated listeners below can be attached once, for
   // the life of the container, rather than being torn down on every re-render.
-  const handlersRef = useRef({ onPersonContextMenu, onPersonOpen });
-  handlersRef.current = { onPersonContextMenu, onPersonOpen };
+  const handlersRef = useRef({ onPersonContextMenu, onPersonOpen, onPersonSelect });
+  handlersRef.current = { onPersonContextMenu, onPersonOpen, onPersonSelect };
 
   const data = useMemo(() => toFamilyChartData(persons, families), [persons, families]);
 
@@ -128,9 +135,19 @@ const FamilyChartTree: React.FC<FamilyChartTreeProps> = ({
       handlersRef.current.onPersonOpen?.(id);
     };
 
+    const handleClick = (event: MouseEvent) => {
+      const id = personIdFromNode(event.target, known);
+      if (!id) return;
+      // Deliberately does not preventDefault: family-chart's own handler must
+      // still run and re-centre the chart. This only adds selection.
+      handlersRef.current.onPersonSelect?.(id);
+    };
+
+    el.addEventListener('click', handleClick);
     el.addEventListener('contextmenu', handleContextMenu);
     el.addEventListener('dblclick', handleDoubleClick);
     return () => {
+      el.removeEventListener('click', handleClick);
       el.removeEventListener('contextmenu', handleContextMenu);
       el.removeEventListener('dblclick', handleDoubleClick);
     };
