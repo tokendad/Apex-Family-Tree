@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Navigate, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.js';
 import styles from './LoginPage.module.css';
+import { safeRedirectPath } from '@/utils/safeRedirect';
 
 export default function LoginPage() {
   const { login, isAuthenticated, isLoading, needsSetup } = useAuth();
@@ -28,8 +29,11 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       await login(email.trim(), password);
-      const redirect = searchParams.get('redirect');
-      navigate(redirect && redirect.startsWith('/') ? redirect : '/', { replace: true });
+      // startsWith('/') also admits //evil.com and /\evil.com, both of which
+      // leave the site — see safeRedirectPath.
+      navigate(safeRedirectPath(searchParams.get('redirect'), window.location.origin), {
+        replace: true,
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
     } finally {
