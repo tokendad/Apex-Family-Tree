@@ -10,7 +10,6 @@ import ModalHost from './components/modals/ModalHost';
 
 // Lazy-loaded page components
 const TreePage = React.lazy(() => import('./pages/TreePage'));
-const TopolaTreePage = React.lazy(() => import('./pages/TopolaTreePage'));
 const PeoplePage = React.lazy(() => import('./pages/PeoplePage'));
 const AdminUsersPage = React.lazy(() => import('./pages/AdminUsersPage'));
 const AdminSettingsPage = React.lazy(() => import('./pages/AdminSettingsPage'));
@@ -98,7 +97,6 @@ function App() {
               {/* The classic hand-rolled canvas, kept as a fallback while
                   family-chart beds in. Same page, different drawing. */}
               <Route path="/tree-classic" element={<ProtectedRoute><TreePage renderer="classic" /></ProtectedRoute>} />
-              <Route path="/tree-topola" element={<ProtectedRoute><TopolaTreePage /></ProtectedRoute>} />
               {/* family-chart is now the tree at "/". */}
               <Route path="/tree-family-chart" element={<Navigate to="/" replace />} />
               <Route path="/people" element={<ProtectedRoute><PeoplePage /></ProtectedRoute>} />
