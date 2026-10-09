@@ -6,6 +6,7 @@ import Navbar from '@/components/Navbar/Navbar';
 import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
+import ObjectPicker, { ArchiveObjectResult } from '@/components/entity-pickers/ObjectPicker';
 import { usePermissions } from '@/hooks/usePermissions';
 import styles from './ArtifactsPage.module.css';
 
@@ -18,6 +19,7 @@ interface CollectionRecord {
   privacy_level: 'public' | 'family' | 'private' | 'restricted';
   collection_type: 'manual' | 'smart';
   description: string | null;
+  cover_artifact_id: string | null;
   item_count: number;
   items: CollectionItem[];
   tags: TagRecord[];
@@ -29,8 +31,30 @@ function formFromCollection(collection: CollectionRecord) {
     summary: collection.summary ?? '',
     description: collection.description ?? '',
     privacy_level: collection.privacy_level,
+    cover_artifact_id: collection.cover_artifact_id,
   };
 }
+
+/**
+ * A collection's cover image.
+ *
+ * Migration 045 bridged legacy media into artifacts using the media row's own
+ * id, so an artifact that came from media is served at /api/v1/media/<id>.
+ * Artifacts with no servable file — and anything not an image — simply render
+ * nothing rather than a broken frame; full file display is #22.
+ */
+const CoverImage: React.FC<{ artifactId: string }> = ({ artifactId }) => {
+  const [failed, setFailed] = useState(false);
+  if (failed) return null;
+  return (
+    <img
+      className={styles.cover}
+      src={`/api/v1/media/${artifactId}`}
+      alt="Collection cover"
+      onError={() => setFailed(true)}
+    />
+  );
+};
 
 const CollectionDetailPage: React.FC = () => {
   const { id } = useParams();
@@ -38,7 +62,9 @@ const CollectionDetailPage: React.FC = () => {
   const { canEdit, canDelete } = usePermissions();
   const [collection, setCollection] = useState<CollectionRecord | null>(null);
   const [form, setForm] = useState<ReturnType<typeof formFromCollection> | null>(null);
-  const [itemObjectId, setItemObjectId] = useState('');
+  // An object is chosen through the archive search, not by pasting its id.
+  const [pickedItem, setPickedItem] = useState<ArchiveObjectResult | null>(null);
+  const [pickedCover, setPickedCover] = useState<ArchiveObjectResult | null>(null);
   const [itemCaption, setItemCaption] = useState('');
   const [tagName, setTagName] = useState('');
   const [editMode, setEditMode] = useState(false);
@@ -70,7 +96,7 @@ const CollectionDetailPage: React.FC = () => {
     const res = await fetch(`/api/v1/collections/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: form.title.trim(), summary: form.summary.trim() || null, description: form.description.trim() || null, privacy_level: form.privacy_level }),
+      body: JSON.stringify({ title: form.title.trim(), summary: form.summary.trim() || null, description: form.description.trim() || null, privacy_level: form.privacy_level, cover_artifact_id: form.cover_artifact_id }),
     });
     if (res.ok) {
       setEditMode(false);
@@ -85,14 +111,14 @@ const CollectionDetailPage: React.FC = () => {
   };
 
   const handleAddItem = async () => {
-    if (!id || !itemObjectId.trim()) return;
+    if (!id || !pickedItem) return;
     const res = await fetch(`/api/v1/collections/${id}/items`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item_object_id: itemObjectId.trim(), caption: itemCaption.trim() || null, sort_order: collection?.items.length ?? 0 }),
+      body: JSON.stringify({ item_object_id: pickedItem.id, caption: itemCaption.trim() || null, sort_order: collection?.items.length ?? 0 }),
     });
     if (res.ok) {
-      setItemObjectId('');
+      setPickedItem(null);
       setItemCaption('');
       await loadCollection();
     }
@@ -134,8 +160,27 @@ const CollectionDetailPage: React.FC = () => {
               <label className={styles.field}><span>Privacy</span><select value={form.privacy_level} onChange={(e) => setForm({ ...form, privacy_level: e.target.value as CollectionRecord['privacy_level'] })}><option value="family">Family</option><option value="private">Private</option><option value="restricted">Restricted</option><option value="public">Public</option></select></label>
             </div>
             <label className={styles.field}><span>Description</span><textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={4} /></label>
+            <div className={styles.field}>
+              <span>Cover image</span>
+              {form.cover_artifact_id ? (
+                <div className={styles.coverRow}>
+                  <CoverImage artifactId={form.cover_artifact_id} />
+                  <Button variant="ghost" size="sm" onClick={() => { setForm({ ...form, cover_artifact_id: null }); setPickedCover(null); }}>
+                    Remove cover
+                  </Button>
+                </div>
+              ) : (
+                <ObjectPicker
+                  label="Choose an artifact for the cover"
+                  objectTypes={['artifact']}
+                  value={pickedCover}
+                  onSelect={(object) => { setPickedCover(object); setForm({ ...form, cover_artifact_id: object.id }); }}
+                  onClear={() => { setPickedCover(null); setForm({ ...form, cover_artifact_id: null }); }}
+                />
+              )}
+            </div>
             <div className={styles.actions}><Button type="submit">Save Collection</Button></div>
-          </form> : <section className={styles.detailCard}><div className={styles.detailRow}><span>Description</span><strong>{collection.description || '-'}</strong></div><div className={styles.detailRow}><span>Privacy</span><strong>{collection.privacy_level}</strong></div><div className={styles.detailRow}><span>Items</span><strong>{collection.item_count}</strong></div></section>}
+          </form> : <section className={styles.detailCard}>{collection.cover_artifact_id && <CoverImage artifactId={collection.cover_artifact_id} />}<div className={styles.detailRow}><span>Description</span><strong>{collection.description || '-'}</strong></div><div className={styles.detailRow}><span>Privacy</span><strong>{collection.privacy_level}</strong></div><div className={styles.detailRow}><span>Items</span><strong>{collection.item_count}</strong></div></section>}
 
           <section className={styles.detailCard}>
             <div className={styles.sectionTitleRow}><h2>Tags</h2></div>
@@ -146,7 +191,19 @@ const CollectionDetailPage: React.FC = () => {
           <section className={styles.detailCard}>
             <div className={styles.sectionTitleRow}><h2>Collection Items</h2></div>
             {collection.items.length === 0 ? <p className={styles.muted}>No items yet.</p> : <div className={styles.connectedList}>{collection.items.map((item) => <div key={item.id} className={styles.connectedItem}><Link to={objectPath(item.object_type, item.item_object_id)}><strong>{item.title}</strong></Link><span>{item.object_type}{item.caption ? `: ${item.caption}` : ''}</span>{canDelete && <Button variant="ghost" size="sm" onClick={() => void handleRemoveItem(item.id)}>Remove</Button>}</div>)}</div>}
-            {canEdit && <div className={styles.connectBox}><Input placeholder="Archive object ID" value={itemObjectId} onChange={(event) => setItemObjectId(event.target.value)} /><Input placeholder="Caption" value={itemCaption} onChange={(event) => setItemCaption(event.target.value)} /><Button onClick={handleAddItem}>Add Item</Button></div>}
+            {canEdit && (
+              <div className={styles.connectBox}>
+                <ObjectPicker
+                  label="Find an object to add"
+                  excludeIds={collection.items.map((item) => item.item_object_id)}
+                  value={pickedItem}
+                  onSelect={setPickedItem}
+                  onClear={() => setPickedItem(null)}
+                />
+                <Input placeholder="Caption" value={itemCaption} onChange={(event) => setItemCaption(event.target.value)} />
+                <Button onClick={handleAddItem} disabled={!pickedItem}>Add Item</Button>
+              </div>
+            )}
           </section>
         </>}
       </div>

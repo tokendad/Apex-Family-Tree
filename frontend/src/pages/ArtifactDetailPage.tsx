@@ -9,6 +9,7 @@ import ActionDrawer from '@/components/archive-object/ActionDrawer';
 import ArchiveObjectLayout from '@/components/archive-object/ArchiveObjectLayout';
 import { type ContextActionItem } from '@/components/archive-object/ContextActionsMenu';
 import { usePageActions } from '@/contexts/PageActionsContext';
+import ObjectCollections, { CollectionMembership } from '@/components/ObjectCollections/ObjectCollections';
 import { usePermissions } from '@/hooks/usePermissions';
 import ObjectPicker from '@/components/entity-pickers/ObjectPicker';
 import type { ArchiveObjectResult } from '@/components/entity-pickers/ObjectPicker';
@@ -155,6 +156,9 @@ const ArtifactDetailPage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { canEdit, canDelete } = usePermissions();
+  // Collection membership lives in collection_items, not in relationships,
+  // so it is loaded separately from connectedObjects (#26).
+  const [memberOf, setMemberOf] = useState<CollectionMembership[]>([]);
   const [artifact, setArtifact] = useState<ArtifactRecord | null>(null);
   const [artifactTypes, setArtifactTypes] = useState<ArtifactType[]>([]);
   const [evidenceClassifications, setEvidenceClassifications] = useState<EvidenceClassification[]>([]);
@@ -413,6 +417,7 @@ const ArtifactDetailPage: React.FC = () => {
               tabs={[
                 { id: 'details', label: 'Details' },
                 { id: 'connections', label: 'Connections', count: connectedObjects.length },
+                { id: 'collections', label: 'Collections', count: memberOf.length },
                 { id: 'claims', label: 'Claims', count: relatedClaims.length },
               ]}
               activeTab={activeTab}
@@ -524,6 +529,21 @@ const ArtifactDetailPage: React.FC = () => {
                       ))}
                     </div>
                   )}
+                </section>
+              )}
+
+              {activeTab === 'collections' && (
+                <section className={styles.detailCard}>
+                  <div className={styles.sectionTitleRow}>
+                    <h2>Collections</h2>
+                    {memberOf.length > 0 && <span className={styles.cardType}>{memberOf.length}</span>}
+                  </div>
+                  <ObjectCollections
+                    objectId={artifact.id}
+                    canEdit={canEdit}
+                    canDelete={canDelete}
+                    onChange={setMemberOf}
+                  />
                 </section>
               )}
 
