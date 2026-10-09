@@ -546,3 +546,30 @@
   align-items: flex-start;
   gap: var(--space-3);
 }
+
+/*
+ * On a phone, let the page scroll rather than an inner pane.
+ *
+ * .page is a fixed-height flex column and .grid is the scrolling part, which
+ * works while the header is short. The artifact type filter is seventeen pills
+ * that wrap to seven rows on a narrow screen, and header + filter then consume
+ * the whole viewport: the grid's flex-basis of 0 leaves it 26px, too little
+ * for a card or even the "no artifacts yet" message, and because the AppShell
+ * is overflow:hidden there is nothing to scroll to reach it. The page looked
+ * empty while the API was returning 49 rows (#13, #27).
+ *
+ * Making .page the scroll container and letting .grid take its natural height
+ * keeps everything reachable.
+ */
+@media (max-width: 768px) {
+  .page {
+    height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .grid {
+    flex: none;
+    overflow-y: visible;
+  }
+}
