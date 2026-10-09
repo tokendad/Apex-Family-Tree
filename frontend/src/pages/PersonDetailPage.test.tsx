@@ -71,9 +71,23 @@ const stubConnectedObjects = [
   },
 ];
 
+const stubCollectionMembership = [
+  {
+    id: 'col-1',
+    title: 'Military Service',
+    summary: null,
+    cover_artifact_id: null,
+    item_id: 'ci-1',
+    caption: null,
+  },
+];
+
 beforeEach(() => {
   vi.clearAllMocks();
   global.fetch = vi.fn().mockImplementation((url: string) => {
+    if (url.includes('/collections/for-object/')) {
+      return Promise.resolve({ ok: true, json: async () => ({ data: stubCollectionMembership }) });
+    }
     if (url.includes('/connected')) {
       return Promise.resolve({ ok: true, json: async () => ({ data: stubConnectedObjects }) });
     }
@@ -145,8 +159,8 @@ describe('PersonDetailPage — archive layout', () => {
   it('lists collections by name under the Collections tab', async () => {
     renderPage();
 
-    // The Connected To rail used to be the only place a person's collections
-    // were named. The tab replaces it, so the names stay reachable.
+    // Membership is read from collection_items, not from the relationship
+    // graph, so the tab reflects what the collection actually contains.
     fireEvent.click(await screen.findByRole('tab', { name: /collections/i }));
 
     expect(await screen.findByText('Military Service')).toBeInTheDocument();

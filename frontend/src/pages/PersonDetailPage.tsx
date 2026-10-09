@@ -9,6 +9,7 @@ import ArchiveObjectLayout from '@/components/archive-object/ArchiveObjectLayout
 import ArtifactCard from '@/components/archive-object/ArtifactCard';
 import { type ContextActionItem } from '@/components/archive-object/ContextActionsMenu';
 import { usePageActions } from '@/contexts/PageActionsContext';
+import ObjectCollections, { CollectionMembership } from '@/components/ObjectCollections/ObjectCollections';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useModal } from '@/components/modals/useModal';
 import type { FamilySummary } from '@/types/genealogy';
@@ -242,6 +243,8 @@ const PersonDetailPage: React.FC = () => {
 
   // ── Archive connections ──
   const [connectedObjects, setConnectedObjects] = useState<ConnectedObject[]>([]);
+  // Collection membership is collection_items, not a relationship (#26).
+  const [memberOf, setMemberOf] = useState<CollectionMembership[]>([]);
   const [connectedObjectsLoading, setConnectedObjectsLoading] = useState(true);
 
   // ── Delete ──
@@ -498,7 +501,6 @@ const PersonDetailPage: React.FC = () => {
 
   const connectedArtifacts = connectedObjects.filter((o) => o.object_type === 'artifact');
   const connectedStories = connectedObjects.filter((o) => o.object_type === 'story');
-  const connectedCollections = connectedObjects.filter((o) => o.object_type === 'collection');
   const familyRoles = new Map<string, string>();
   childFamilies.forEach((rel) => {
     [rel.spouse1, rel.spouse2].forEach((p) => {
@@ -551,16 +553,17 @@ const PersonDetailPage: React.FC = () => {
           stats={[
             { label: 'Artifacts', value: connectedArtifacts.length },
             { label: 'Stories', value: connectedStories.length },
-            { label: 'Events', value: sortedEventsList.length },
-            { label: 'Collections', value: connectedCollections.length },
+            { label: 'Events', value: timelineEvents.length },
+            { label: 'Facts', value: attributes.length },
+            { label: 'Collections', value: memberOf.length },
             { label: 'Families', value: relationships.length },
           ]}
           tabs={[
             { id: 'overview', label: 'Overview' },
-            { id: 'timeline', label: 'Timeline', count: sortedEventsList.length },
+            { id: 'timeline', label: 'Timeline', count: timelineEvents.length },
             { id: 'artifacts', label: 'Artifacts', count: connectedArtifacts.length + media.length },
             { id: 'stories', label: 'Stories', count: connectedStories.length },
-            { id: 'collections', label: 'Collections', count: connectedCollections.length },
+            { id: 'collections', label: 'Collections', count: memberOf.length },
             { id: 'family', label: 'Family', count: relationships.length },
             { id: 'claims', label: 'Claims' },
           ]}
@@ -1029,28 +1032,15 @@ const PersonDetailPage: React.FC = () => {
             <section className={styles.section} aria-labelledby="collections-heading">
               <h2 className={styles.sectionTitle} id="collections-heading">
                 Collections
-                {connectedCollections.length > 0 && (
-                  <span className={styles.countBadge}>{connectedCollections.length}</span>
-                )}
+                {memberOf.length > 0 && <span className={styles.countBadge}>{memberOf.length}</span>}
               </h2>
 
-              {connectedObjectsLoading ? (
-                <div className={styles.skeletonLine} aria-hidden="true" />
-              ) : connectedCollections.length === 0 ? (
-                <p className={styles.noInfo}>No collections include this person yet.</p>
-              ) : (
-                <div className={styles.relPersonList}>
-                  {connectedCollections.map((collection) => (
-                    <Link
-                      key={`${collection.relationship_id}-${collection.object_id}`}
-                      to={`/collections/${collection.object_id}`}
-                      className={styles.relPersonLink}
-                    >
-                      {collection.title}
-                    </Link>
-                  ))}
-                </div>
-              )}
+              <ObjectCollections
+                objectId={person.id}
+                canEdit={canEdit}
+                canDelete={canDelete}
+                onChange={setMemberOf}
+              />
             </section>
           )}
 
