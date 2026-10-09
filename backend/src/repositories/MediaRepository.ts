@@ -239,6 +239,89 @@ export class MediaRepository extends BaseRepository {
     return this.db.prepare('DELETE FROM media_person_regions WHERE id = ?').run(regionId).changes > 0;
   }
 
+
+  /**
+   * Mirror a media item into the archive model as an artifact.
+   *
+   * media_items and archive_objects are two views of the same thing: the
+   * Media gallery lists the files, the Artifacts page catalogues them. They
+   * are kept in step by id -- an artifact created from media reuses the media
+   * row's id, which is what migration 045 established and what lets
+   * /api/v1/media/:id serve an artifact's image.
+   *
+   * Without this, media added after 045 ran never became artifacts and the two
+   * pages showed different things (#13). Guarded on NOT EXISTS so it is safe
+   * to call for a row that already has its artifact.
+   */
+  private syncArtifact(id: string): void {
+    const media = this.db.prepare('SELECT * FROM media_items WHERE id = ?').get(id) as
+      | { id: string; filename: string; original_filename: string | null; mime_type: string | null;
+          file_size: number | null; file_path: string; thumbnail_path: string | null;
+          title: string | null; description: string | null; date_taken: string | null;
+          uploaded_by: string | null; created_at: string; updated_at: string }
+      | undefined;
+    if (!media) return;
+
+    const title =
+      media.title?.trim() || media.original_filename?.trim() || media.filename?.trim() || 'Untitled Artifact';
+    const summary = media.description?.trim() || null;
+
+    const existing = this.db.prepare('SELECT 1 FROM archive_objects WHERE id = ?').get(id);
+    if (existing) {
+      // Keep the catalogue entry in step with the file's own title/description.
+      this.db.prepare(
+        `UPDATE archive_objects SET title = ?, summary = ?, updated_at = ?
+          WHERE id = ? AND object_type = 'artifact'`,
+      ).run(title, summary, media.updated_at, id);
+      return;
+    }
+
+    this.db.prepare(
+      `INSERT INTO archive_objects (id, object_type, title, summary, privacy_level, is_deleted,
+                                    created_at, updated_at, created_by, updated_by)
+       VALUES (?, 'artifact', ?, ?, 'family', 0, ?, ?, ?, ?)`,
+    ).run(id, title, summary, media.created_at, media.updated_at, media.uploaded_by, media.uploaded_by);
+
+    // Same MIME mapping as 045, so bridged and newly uploaded media are typed
+    // alike. Everything that is not image/video/audio becomes a Document; the
+    // Artifacts page's bulk re-type is how a scan becomes a Certificate.
+    const mime = media.mime_type ?? '';
+    const typeId = mime.startsWith('image/')
+      ? 'artifact_type_photo'
+      : mime.startsWith('video/')
+        ? 'artifact_type_video'
+        : mime.startsWith('audio/')
+          ? 'artifact_type_audio_recording'
+          : 'artifact_type_document';
+
+    this.db.prepare(
+      `INSERT INTO artifacts (id, artifact_type_id, original_date_text, original_format)
+       VALUES (?, ?, ?, ?)`,
+    ).run(id, typeId, media.date_taken?.trim() || null, media.mime_type);
+
+    this.db.prepare(
+      `INSERT OR IGNORE INTO artifact_files
+         (id, artifact_id, file_role, storage_provider, storage_path, original_filename,
+          mime_type, size_bytes, created_at)
+       VALUES (?, ?, 'primary', 'local', ?, ?, ?, ?, ?)`,
+    ).run(
+      `artifact_file_media_${id}`, id, media.file_path, media.original_filename,
+      media.mime_type, media.file_size, media.created_at,
+    );
+
+    if (media.thumbnail_path?.trim()) {
+      this.db.prepare(
+        `INSERT OR IGNORE INTO artifact_files
+           (id, artifact_id, file_role, storage_provider, storage_path, original_filename,
+            mime_type, created_at)
+         VALUES (?, ?, 'thumbnail', 'local', ?, ?, ?, ?)`,
+      ).run(
+        `artifact_file_thumb_${id}`, id, media.thumbnail_path, media.original_filename,
+        media.mime_type, media.created_at,
+      );
+    }
+  }
+
   create(data: {
     filename: string;
     original_filename: string;
@@ -262,6 +345,7 @@ export class MediaRepository extends BaseRepository {
       data.thumbnail_path || null, data.title || null, data.description || null,
       data.date_taken || null, data.uploaded_by || null, data.is_external ?? 0, now, now,
     );
+    this.syncArtifact(id);
     return this.findById(id)!;
   }
 
@@ -283,6 +367,7 @@ export class MediaRepository extends BaseRepository {
     values.push(id);
 
     this.db.prepare(`UPDATE media_items SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+    this.syncArtifact(id);
     return this.findById(id);
   }
 
@@ -291,6 +376,10 @@ export class MediaRepository extends BaseRepository {
     if (!item) return { deleted: false, fileDeleted: false };
 
     this.db.prepare('DELETE FROM media_items WHERE id = ?').run(id);
+    // The artifact mirrors the media row, so it goes too. archive_objects
+    // cascades to artifacts and on to artifact_files; a soft delete would
+    // leave the Artifacts page listing a file that no longer exists.
+    this.db.prepare("DELETE FROM archive_objects WHERE id = ? AND object_type = 'artifact'").run(id);
 
     // Only delete files from disk for app-managed uploads, not external/scanned files
     let fileDeleted = false;
