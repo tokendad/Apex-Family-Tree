@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Navbar from './Navbar';
 
 const navigateMock = vi.fn();
@@ -161,5 +161,51 @@ describe('Navbar account menu', () => {
 
     expect(screen.queryByRole('menu', { name: 'Account menu' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /test user/i })).toHaveFocus();
+  });
+});
+
+describe('Navbar — the active tab stays visible (#27)', () => {
+  // The row scrolls horizontally on a phone. Before this it kept its scroll
+  // position across a route change, so choosing something further along left
+  // the active tab off-screen and the row looked like it had reset to Tree.
+  //
+  // jsdom gives every element zero layout, so the geometry is stubbed — and
+  // restored afterwards, since these are prototype properties every other
+  // test in the file would otherwise inherit.
+  const stubbed: Array<[string, PropertyDescriptor | undefined]> = [];
+
+  const stub = (name: string, value: number) => {
+    stubbed.push([name, Object.getOwnPropertyDescriptor(HTMLElement.prototype, name)]);
+    Object.defineProperty(HTMLElement.prototype, name, { configurable: true, value });
+  };
+
+  afterEach(() => {
+    for (const [name, descriptor] of stubbed.reverse()) {
+      if (descriptor) Object.defineProperty(HTMLElement.prototype, name, descriptor);
+      else delete (HTMLElement.prototype as unknown as Record<string, unknown>)[name];
+    }
+    stubbed.length = 0;
+  });
+
+  it('scrolls the row so the active link is in view after navigating', async () => {
+    const scrollTo = vi.fn();
+    stub('offsetLeft', 900);
+    stub('offsetWidth', 120);
+    stub('clientWidth', 390);
+    stubbed.push(['scrollTo', Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTo')]);
+    Object.defineProperty(HTMLElement.prototype, 'scrollTo', { configurable: true, value: scrollTo });
+
+    currentRole = 'admin';
+    render(
+      <MemoryRouter initialEntries={['/sources']}>
+        <Navbar />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(scrollTo).toHaveBeenCalled());
+    const [arg] = scrollTo.mock.calls[0];
+    // Centred on the active link, and never scrolled to a negative offset.
+    expect(arg.left).toBeGreaterThanOrEqual(0);
+    expect(arg.behavior).toBe('smooth');
   });
 });

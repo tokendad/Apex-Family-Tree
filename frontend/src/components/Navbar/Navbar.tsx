@@ -79,6 +79,28 @@ function hasMinimumRole(role: string | undefined, minimum: Role): boolean {
 const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
+
+  // The nav row scrolls horizontally on a phone. Without this the row stays
+  // where it was after a route change, so selecting something further along
+  // -- Collections, Sources, Tools -- leaves the active tab off-screen and
+  // the row looking as though it reset to the first item (#27).
+  const navlineRef = useRef<HTMLElement>(null);
+  const activeLinkRef = useRef<HTMLAnchorElement>(null);
+
+  useEffect(() => {
+    const row = navlineRef.current;
+    const link = activeLinkRef.current;
+    if (!row || !link) return;
+    // Only scroll the row itself; scrollIntoView would also scroll the page.
+    const target = Math.max(0, link.offsetLeft - (row.clientWidth - link.offsetWidth) / 2);
+    // Element.scrollTo is absent in some environments, including jsdom. Falling
+    // back to scrollLeft keeps the nav from throwing during render.
+    if (typeof row.scrollTo === 'function') {
+      row.scrollTo({ left: target, behavior: 'smooth' });
+    } else {
+      row.scrollLeft = target;
+    }
+  }, [location.pathname]);
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -231,11 +253,12 @@ const Navbar: React.FC = () => {
         </div>
       </div>
 
-      <nav className={styles.navline} aria-label="Primary">
+      <nav className={styles.navline} aria-label="Primary" ref={navlineRef}>
         {visibleNavItems.map((item) => (
           <Link
             key={item.path}
             to={item.path}
+            ref={isActive(item.path) ? activeLinkRef : undefined}
             className={`${styles.navLink} ${isActive(item.path) ? styles.navLinkActive : ''}`}
           >
             {item.label}
