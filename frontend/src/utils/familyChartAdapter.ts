@@ -1,9 +1,14 @@
 import type { Data, Datum } from 'family-chart';
 import type { TreeFamily, TreePerson } from '@/stores/canvasStore';
-import { lifeSpan } from '@/utils/gedcomDate';
+import { lifeSpan, type DateQualifier } from '@/utils/gedcomDate';
 
 function years(person: TreePerson): string {
-  return lifeSpan(person.birth_date, person.death_date);
+  return lifeSpan(
+    person.birth_date,
+    person.death_date,
+    person.birth_date_qualifier as DateQualifier,
+    person.death_date_qualifier as DateQualifier,
+  );
 }
 
 /**

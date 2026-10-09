@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lifeSpan, yearOf } from './gedcomDate';
+import { formatYear, lifeSpan, yearOf } from './gedcomDate';
 
 describe('yearOf — every date shape the tree actually holds', () => {
   it('reads a full GEDCOM date', () => {
@@ -66,5 +66,49 @@ describe('lifeSpan — the card label', () => {
   it('marks an unreadable year rather than implying someone is living', () => {
     expect(lifeSpan('4 OCT', null)).toBe('b. ?');
     expect(lifeSpan('4 OCT', '4 OCT')).toBe('? – ?');
+  });
+});
+
+describe('formatYear — qualifiers come from the stored column', () => {
+  it('marks an approximate year "abt." rather than "c."', () => {
+    // "c." is read as "christened" in parish-record work, which is exactly
+    // where much of this tree's evidence comes from.
+    expect(formatYear('ABT 1876', 'about')).toBe('abt. 1876');
+    expect(formatYear('ABT 1876', 'about')).not.toContain('c.');
+  });
+
+  it('distinguishes the other qualifiers', () => {
+    expect(formatYear('1876', 'before')).toBe('bef. 1876');
+    expect(formatYear('1876', 'after')).toBe('aft. 1876');
+    expect(formatYear('1876', 'estimated')).toBe('est. 1876');
+    expect(formatYear('1876', 'calculated')).toBe('calc. 1876');
+  });
+
+  it('keeps both ends of a span', () => {
+    expect(formatYear('BET 1941 AND 1966', 'between')).toBe('1941–1966');
+    expect(formatYear('BET 2003 AND 2016', 'between')).toBe('2003–2016');
+  });
+
+  it('adds nothing for an exact or unrecorded qualifier', () => {
+    expect(formatYear('12 OCT 1926', 'exact')).toBe('1926');
+    expect(formatYear('12 OCT 1926', null)).toBe('1926');
+    expect(formatYear('12 OCT 1926')).toBe('1926');
+  });
+
+  it('trusts the column over the text', () => {
+    // A row whose text says ABT but whose column says exact renders plainly;
+    // the column is authoritative. (One such row existed and was corrected.)
+    expect(formatYear('ABT 1876', 'exact')).toBe('1876');
+  });
+});
+
+describe('lifeSpan — qualified dates', () => {
+  it('carries the qualifier into the span', () => {
+    expect(lifeSpan('ABT 1876', '24 MAR 1924', 'about', 'exact')).toBe('abt. 1876 – 1924');
+    expect(lifeSpan('ABT 1864', null, 'about')).toBe('b. abt. 1864');
+  });
+
+  it('leaves an exact span unchanged', () => {
+    expect(lifeSpan('12 OCT 1926', '16 APR 1993', 'exact', 'exact')).toBe('1926 – 1993');
   });
 });

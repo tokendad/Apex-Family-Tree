@@ -9,7 +9,9 @@ export interface TreePerson {
   surname: string | null;
   sex: 'M' | 'F' | 'X' | 'U';
   birth_date: string | null;
+  birth_date_qualifier?: string | null;
   death_date: string | null;
+  death_date_qualifier?: string | null;
   is_living: boolean;
   is_private: boolean;
   photo_url: string | null;
