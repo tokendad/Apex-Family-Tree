@@ -9,10 +9,15 @@
   transition: transform 0.14s ease, box-shadow 0.14s ease;
 }
 
-.card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 24px rgba(30, 42, 46, 0.12);
-  text-decoration: none;
+/* Hover lift on pointing devices only: on touch :hover latches, and the
+   transform promotes the element to its own compositing layer inside a
+   scrolling list, where Chrome on Android can leave stale paint (#27). */
+@media (hover: hover) and (pointer: fine) {
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(30, 42, 46, 0.12);
+    text-decoration: none;
+  }
 }
 
 .thumb {

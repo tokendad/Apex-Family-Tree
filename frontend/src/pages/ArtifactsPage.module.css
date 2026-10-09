@@ -109,13 +109,32 @@
   padding: var(--space-4);
   color: inherit;
   text-decoration: none;
-  transition: border-color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
-.card:hover {
-  border-color: var(--color-primary-400);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
+/*
+ * Hover lift, on pointing devices only.
+ *
+ * On a touch screen :hover latches after a tap, so the transform stayed
+ * applied and promoted the card to its own compositing layer inside the
+ * scrolling grid. Chrome on Android then repainted the card's border but not
+ * the promoted text, leaving headings painted at a stale scroll offset on top
+ * of the cards below -- the sources list "overlap" (#27). It was never a
+ * layout fault, which is why nothing in the box model explained it and why
+ * switching to desktop mode, forcing a full repaint, appeared to fix it.
+ *
+ * A hover lift is meaningless on touch regardless.
+ */
+@media (hover: hover) and (pointer: fine) {
+  .card {
+    transition: border-color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+  }
+
+  .card:hover {
+    border-color: var(--color-primary-400);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
 }
 
 .card h2 {
