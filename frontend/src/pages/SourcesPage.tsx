@@ -173,7 +173,10 @@ const SourcesPage: React.FC = () => {
                 <Link key={source.id} to={`/sources/${source.id}`} className={styles.card}>
                   <div className={styles.cardType}>Source</div>
                   <h2>{source.title}</h2>
-                  {source.notes && <p>{source.notes}</p>}
+                  {/* Notes are deliberately not shown here. A source note can
+                      run to a full paragraph, which made these cards collapse
+                      and overlap at phone width (#27). The full note is on the
+                      source's own page. */}
                   <div className={styles.meta}>
                     {source.author && <span>{source.author}</span>}
                     {year && <span>{year}</span>}

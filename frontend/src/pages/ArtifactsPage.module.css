@@ -95,7 +95,16 @@
 }
 
 .card {
-  display: block;
+  /*
+   * A flex column rather than a plain block. The card is an <a>, and an
+   * anchor whose display is lost for any reason reverts to inline, at which
+   * point its block children escape the border box and paint over the cards
+   * beneath -- which is what the sources list did on a phone (#27). A flex
+   * container cannot do that: its children are always laid out inside it.
+   */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   min-width: 0;
   padding: var(--space-4);
   color: inherit;
@@ -138,6 +147,7 @@
 
 .cardType {
   display: inline-flex;
+  align-self: flex-start;
   width: fit-content;
   padding: 0.15rem 0.5rem;
   border-radius: var(--radius-full);
