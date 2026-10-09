@@ -1,9 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
 import Sidebar from '@/components/Sidebar/Sidebar';
 import FamilyChartTree from '@/components/FamilyChartTree/FamilyChartTree';
+import ContextMenu from '@/components/ContextMenu/ContextMenu';
+import PersonEditModal from '@/components/PersonEditModal/PersonEditModal';
+import { useCanvasStore } from '@/stores/canvasStore';
 import type { FamilyChartOrientation } from '@/components/FamilyChartTree/FamilyChartTree';
 import type { TreeFamily, TreePerson } from '@/stores/canvasStore';
 import { DEMO_FAMILIES, DEMO_PERSONS, DEMO_ROOT_ID } from '@/utils/topolaDemoData';
@@ -22,7 +25,11 @@ interface TreeApiResponse {
  */
 const FamilyChartTreePage: React.FC = () => {
   const [params] = useSearchParams();
+  const navigate = useNavigate();
   const demo = params.get('demo') === '1';
+  const setContextMenu = useCanvasStore((state) => state.setContextMenu);
+  const [editPersonId, setEditPersonId] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   const [persons, setPersons] = useState<TreePerson[]>([]);
   const [families, setFamilies] = useState<TreeFamily[]>([]);
@@ -65,9 +72,16 @@ const FamilyChartTreePage: React.FC = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, [demo, generations, params]);
+  }, [demo, generations, params, reloadToken]);
 
   const focused = useMemo(() => persons.find((p) => p.id === focusId) ?? null, [persons, focusId]);
+  const editing = useMemo(
+    () => persons.find((p) => p.id === editPersonId) ?? null,
+    [persons, editPersonId],
+  );
+  const editingName = editing
+    ? [editing.given_name, editing.surname].filter(Boolean).join(' ')
+    : '';
   const focusedName = focused ? [focused.given_name, focused.surname].filter(Boolean).join(' ') : '';
 
   return (
@@ -115,10 +129,32 @@ const FamilyChartTreePage: React.FC = () => {
               ancestryDepth={depth}
               progenyDepth={depth}
               onMainChange={setFocusId}
+              onPersonOpen={(id) => navigate(`/people/${id}`)}
+              onPersonContextMenu={(id, x, y) => setContextMenu({ x, y, personId: id })}
             />
           )}
         </div>
       </div>
+
+      {/* This page has no detail panel, so View Details navigates. Adding
+          relatives belongs to the main tree's wizard, which this prototype
+          does not carry, so those entries are hidden rather than shown dead. */}
+      <ContextMenu
+        hideUnavailable
+        onViewDetails={(id) => navigate(`/people/${id}`)}
+        onEditPerson={setEditPersonId}
+      />
+      <PersonEditModal
+        open={editPersonId !== null}
+        personId={editPersonId}
+        displayName={editingName}
+        onClose={() => setEditPersonId(null)}
+        onSaved={() => {
+          setEditPersonId(null);
+          // Re-read the tree so an edited name or date shows on the card.
+          setReloadToken((n) => n + 1);
+        }}
+      />
     </AppShell>
   );
 };
