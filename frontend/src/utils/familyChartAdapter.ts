@@ -1,12 +1,9 @@
 import type { Data, Datum } from 'family-chart';
 import type { TreeFamily, TreePerson } from '@/stores/canvasStore';
+import { lifeSpan } from '@/utils/gedcomDate';
 
 function years(person: TreePerson): string {
-  const y = (v: string | null) => (v ? v.slice(0, 4) : '');
-  const birth = y(person.birth_date);
-  const death = y(person.death_date);
-  if (!birth && !death) return '';
-  return death ? `${birth || '?'} – ${death}` : `b. ${birth}`;
+  return lifeSpan(person.birth_date, person.death_date);
 }
 
 /**

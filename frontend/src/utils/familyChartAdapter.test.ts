@@ -86,3 +86,36 @@ describe('toFamilyChartData', () => {
     expect(data.map((d) => d.data.years)).toEqual(['b. 1950', '1900 – 1980', '']);
   });
 });
+
+describe('toFamilyChartData — card dates', () => {
+  it('renders real years from GEDCOM-style dates', () => {
+    // Eunice's card read "12 O - 16 A": the old adapter took the first four
+    // characters of "12 OCT 1926", which only ever worked for a bare year.
+    const [eunice] = toFamilyChartData(
+      [person('eunice', 'F', '12 OCT 1926', '16 APR 1993')],
+      [],
+    );
+    expect(eunice.data.years).toBe('1926 – 1993');
+  });
+
+  it('handles the less precise dates the tree really holds', () => {
+    const data = toFamilyChartData(
+      [
+        person('month-only', 'M', 'SEP 1988', null),
+        person('bare-year', 'F', '1894', '1950'),
+        person('approx', 'M', 'ABT 1876', null),
+        person('no-year', 'F', '4 OCT', null),
+        person('undated', 'U', null, null),
+      ],
+      [],
+    );
+    const years = Object.fromEntries(data.map((d) => [d.id, d.data.years]));
+    expect(years).toEqual({
+      'month-only': 'b. 1988',
+      'bare-year': '1894 – 1950',
+      approx: 'b. 1876',
+      'no-year': 'b. ?',
+      undated: '',
+    });
+  });
+});
