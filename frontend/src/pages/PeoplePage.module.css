@@ -74,6 +74,22 @@
   flex: 1;
   overflow-y: auto;
   align-content: start;
+  /*
+   * Size rows to their content.
+   *
+   * This grid is a flex item with flex: 1, which gives it a definite height,
+   * and it is its own scroll container. Without this, the grid shares that
+   * definite height out across its rows instead of letting them grow: with
+   * six cards in one column each row was clamped to 77px while the card
+   * needed 134px, so headings spilled out of their boxes and painted over
+   * the cards below. Measured: 6 x 77px + 5 x 16px gap came to exactly the
+   * grid's height.
+   *
+   * It only showed on a phone. At desktop width the grid has several columns,
+   * so there are few enough rows that each one's equal share already exceeds
+   * the content (#27).
+   */
+  grid-auto-rows: max-content;
 }
 
 .card {
