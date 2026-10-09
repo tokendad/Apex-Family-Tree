@@ -2,7 +2,7 @@ import type { ArchiveObject, ArchiveObjectType, ArchivePrivacyLevel } from './ar
 
 export interface Collection {
   id: string;
-  collection_type: 'manual' | 'smart';
+  collection_type: 'manual';
   description: string | null;
   cover_artifact_id: string | null;
   sort_order: number;
@@ -34,6 +34,19 @@ export interface CollectionItemRecord {
   summary: string | null;
 }
 
+/** A collection an object belongs to, as seen from the object's own page. */
+export interface CollectionMembership {
+  id: string;
+  title: string;
+  summary: string | null;
+  privacy_level: ArchivePrivacyLevel;
+  cover_artifact_id: string | null;
+  /** The collection_items row id, needed to remove the object from here. */
+  item_id: string;
+  caption: string | null;
+  sort_order: number;
+}
+
 export interface TagRecord {
   id: string;
   name: string;
@@ -46,7 +59,7 @@ export interface CreateCollectionInput {
   title: string;
   summary?: string | null;
   privacy_level?: ArchivePrivacyLevel;
-  collection_type?: 'manual' | 'smart';
+  collection_type?: 'manual';
   description?: string | null;
   cover_artifact_id?: string | null;
   sort_order?: number;

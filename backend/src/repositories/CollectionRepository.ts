@@ -3,6 +3,7 @@ import { ArchiveObjectRepository } from './ArchiveObjectRepository.js';
 import type {
   AddCollectionItemInput,
   CollectionItemRecord,
+  CollectionMembership,
   CollectionRecord,
   CreateCollectionInput,
   TagRecord,
@@ -127,6 +128,31 @@ export class CollectionRepository extends BaseRepository {
 
   delete(id: string, updatedBy?: string | null): boolean {
     return this.archiveObjects.softDelete(id, updatedBy);
+  }
+
+  /**
+   * The collections an object belongs to.
+   *
+   * The inverse of findItems, so membership is navigable from the object as
+   * well as from the collection (#26). An artifact page can ask "which
+   * collections am I in?" without the caller scanning every collection.
+   */
+  findForObject(objectId: string): CollectionMembership[] {
+    return this.db.prepare(
+      `SELECT c.id,
+              ao.title,
+              ao.summary,
+              ao.privacy_level,
+              c.cover_artifact_id,
+              ci.id       AS item_id,
+              ci.caption,
+              ci.sort_order
+         FROM collection_items ci
+         INNER JOIN collections c      ON c.id = ci.collection_id
+         INNER JOIN archive_objects ao ON ao.id = c.id
+        WHERE ci.item_object_id = ? AND ao.is_deleted = 0
+        ORDER BY ao.title COLLATE NOCASE ASC`,
+    ).all(objectId) as CollectionMembership[];
   }
 
   findItems(collectionId: string): CollectionItemRecord[] {

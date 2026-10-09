@@ -31,7 +31,9 @@ function collectionBody(body: Record<string, unknown>) {
     title: typeof body.title === 'string' ? body.title.trim() : undefined,
     summary: cleanOptional(body.summary),
     privacy_level: typeof body.privacy_level === 'string' ? body.privacy_level as ArchivePrivacyLevel : undefined,
-    collection_type: body.collection_type === 'smart' ? 'smart' as const : body.collection_type === 'manual' ? 'manual' as const : undefined,
+    // 'smart' was retired in 060: nothing implemented saved-query collections,
+    // so the only value the schema now permits is 'manual'.
+    collection_type: body.collection_type === 'manual' ? 'manual' as const : undefined,
     description: cleanOptional(body.description),
     cover_artifact_id: cleanOptional(body.cover_artifact_id),
     sort_order: numberOptional(body.sort_order),
@@ -81,6 +83,21 @@ collectionsRouter.get('/', (req, res) => {
     res.json(repo.findAll({ limit, cursor, search }));
   } catch {
     res.status(500).json({ error: 'Failed to list collections' });
+  }
+});
+
+/**
+ * The collections a given archive object belongs to.
+ *
+ * Registered before '/:id' so the literal segment wins, and so membership can
+ * be read from the object's own page rather than only from the collection.
+ */
+collectionsRouter.get('/for-object/:objectId', (req, res) => {
+  try {
+    const repo = new CollectionRepository();
+    res.json({ data: repo.findForObject(paramStr(req.params.objectId)) });
+  } catch {
+    res.status(500).json({ error: 'Failed to list collections for object' });
   }
 });
 

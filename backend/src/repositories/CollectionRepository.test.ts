@@ -132,3 +132,57 @@ describe('CollectionRepository', () => {
     expect(repo.findTagsForObject(collection.id).map(tag => tag.name)).toEqual(['School']);
   });
 });
+
+describe('CollectionRepository — membership from the object side (#26)', () => {
+  beforeEach(() => {
+    db = new Database(':memory:');
+    seedDB(db);
+  });
+
+  afterEach(() => db.close());
+
+  it('returns nothing for an object in no collection', () => {
+    expect(new CollectionRepository().findForObject('person-1')).toEqual([]);
+  });
+
+  it('names every collection an object belongs to, with the link id', () => {
+    const repo = new CollectionRepository();
+    const military = repo.create({ title: 'Grandpa’s Military Service' });
+    const photos = repo.create({ title: 'Album' });
+    repo.addItem(military.id, { item_object_id: 'artifact-1', caption: 'Discharge papers' });
+    repo.addItem(photos.id, { item_object_id: 'artifact-1' });
+
+    const found = repo.findForObject('artifact-1');
+    expect(found.map((c) => c.title)).toEqual(['Album', 'Grandpa’s Military Service']);
+
+    // The collection_items id is what a remove-from-here control needs.
+    const entry = found.find((c) => c.title === 'Grandpa’s Military Service')!;
+    expect(entry.caption).toBe('Discharge papers');
+    expect(entry.item_id).toBeTruthy();
+    expect(repo.removeItem(entry.id, entry.item_id)).toBe(true);
+    expect(repo.findForObject('artifact-1').map((c) => c.title)).toEqual(['Album']);
+  });
+
+  it('is the exact inverse of findItems', () => {
+    const repo = new CollectionRepository();
+    const collection = repo.create({ title: 'Mixed' });
+    repo.addItem(collection.id, { item_object_id: 'person-1' });
+    repo.addItem(collection.id, { item_object_id: 'artifact-1' });
+
+    const itemIds = repo.findItems(collection.id).map((i) => i.item_object_id).sort();
+    expect(itemIds).toEqual(['artifact-1', 'person-1']);
+    for (const objectId of itemIds) {
+      expect(repo.findForObject(objectId).map((c) => c.id)).toEqual([collection.id]);
+    }
+  });
+
+  it('hides a soft-deleted collection from the object', () => {
+    const repo = new CollectionRepository();
+    const collection = repo.create({ title: 'Temporary' });
+    repo.addItem(collection.id, { item_object_id: 'person-1' });
+    expect(repo.findForObject('person-1')).toHaveLength(1);
+
+    repo.delete(collection.id);
+    expect(repo.findForObject('person-1')).toEqual([]);
+  });
+});
