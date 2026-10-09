@@ -39,7 +39,8 @@ function seedDB(database: Database.Database) {
       is_directional INTEGER NOT NULL DEFAULT 1,
       is_tree_relevant INTEGER NOT NULL DEFAULT 0,
       default_confidence_id TEXT,
-      sort_order INTEGER NOT NULL DEFAULT 0
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      is_active INTEGER NOT NULL DEFAULT 1
     );
     CREATE TABLE relationship_type_roles (
       id TEXT PRIMARY KEY,
@@ -206,6 +207,23 @@ describe('RelationshipRepository and RelationshipService', () => {
         artifact_type_name: 'Photo',
       },
     ]);
+  });
+
+  // A retired type stays in the table so relationships already recorded with it
+  // remain readable, but it must not be offered for new connections (#26).
+  it('does not offer a retired relationship type', () => {
+    const repo = new RelationshipRepository();
+    const before = repo.findConnectableTypes().map((t) => t.code);
+    expect(before.length).toBeGreaterThan(0);
+
+    const retired = before[0];
+    db.prepare('UPDATE relationship_types SET is_active = 0 WHERE code = ?').run(retired);
+
+    const after = repo.findConnectableTypes().map((t) => t.code);
+    expect(after).not.toContain(retired);
+    expect(after).toHaveLength(before.length - 1);
+    // Retired, not deleted.
+    expect(db.prepare('SELECT 1 FROM relationship_types WHERE code = ?').get(retired)).toBeTruthy();
   });
 
   it('offers connectable types but not genealogy ones', () => {

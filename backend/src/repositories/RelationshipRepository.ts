@@ -33,8 +33,12 @@ export class RelationshipRepository extends BaseRepository {
    */
   findConnectableTypes(): ConnectableRelationshipType[] {
     const types = this.db.prepare(
+      // Retired types (is_active = 0) stay in the table so relationships
+      // already recorded against them remain readable, but they are not
+      // offered for new connections — see 060 and belongs_to_collection.
       `SELECT * FROM relationship_types
-       WHERE category IS NULL OR category != 'genealogy'
+       WHERE (category IS NULL OR category != 'genealogy')
+         AND is_active = 1
        ORDER BY category ASC, sort_order ASC, name ASC`,
     ).all() as RelationshipType[];
 
