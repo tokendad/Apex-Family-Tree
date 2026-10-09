@@ -12,6 +12,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import PersonPicker from '@/components/entity-pickers/PersonPicker';
 import type { PersonResult } from '@/components/PersonSearch/PersonSearch';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
+import { formatEventType } from '@/utils/eventTypes';
 import archiveStyles from '@/components/archive-object/ArchiveDetailPage.module.css';
 import styles from './FamilyDetailPage.module.css';
 
@@ -85,16 +86,6 @@ const ROLE_CSS: Record<ChildMember['role'], string> = {
   step: styles.roleStep,
 };
 
-const EVENT_TYPE_LABELS: Record<string, string> = {
-  marriage: 'Marriage',
-  divorce: 'Divorce',
-  residence: 'Residence',
-  custom: 'Event',
-};
-
-function formatEventType(type: string): string {
-  return EVENT_TYPE_LABELS[type] ?? type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 function sortEvents(events: FamilyEvent[]): FamilyEvent[] {
   return [...events].sort((a, b) => {
@@ -542,6 +533,9 @@ const FamilyDetailPage: React.FC = () => {
 
   const sortedEvents = sortEvents(family.events ?? []);
   const childCount = family.children.length;
+  const parents = [family.spouse1, family.spouse2].filter(
+    (p): p is PersonSummary => p !== null,
+  );
 
   const subtitleParts = [
     family.marriage_date ? `Married ${family.marriage_date}` : null,
@@ -603,19 +597,49 @@ const FamilyDetailPage: React.FC = () => {
                     <h2 className={archiveStyles.sectionTitle} id="family-summary-heading">Family Summary</h2>
                     <Button variant="ghost" size="sm" onClick={() => setActiveTab('people')}>View people</Button>
                   </div>
-                  <div className={styles.personGrid}>
-                    {[family.spouse1, family.spouse2].filter((p): p is PersonSummary => p !== null).map((p) => (
-                      <PersonCard key={p.id} person={p} subtitle="Partner" />
-                    ))}
-                    {family.children.slice(0, 4).map((c) => (
-                      c.person ? (
-                        <PersonCard
-                          key={c.id}
-                          person={{ id: c.person_id, displayName: c.person.displayName, display_name: c.person.display_name, given_name: c.person.primary_name?.given_name ?? null, middle_name: c.person.primary_name?.middle_name ?? null, surname: c.person.primary_name?.surname ?? null }}
-                          subtitle={`Child • ${ROLE_LABELS[c.role].toLowerCase()}`}
-                        />
-                      ) : null
-                    ))}
+                  <div className={styles.summaryGroups}>
+                    <div>
+                      <h3 className={styles.groupLabel}>
+                        Parents{parents.length > 0 ? ` (${parents.length})` : ''}
+                      </h3>
+                      {parents.length === 0 ? (
+                        <p className={archiveStyles.muted}>No partners recorded.</p>
+                      ) : (
+                        <ul className={styles.nameList}>
+                          {parents.map((p) => (
+                            <li key={p.id}>
+                              <Link to={`/people/${p.id}`} className={styles.nameLink}>
+                                {personName(p)}
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
+                    <div>
+                      <h3 className={styles.groupLabel}>
+                        Children{childCount > 0 ? ` (${childCount})` : ''}
+                      </h3>
+                      {childCount === 0 ? (
+                        <p className={archiveStyles.muted}>No children recorded.</p>
+                      ) : (
+                        <ul className={styles.nameList}>
+                          {family.children.map((c) => (
+                            <li key={c.id}>
+                              <Link to={`/people/${c.person_id}`} className={styles.nameLink}>
+                                {childName(c)}
+                              </Link>
+                              {c.role !== 'child' && (
+                                <span className={`${styles.roleBadge} ${ROLE_CSS[c.role]}`}>
+                                  {ROLE_LABELS[c.role]}
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   </div>
                 </section>
 

@@ -19,7 +19,7 @@ sourcesRouter.get('/', (req, res) => {
 
     const result = repo.findAll({ limit, cursor, search });
     res.json(result);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list sources' });
   }
 });
@@ -34,7 +34,7 @@ sourcesRouter.get('/:id', (req, res) => {
       return;
     }
     res.json(source);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to get source' });
   }
 });
@@ -53,7 +53,7 @@ sourcesRouter.post(
 
       const source = repo.create({ title, repository_id, author, publisher, publication_date, url, notes });
       res.status(201).json(source);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to create source' });
     }
   },
@@ -75,7 +75,7 @@ sourcesRouter.put(
       }
 
       res.json(source);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to update source' });
     }
   },
@@ -95,7 +95,7 @@ sourcesRouter.delete(
       }
 
       res.status(204).send();
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to delete source' });
     }
   },
@@ -113,7 +113,7 @@ sourcesRouter.get('/:id/citations', (req, res) => {
     }
     const citations = repo.findCitationsBySource(sourceId);
     res.json(citations);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list citations' });
   }
 });
@@ -146,7 +146,7 @@ sourcesRouter.post(
       });
 
       res.status(201).json(citation);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to create citation' });
     }
   },

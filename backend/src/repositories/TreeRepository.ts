@@ -11,7 +11,9 @@ export interface TreePersonDto {
   surname: string | null;
   sex: string;
   birth_date: string | null;
+  birth_date_qualifier: string | null;
   death_date: string | null;
+  death_date_qualifier: string | null;
   is_living: boolean;
   is_private: boolean;
   photo_url: string | null;
@@ -143,12 +145,12 @@ export class TreeRepository extends BaseRepository {
 
   toTreePerson(person: PersonWithNames): TreePersonDto {
     const birthEvent = this.db.prepare(
-      "SELECT event_date FROM events WHERE person_id = ? AND event_type = 'birth' LIMIT 1",
-    ).get(person.id) as { event_date: string | null } | undefined;
+      "SELECT event_date, event_date_qualifier FROM events WHERE person_id = ? AND event_type = 'birth' LIMIT 1",
+    ).get(person.id) as { event_date: string | null; event_date_qualifier: string | null } | undefined;
 
     const deathEvent = this.db.prepare(
-      "SELECT event_date FROM events WHERE person_id = ? AND event_type = 'death' LIMIT 1",
-    ).get(person.id) as { event_date: string | null } | undefined;
+      "SELECT event_date, event_date_qualifier FROM events WHERE person_id = ? AND event_type = 'death' LIMIT 1",
+    ).get(person.id) as { event_date: string | null; event_date_qualifier: string | null } | undefined;
 
     const primaryPhoto = this.db.prepare(
       'SELECT mi.id FROM media_items mi INNER JOIN person_media pm ON mi.id = pm.media_id WHERE pm.person_id = ? AND pm.is_primary = 1 LIMIT 1',
@@ -163,7 +165,9 @@ export class TreeRepository extends BaseRepository {
       surname: person.primary_name?.surname ?? null,
       sex: person.sex,
       birth_date: birthEvent?.event_date ?? null,
+      birth_date_qualifier: birthEvent?.event_date_qualifier ?? null,
       death_date: deathEvent?.event_date ?? null,
+      death_date_qualifier: deathEvent?.event_date_qualifier ?? null,
       is_living: person.is_living === 1,
       is_private: person.is_private === 1,
       photo_url: primaryPhoto ? `/api/v1/media/${primaryPhoto.id}` : null,

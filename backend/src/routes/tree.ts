@@ -168,7 +168,7 @@ treeRouter.get('/', (req, res) => {
     const { persons, families } = treeRepo.getFlatTree(homePersonId, generations);
 
     res.json({ persons, families, home_person_id: homePersonId });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to get tree' });
   }
 });
@@ -189,7 +189,7 @@ treeRouter.get('/:personId/ancestors', (req, res) => {
 
     const tree = buildAncestorTree(personId, 0, generations, personRepo, familyRepo, new Set());
     res.json(tree);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to build ancestor tree' });
   }
 });
@@ -210,7 +210,7 @@ treeRouter.get('/:personId/descendants', (req, res) => {
 
     const tree = buildDescendantTree(personId, 0, generations, personRepo, familyRepo, new Set());
     res.json(tree);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to build descendant tree' });
   }
 });
@@ -269,7 +269,7 @@ treeRouter.get('/unconnected-segments', (req, res) => {
     });
 
     res.json({ segments });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to get unconnected segments' });
   }
 });
@@ -291,7 +291,7 @@ treeRouter.get('/unconnected-people', (_req, res) => {
       .filter((person): person is NonNullable<typeof person> => Boolean(person));
 
     res.json({ people });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to get unconnected people' });
   }
 });
@@ -313,7 +313,7 @@ treeRouter.get('/:personId', (req, res) => {
     const { persons, families } = treeRepo.getFlatTree(personId, generations);
 
     res.json({ persons, families, home_person_id: personId });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to build tree' });
   }
 });

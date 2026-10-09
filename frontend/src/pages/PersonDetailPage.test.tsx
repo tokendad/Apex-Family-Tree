@@ -71,9 +71,26 @@ const stubConnectedObjects = [
   },
 ];
 
+const stubCollectionMembership = [
+  {
+    id: 'col-1',
+    title: 'Military Service',
+    summary: null,
+    cover_artifact_id: null,
+    item_id: 'ci-1',
+    caption: null,
+  },
+];
+
 beforeEach(() => {
   vi.clearAllMocks();
   global.fetch = vi.fn().mockImplementation((url: string) => {
+    if (url.includes('/collections/for-object/')) {
+      return Promise.resolve({ ok: true, json: async () => ({ data: stubCollectionMembership }) });
+    }
+    if (url.includes('/collections/for-object/')) {
+      return Promise.resolve({ ok: true, json: async () => ({ data: stubCollectionMembership }) });
+    }
     if (url.includes('/connected')) {
       return Promise.resolve({ ok: true, json: async () => ({ data: stubConnectedObjects }) });
     }
@@ -145,8 +162,8 @@ describe('PersonDetailPage — archive layout', () => {
   it('lists collections by name under the Collections tab', async () => {
     renderPage();
 
-    // The Connected To rail used to be the only place a person's collections
-    // were named. The tab replaces it, so the names stay reachable.
+    // Membership is read from collection_items, not from the relationship
+    // graph, so the tab reflects what the collection actually contains.
     fireEvent.click(await screen.findByRole('tab', { name: /collections/i }));
 
     expect(await screen.findByText('Military Service')).toBeInTheDocument();
@@ -202,5 +219,52 @@ describe('PersonDetailPage — Add Family', () => {
     fireEvent.click(screen.getByRole('button', { name: /actions/i }));
     fireEvent.click(screen.getByRole('menuitem', { name: /add family/i }));
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/families/f-789'));
+  });
+});
+
+describe('PersonDetailPage — events vs attributes', () => {
+  // An occupation is not something that happened on a date; it describes the
+  // person. It belongs in Facts & Attributes, not the chronological timeline.
+  const personWithAttributes = {
+    ...stubPerson,
+    events: [
+      { id: 'e1', event_type: 'birth', event_date: '5 JAN 1922', event_place: 'Massachusetts', description: null },
+      { id: 'e2', event_type: 'occupation', event_date: '1982', event_place: null, description: 'Segment Treater' },
+      { id: 'e3', event_type: 'residence', event_date: '1930', event_place: 'Worcester', description: null },
+      { id: 'e4', event_type: 'death', event_date: '16 JUN 1990', event_place: null, description: null },
+    ],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/connected')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+      }
+      if (url.includes('/relationships') || url.includes('/media') || url.includes('/sources')) {
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }
+      return Promise.resolve({ ok: true, json: async () => personWithAttributes });
+    });
+  });
+
+  it('counts only occurrences under Events, and lists attributes separately', async () => {
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole('tab', { name: /timeline/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('tab', { name: /timeline/i }));
+
+    const timeline = await screen.findByRole('list', { name: /life events timeline/i });
+    expect(within(timeline).getByText('Birth')).toBeInTheDocument();
+    expect(within(timeline).getByText('Death')).toBeInTheDocument();
+    // The two attributes must not be interleaved into the timeline.
+    expect(within(timeline).queryByText('Occupation')).not.toBeInTheDocument();
+    expect(within(timeline).queryByText('Residence')).not.toBeInTheDocument();
+
+    const attributes = screen.getByRole('heading', { name: /facts & attributes/i });
+    expect(attributes).toBeInTheDocument();
+    expect(screen.getByText('Segment Treater')).toBeInTheDocument();
+    expect(screen.getByText('Occupation')).toBeInTheDocument();
+    expect(screen.getByText('Residence')).toBeInTheDocument();
   });
 });

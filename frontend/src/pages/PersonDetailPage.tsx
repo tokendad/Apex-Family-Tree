@@ -9,10 +9,16 @@ import ArchiveObjectLayout from '@/components/archive-object/ArchiveObjectLayout
 import ArtifactCard from '@/components/archive-object/ArtifactCard';
 import { type ContextActionItem } from '@/components/archive-object/ContextActionsMenu';
 import { usePageActions } from '@/contexts/PageActionsContext';
+import ObjectCollections, { CollectionMembership } from '@/components/ObjectCollections/ObjectCollections';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useModal } from '@/components/modals/useModal';
 import type { FamilySummary } from '@/types/genealogy';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
+import {
+  EVENT_EARLY_ORDER,
+  formatEventType,
+  partitionByKind,
+} from '@/utils/eventTypes';
 import { lifespanLabel } from '@/utils/personEvents';
 import styles from './PersonDetailPage.module.css';
 
@@ -132,31 +138,6 @@ const NAME_TYPE_CSS: Record<NameType, string> = {
   religious: styles.nameTypeReligious,
 };
 
-const EVENT_TYPE_LABELS: Record<string, string> = {
-  birth: 'Birth',
-  death: 'Death',
-  marriage: 'Marriage',
-  burial: 'Burial',
-  baptism: 'Baptism',
-  christening: 'Christening',
-  graduation: 'Graduation',
-  military: 'Military Service',
-  immigration: 'Immigration',
-  emigration: 'Emigration',
-  naturalization: 'Naturalization',
-  divorce: 'Divorce',
-  residence: 'Residence',
-  occupation: 'Occupation',
-  education: 'Education',
-};
-
-/** Events that should appear first, keyed to their sort priority (lower = earlier). */
-const EVENT_EARLY_ORDER: Record<string, number> = {
-  birth: 0,
-  baptism: 1,
-  christening: 1,
-};
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function personName(p: { displayName?: string | null; display_name?: string | null; given_name: string | null; middle_name?: string | null; surname: string | null } | null): string {
@@ -172,13 +153,6 @@ function fullName(name: PersonName): string {
 
 function primaryName(names: PersonName[]): PersonName | null {
   return names.find((n) => n.is_primary === 1) ?? names[0] ?? null;
-}
-
-function formatEventType(type: string): string {
-  return (
-    EVENT_TYPE_LABELS[type] ??
-    type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-  );
 }
 
 function sortEvents(events: PersonEvent[]): PersonEvent[] {
@@ -269,6 +243,8 @@ const PersonDetailPage: React.FC = () => {
 
   // ── Archive connections ──
   const [connectedObjects, setConnectedObjects] = useState<ConnectedObject[]>([]);
+  // Collection membership is collection_items, not a relationship (#26).
+  const [memberOf, setMemberOf] = useState<CollectionMembership[]>([]);
   const [connectedObjectsLoading, setConnectedObjectsLoading] = useState(true);
 
   // ── Delete ──
@@ -517,12 +493,14 @@ const PersonDetailPage: React.FC = () => {
   // ─── Derived values ────────────────────────────────────────────────────────
 
   const sortedEventsList = sortEvents(person.events);
+  // Attributes describe the person rather than occurring at a moment, so they
+  // are listed separately instead of interleaved into the timeline (#32).
+  const { events: timelineEvents, attributes } = partitionByKind(sortedEventsList);
   const childFamilies = relationships.filter((r) => r.type === 'child_family');
   const parentFamilies = relationships.filter((r) => r.type === 'parent_family');
 
   const connectedArtifacts = connectedObjects.filter((o) => o.object_type === 'artifact');
   const connectedStories = connectedObjects.filter((o) => o.object_type === 'story');
-  const connectedCollections = connectedObjects.filter((o) => o.object_type === 'collection');
   const familyRoles = new Map<string, string>();
   childFamilies.forEach((rel) => {
     [rel.spouse1, rel.spouse2].forEach((p) => {
@@ -575,16 +553,17 @@ const PersonDetailPage: React.FC = () => {
           stats={[
             { label: 'Artifacts', value: connectedArtifacts.length },
             { label: 'Stories', value: connectedStories.length },
-            { label: 'Events', value: sortedEventsList.length },
-            { label: 'Collections', value: connectedCollections.length },
+            { label: 'Events', value: timelineEvents.length },
+            { label: 'Facts', value: attributes.length },
+            { label: 'Collections', value: memberOf.length },
             { label: 'Families', value: relationships.length },
           ]}
           tabs={[
             { id: 'overview', label: 'Overview' },
-            { id: 'timeline', label: 'Timeline', count: sortedEventsList.length },
+            { id: 'timeline', label: 'Timeline', count: timelineEvents.length },
             { id: 'artifacts', label: 'Artifacts', count: connectedArtifacts.length + media.length },
             { id: 'stories', label: 'Stories', count: connectedStories.length },
-            { id: 'collections', label: 'Collections', count: connectedCollections.length },
+            { id: 'collections', label: 'Collections', count: memberOf.length },
             { id: 'family', label: 'Family', count: relationships.length },
             { id: 'claims', label: 'Claims' },
           ]}
@@ -633,11 +612,11 @@ const PersonDetailPage: React.FC = () => {
                   Timeline
                 </Button>
               </div>
-              {sortedEventsList.length === 0 ? (
+              {timelineEvents.length === 0 ? (
                 <p className={styles.noInfo}>No events recorded.</p>
               ) : (
                 <ol className={styles.eventsList} aria-label="Key life events">
-                  {sortedEventsList.slice(0, 3).map((event) => (
+                  {timelineEvents.slice(0, 3).map((event) => (
                     <li key={event.id} className={styles.eventItem}>
                       <div className={styles.eventDot} aria-hidden="true" />
                       <div className={styles.eventContent}>
@@ -759,17 +738,17 @@ const PersonDetailPage: React.FC = () => {
               <div className={styles.sectionHeader}>
                 <h2 className={styles.sectionTitle} id="events-heading">
                   Events
-                  {sortedEventsList.length > 0 && (
-                    <span className={styles.countBadge}>{sortedEventsList.length}</span>
+                  {timelineEvents.length > 0 && (
+                    <span className={styles.countBadge}>{timelineEvents.length}</span>
                   )}
                 </h2>
               </div>
 
-              {sortedEventsList.length === 0 ? (
+              {timelineEvents.length === 0 ? (
                 <p className={styles.noInfo}>No events recorded.</p>
               ) : (
                 <ol className={styles.eventsList} aria-label="Life events timeline">
-                  {sortedEventsList.map((event) => (
+                  {timelineEvents.map((event) => (
                     <li key={event.id} className={styles.eventItem}>
                       <div className={styles.eventDot} aria-hidden="true" />
                       <div className={styles.eventContent}>
@@ -795,6 +774,37 @@ const PersonDetailPage: React.FC = () => {
                 </ol>
               )}
             </section>
+
+            {/* ── Facts & attributes ── */}
+            {attributes.length > 0 && (
+              <section className={styles.section} aria-labelledby="attributes-heading">
+                <div className={styles.sectionHeader}>
+                  <h2 className={styles.sectionTitle} id="attributes-heading">
+                    Facts &amp; Attributes
+                    <span className={styles.countBadge}>{attributes.length}</span>
+                  </h2>
+                </div>
+
+                <div className={styles.infoGrid}>
+                  {attributes.map((attribute) => (
+                    <div key={attribute.id} className={styles.infoRow}>
+                      <span className={styles.infoLabel}>
+                        {formatEventType(attribute.event_type)}
+                      </span>
+                      <span className={styles.infoValue}>
+                        {attribute.description || '—'}
+                        {attribute.event_date && (
+                          <span className={styles.eventDate}> · {attribute.event_date}</span>
+                        )}
+                        {attribute.event_place && (
+                          <span className={styles.eventPlace}> 📍 {attribute.event_place}</span>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
             </div>
           )}
 
@@ -1022,28 +1032,15 @@ const PersonDetailPage: React.FC = () => {
             <section className={styles.section} aria-labelledby="collections-heading">
               <h2 className={styles.sectionTitle} id="collections-heading">
                 Collections
-                {connectedCollections.length > 0 && (
-                  <span className={styles.countBadge}>{connectedCollections.length}</span>
-                )}
+                {memberOf.length > 0 && <span className={styles.countBadge}>{memberOf.length}</span>}
               </h2>
 
-              {connectedObjectsLoading ? (
-                <div className={styles.skeletonLine} aria-hidden="true" />
-              ) : connectedCollections.length === 0 ? (
-                <p className={styles.noInfo}>No collections include this person yet.</p>
-              ) : (
-                <div className={styles.relPersonList}>
-                  {connectedCollections.map((collection) => (
-                    <Link
-                      key={`${collection.relationship_id}-${collection.object_id}`}
-                      to={`/collections/${collection.object_id}`}
-                      className={styles.relPersonLink}
-                    >
-                      {collection.title}
-                    </Link>
-                  ))}
-                </div>
-              )}
+              <ObjectCollections
+                objectId={person.id}
+                canEdit={canEdit}
+                canDelete={canDelete}
+                onChange={setMemberOf}
+              />
             </section>
           )}
 

@@ -392,3 +392,57 @@ describe('normalizeToNull', () => {
     expect(normalizeToNull(undefined)).toBeNull();
   });
 });
+
+describe('formatName — the shipped default format', () => {
+  // The default seeded by 038 was '%f %m %s', which dropped Sr/Jr and made a
+  // father and son render identically. 057 changes it to include %t and %x.
+  const DEFAULT_FORMAT = '%t %f %m %s %x';
+
+  const name = (over: Partial<Name> = {}): Name =>
+    ({
+      id: 'n1',
+      person_id: 'p1',
+      name_type: 'birth',
+      prefix: null,
+      given_name: 'Raymond',
+      middle_name: 'Earl',
+      surname: 'LeFort',
+      suffix: null,
+      nickname: null,
+      is_primary: 1,
+      sort_order: 0,
+      created_at: '',
+      updated_at: '',
+      ...over,
+    }) as Name;
+
+  it('distinguishes a father and son by suffix', () => {
+    const senior = formatName({ primaryName: name({ suffix: 'Sr' }), formatString: DEFAULT_FORMAT });
+    const junior = formatName({ primaryName: name({ suffix: 'Jr' }), formatString: DEFAULT_FORMAT });
+    expect(senior).toBe('Raymond Earl LeFort Sr');
+    expect(junior).toBe('Raymond Earl LeFort Jr');
+    expect(senior).not.toBe(junior);
+  });
+
+  it('renders a prefix when present', () => {
+    expect(formatName({ primaryName: name({ prefix: 'Rev.' }), formatString: DEFAULT_FORMAT })).toBe(
+      'Rev. Raymond Earl LeFort',
+    );
+  });
+
+  it('leaves no stray whitespace when prefix and suffix are absent', () => {
+    expect(formatName({ primaryName: name(), formatString: DEFAULT_FORMAT })).toBe(
+      'Raymond Earl LeFort',
+    );
+  });
+
+  it('still honours a display_name override', () => {
+    expect(
+      formatName({
+        personDisplayName: 'Ray Sr',
+        primaryName: name({ suffix: 'Sr' }),
+        formatString: DEFAULT_FORMAT,
+      }),
+    ).toBe('Ray Sr');
+  });
+});

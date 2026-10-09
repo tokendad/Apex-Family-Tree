@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import { requireRole } from '../middleware/auth.js';
 import { MediaRepository } from '../repositories/MediaRepository.js';
 import { PersonRepository } from '../repositories/PersonRepository.js';
+import { SourceRepository } from '../repositories/SourceRepository.js';
 import { getMediaPath } from '../services/init.js';
 
 export const mediaRouter = Router();
@@ -142,7 +143,7 @@ mediaRouter.post(
       if (event_id) repo.linkToEvent(media.id, event_id);
 
       res.status(201).json(media);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to upload media' });
     }
   },
@@ -161,7 +162,7 @@ mediaRouter.post(
         message: `Scan complete: ${result.added} added, ${result.relinked} relinked, ${result.removed} removed, ${result.skipped} skipped`,
         ...result,
       });
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to scan media directory' });
     }
   },
@@ -178,7 +179,7 @@ mediaRouter.get('/', (req, res) => {
 
     const result = repo.findAll({ limit, cursor, search, filter });
     res.json(result);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list media' });
   }
 });
@@ -199,7 +200,7 @@ mediaRouter.put(
       const { title, description, date_taken } = req.body;
       const updated = repo.update(paramStr(req.params.id), { title, description, date_taken });
       res.json(updated);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to update media' });
     }
   },
@@ -216,7 +217,7 @@ mediaRouter.get('/:id/links', (req, res) => {
     }
     const links = repo.findLinks(paramStr(req.params.id));
     res.json(links);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to fetch media links' });
   }
 });
@@ -232,7 +233,7 @@ mediaRouter.get('/:id/regions', (req, res) => {
       return;
     }
     res.json({ regions: repo.findRegions(mediaId) });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to fetch media tags' });
   }
 });
@@ -265,7 +266,7 @@ mediaRouter.post(
         height: body.height,
       });
       res.status(201).json({ region });
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to create media tag' });
     }
   },
@@ -320,7 +321,7 @@ mediaRouter.put(
         height: body.height,
       });
       res.json({ region });
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to update media tag' });
     }
   },
@@ -343,7 +344,7 @@ mediaRouter.delete(
 
       repo.deleteRegion(regionId);
       res.status(204).send();
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to delete media tag' });
     }
   },
@@ -367,7 +368,7 @@ mediaRouter.get('/:id', (req, res) => {
     res.setHeader('Content-Type', media.mime_type);
     res.setHeader('Content-Disposition', `inline; filename="${media.original_filename}"`);
     res.sendFile(path.resolve(media.file_path));
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to serve media' });
   }
 });
@@ -386,7 +387,7 @@ mediaRouter.delete(
         return;
       }
       res.status(204).send();
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to delete media' });
     }
   },
@@ -422,13 +423,16 @@ mediaRouter.post(
         case 'event':
           link = repo.linkToEvent(mediaId, targetId);
           break;
+        case 'source':
+          link = repo.linkToSource(mediaId, targetId);
+          break;
         default:
-          res.status(400).json({ error: 'Invalid link type. Must be person, family, or event' });
+          res.status(400).json({ error: 'Invalid link type. Must be person, family, event, or source' });
           return;
       }
 
       res.status(201).json(link);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to link media' });
     }
   },
@@ -456,8 +460,11 @@ mediaRouter.delete(
         case 'event':
           removed = repo.unlinkFromEvent(mediaId, targetId);
           break;
+        case 'source':
+          removed = repo.unlinkFromSource(mediaId, targetId);
+          break;
         default:
-          res.status(400).json({ error: 'Invalid link type. Must be person, family, or event' });
+          res.status(400).json({ error: 'Invalid link type. Must be person, family, event, or source' });
           return;
       }
 
@@ -467,13 +474,86 @@ mediaRouter.delete(
       }
 
       res.status(204).send();
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to unlink media' });
     }
   },
 );
 
 // GET /people/:id/media — List media for person
+// GET /sources/:id/media — Media attached to a source
+mediaRouter.get('/sources/:id/media', (req, res) => {
+  try {
+    const sourceRepo = new SourceRepository();
+    const mediaRepo = new MediaRepository();
+
+    const sourceId = paramStr(req.params.id);
+    if (!sourceRepo.findById(sourceId)) {
+      res.status(404).json({ error: 'Source not found' });
+      return;
+    }
+
+    res.json(mediaRepo.findBySource(sourceId));
+  } catch {
+    res.status(500).json({ error: 'Failed to list media' });
+  }
+});
+
+// POST /sources/:id/media — Attach a media item to a source
+mediaRouter.post(
+  '/sources/:id/media',
+  requireRole('admin', 'editor', 'limited_editor'),
+  (req, res) => {
+    try {
+      const sourceRepo = new SourceRepository();
+      const mediaRepo = new MediaRepository();
+
+      const sourceId = paramStr(req.params.id);
+      if (!sourceRepo.findById(sourceId)) {
+        res.status(404).json({ error: 'Source not found' });
+        return;
+      }
+
+      const { media_id } = req.body;
+      if (!media_id) {
+        res.status(400).json({ error: 'media_id is required' });
+        return;
+      }
+
+      if (!mediaRepo.findById(media_id)) {
+        res.status(404).json({ error: 'Media not found' });
+        return;
+      }
+
+      res.status(201).json(mediaRepo.linkToSource(media_id, sourceId));
+    } catch {
+      res.status(500).json({ error: 'Failed to link media to source' });
+    }
+  },
+);
+
+// DELETE /sources/:id/media/:mediaId — Detach a media item from a source
+mediaRouter.delete(
+  '/sources/:id/media/:mediaId',
+  requireRole('admin', 'editor'),
+  (req, res) => {
+    try {
+      const mediaRepo = new MediaRepository();
+      const removed = mediaRepo.unlinkFromSource(
+        paramStr(req.params.mediaId),
+        paramStr(req.params.id),
+      );
+      if (!removed) {
+        res.status(404).json({ error: 'Link not found' });
+        return;
+      }
+      res.status(204).send();
+    } catch {
+      res.status(500).json({ error: 'Failed to unlink media from source' });
+    }
+  },
+);
+
 mediaRouter.get('/people/:id/media', (req, res) => {
   try {
     const personRepo = new PersonRepository();
@@ -488,7 +568,7 @@ mediaRouter.get('/people/:id/media', (req, res) => {
 
     const media = mediaRepo.findByPerson(personId);
     res.json(media);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list media' });
   }
 });
@@ -523,7 +603,7 @@ mediaRouter.post(
 
       const link = mediaRepo.linkToPerson(media_id, personId, is_primary ?? false);
       res.status(201).json(link);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to link media to person' });
     }
   },

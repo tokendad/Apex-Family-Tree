@@ -18,6 +18,16 @@ function buildFtsQuery(input: string): string | null {
   return tokens.map(t => `"${t}"*`).join(' AND ');
 }
 
+/** A primary-name summary, carrying every component the display name needs. */
+export interface RelationshipNameSummary {
+  id?: string;
+  prefix: string | null;
+  given_name: string | null;
+  middle_name: string | null;
+  surname: string | null;
+  suffix: string | null;
+}
+
 export class PersonRepository extends BaseRepository {
   private archiveObjects = new ArchiveObjectRepository();
 
@@ -36,13 +46,13 @@ export class PersonRepository extends BaseRepository {
 
   /**
    * Get the global name display format from settings (cached per repository instance).
-   * Defaults to '%f %m %s' if not set.
+   * Defaults to '%t %f %m %s %x' if not set.
    */
   private getNameDisplayFormat(): string {
     // Note: In a real app, you might cache this or inject SettingsRepository.
     // For simplicity, we'll fetch it directly each time. Consider optimization later.
     const row = this.db.prepare('SELECT value FROM app_settings WHERE key = ?').get('name_display_format') as { value: string | null } | undefined;
-    return row?.value || '%f %m %s';
+    return row?.value || '%t %f %m %s %x';
   }
 
   /**
@@ -759,25 +769,33 @@ export class PersonRepository extends BaseRepository {
     family_id: string;
     type: 'parent_family' | 'child_family';
     role: 'spouse1' | 'spouse2' | 'child';
-    spouse1: { id: string; given_name: string | null; surname: string | null } | null;
-    spouse2: { id: string; given_name: string | null; surname: string | null } | null;
-    children: { id: string; person_id: string; role: string; given_name: string | null; surname: string | null }[];
+    spouse1: RelationshipNameSummary | null;
+    spouse2: RelationshipNameSummary | null;
+    children: ({ id: string; person_id: string; role: string } & RelationshipNameSummary)[];
   }[] {
-    const nameSummary = (pid: string | null) => {
+    const nameSummary = (pid: string | null): RelationshipNameSummary | null => {
       if (!pid) return null;
       const row = this.db.prepare(
-        'SELECT given_name, surname FROM names WHERE person_id = ? AND is_primary = 1 LIMIT 1'
-      ).get(pid) as { given_name: string | null; surname: string | null } | undefined;
-      return { id: pid, given_name: row?.given_name ?? null, surname: row?.surname ?? null };
+        'SELECT prefix, given_name, middle_name, surname, suffix FROM names WHERE person_id = ? AND is_primary = 1 LIMIT 1'
+      ).get(pid) as Partial<Name> | undefined;
+      return {
+        id: pid,
+        prefix: row?.prefix ?? null,
+        given_name: row?.given_name ?? null,
+        middle_name: row?.middle_name ?? null,
+        surname: row?.surname ?? null,
+        suffix: row?.suffix ?? null,
+      };
     };
 
     const childMembers = (familyId: string) =>
       (this.db.prepare(
         `SELECT fm.id, fm.person_id, fm.role,
-          (SELECT given_name FROM names WHERE person_id = fm.person_id AND is_primary = 1 LIMIT 1) AS given_name,
-          (SELECT surname  FROM names WHERE person_id = fm.person_id AND is_primary = 1 LIMIT 1) AS surname
-         FROM family_members fm WHERE fm.family_id = ?`
-      ).all(familyId) as { id: string; person_id: string; role: string; given_name: string | null; surname: string | null }[]);
+          n.prefix, n.given_name, n.middle_name, n.surname, n.suffix
+         FROM family_members fm
+         LEFT JOIN names n ON n.person_id = fm.person_id AND n.is_primary = 1
+         WHERE fm.family_id = ?`
+      ).all(familyId) as ({ id: string; person_id: string; role: string } & RelationshipNameSummary)[]);
 
     const asChild = this.db.prepare(
       'SELECT f.* FROM families f INNER JOIN family_members fm ON f.id = fm.family_id WHERE fm.person_id = ?'

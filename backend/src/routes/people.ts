@@ -102,7 +102,7 @@ peopleRouter.get('/', async (req, res) => {
       homePersonId,
     });
     res.json(result);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list persons' });
   }
 });
@@ -147,7 +147,7 @@ peopleRouter.post(
 
       const result = repo.findById(person.id);
       res.status(201).json(result);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to create person' });
     }
   },
@@ -168,7 +168,7 @@ peopleRouter.get('/:id', (req, res) => {
 
     const events = eventRepo.findTimelineByPerson(person.id);
     res.json({ ...person, events });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to get person' });
   }
 });
@@ -202,7 +202,7 @@ peopleRouter.put(
 
       const result = repo.findById(person.id);
       res.json(result);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to update person' });
     }
   },
@@ -222,7 +222,7 @@ peopleRouter.delete(
       }
 
       res.status(204).send();
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to delete person' });
     }
   },
@@ -241,7 +241,7 @@ peopleRouter.get('/:id/relationships', (req, res) => {
 
     const result = repo.getRelationshipsForDetail(id);
     res.json(result);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to get relationships' });
   }
 });
@@ -291,7 +291,7 @@ peopleRouter.post(
       } else {
         res.status(400).json({ error: 'Invalid relationship type' });
       }
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to add relationship' });
     }
   },
@@ -316,7 +316,7 @@ peopleRouter.post(
       const isPrimary = is_primary !== undefined ? toSqliteBool(is_primary, 0) : undefined;
       const name = repo.addName(personId, { name_type, given_name, middle_name, surname, prefix, suffix, nickname, is_primary: isPrimary });
       res.status(201).json(name);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to add name' });
     }
   },
@@ -348,7 +348,7 @@ peopleRouter.put(
       const isPrimary = is_primary !== undefined ? toSqliteBool(is_primary, 0) : undefined;
       const updated = repo.updateName(nameId, { name_type, given_name, middle_name, surname, prefix, suffix, nickname, is_primary: isPrimary });
       res.json(updated);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to update name' });
     }
   },
@@ -378,7 +378,7 @@ peopleRouter.delete(
 
       repo.deleteName(nameId);
       res.status(204).send();
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to delete name' });
     }
   },

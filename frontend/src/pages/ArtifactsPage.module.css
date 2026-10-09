@@ -42,6 +42,37 @@
   max-width: 680px;
 }
 
+/* ── Kind filter chips (events list) ────────────────────────────────────── */
+
+.filterRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.filterChip {
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--color-border-warm, var(--color-gray-200));
+  border-radius: var(--radius-full);
+  background: var(--color-bg-primary);
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.filterChip:hover {
+  color: var(--color-primary-700);
+  border-color: var(--color-primary-200, var(--color-gray-300));
+}
+
+.filterChipActive {
+  background: var(--color-primary-50);
+  border-color: var(--color-primary-200, var(--color-primary-50));
+  color: var(--color-primary-700);
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -433,4 +464,22 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
+}
+
+/* Collection cover image (#26). */
+.cover {
+  display: block;
+  width: 100%;
+  max-width: 22rem;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  margin-bottom: var(--space-3);
+}
+
+.coverRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
 }

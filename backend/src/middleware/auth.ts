@@ -2,6 +2,9 @@ import type { Request, Response, NextFunction } from 'express';
 import { verifyAccessToken, type TokenPayload } from '../services/auth.js';
 
 declare global {
+  // Augmenting Express's Request type requires its namespace; there is no
+  // module-syntax equivalent for this declaration.
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       user?: TokenPayload;

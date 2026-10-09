@@ -1,9 +1,12 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import styles from './TreePage.module.css';
+import { useNavigate } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
 import Sidebar from '@/components/Sidebar/Sidebar';
 import TreeCanvas from '@/components/TreeCanvas/TreeCanvas';
+import FamilyChartTree from '@/components/FamilyChartTree/FamilyChartTree';
+import type { FamilyChartOrientation } from '@/components/FamilyChartTree/FamilyChartTree';
 import CanvasToolbar from '@/components/CanvasToolbar/CanvasToolbar';
 import CanvasLegend from '@/components/CanvasLegend/CanvasLegend';
 import ContextMenu from '@/components/ContextMenu/ContextMenu';
@@ -25,12 +28,33 @@ import type { TreeNode, TreePerson, TreeFamily, ConnectorLine } from '@/stores/c
 
 type TreeFilter = 'all' | 'unconnected-people' | 'unconnected-trees';
 
-const TreePage: React.FC = () => {
+export type TreeRenderer = 'family-chart' | 'classic';
+
+interface TreePageProps {
+  /**
+   * Which drawing to use. The page itself — toolbar, detail panel, wizard,
+   * filters — is the same either way; only the canvas differs. 'classic' is
+   * the original hand-rolled SVG canvas, kept at /tree-classic as a fallback
+   * while family-chart beds in.
+   */
+  renderer?: TreeRenderer;
+}
+
+const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
   const { refetch } = useTreeData();
   const [treeFilter, setTreeFilter] = useState<TreeFilter>('all');
   const [treeIssueCount, setTreeIssueCount] = useState<number | null>(null);
-  const { selectedPersonId, setHighlightedPersonIds } = useCanvasStore();
-  const { nodes, isLoading, setNodes, setFamilies, setConnectors, setLoading, fitToScreen } = useCanvasStore();
+  const {
+    selectedPersonId,
+    setHighlightedPersonIds,
+    setSelectedPerson,
+    setContextMenu,
+    homePersonId,
+  } = useCanvasStore();
+  const navigate = useNavigate();
+  const [orientation, setOrientation] = useState<FamilyChartOrientation>('vertical');
+  const [chartDepth, setChartDepth] = useState(3);
+  const { nodes, families, isLoading, setNodes, setFamilies, setConnectors, setLoading, fitToScreen } = useCanvasStore();
   const searchFilters = useSearchStore();
   const setTotalCount = useSearchStore((s) => s.setTotalCount);
   const filtersActive = hasActiveFilters(searchFilters);
@@ -304,6 +328,16 @@ const TreePage: React.FC = () => {
     }
   };
 
+  // The classic canvas draws from laid-out nodes; family-chart does its own
+  // layout and wants the people. Both come from the same fetched data.
+  const chartPersons = useMemo(() => nodes.map((node) => node.person), [nodes]);
+  const chartMainId =
+    selectedPersonId && chartPersons.some((p) => p.id === selectedPersonId)
+      ? selectedPersonId
+      : homePersonId && chartPersons.some((p) => p.id === homePersonId)
+        ? homePersonId
+        : (chartPersons[0]?.id ?? null);
+
   const wizardTitle = editPersonId ? 'Edit Person' : 'Add Person';
 
   return (
@@ -340,8 +374,48 @@ const TreePage: React.FC = () => {
             : 'No unconnected branches found — everyone is connected to the home person.'}
         </div>
       )}
-      <TreeCanvas onAddPerson={openCreateWizard} />
-      <CanvasLegend />
+      {renderer === 'classic' ? (
+        <>
+          <TreeCanvas onAddPerson={openCreateWizard} />
+          <CanvasLegend />
+        </>
+      ) : (
+        <>
+          <div className={styles.chartControls}>
+            <label>
+              Layout
+              <select
+                value={orientation}
+                onChange={(e) => setOrientation(e.target.value as FamilyChartOrientation)}
+              >
+                <option value="vertical">Vertical</option>
+                <option value="horizontal">Horizontal</option>
+              </select>
+            </label>
+            <label>
+              Depth
+              <select value={chartDepth} onChange={(e) => setChartDepth(Number(e.target.value))}>
+                {[1, 2, 3, 4, 5, 10].map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {chartPersons.length > 0 && chartMainId && (
+            <FamilyChartTree
+              persons={chartPersons}
+              families={families}
+              mainPersonId={chartMainId}
+              orientation={orientation}
+              ancestryDepth={chartDepth}
+              progenyDepth={chartDepth}
+              onPersonSelect={setSelectedPerson}
+              onPersonOpen={(id) => navigate(`/people/${id}`)}
+              onPersonContextMenu={(id, x, y) => setContextMenu({ x, y, personId: id })}
+            />
+          )}
+        </>
+      )}
       <ContextMenu
         onEditPerson={openPersonEditor}
         onAddParent={(id) => openPreLinkedWizard(id, 'parent')}

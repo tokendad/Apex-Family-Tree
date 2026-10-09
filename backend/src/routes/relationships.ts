@@ -50,7 +50,7 @@ relationshipsRouter.get('/objects/:objectId', (req, res) => {
     const repo = new RelationshipRepository();
     const objectId = paramStr(req.params.objectId);
     res.json({ data: repo.findForObject(objectId) });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list relationships' });
   }
 });
@@ -61,7 +61,7 @@ relationshipsRouter.get('/objects/:objectId/connected', (req, res) => {
     const objectId = paramStr(req.params.objectId);
     const type = typeof req.query.type === 'string' ? req.query.type : undefined;
     res.json({ data: repo.findConnectedObjects(objectId, type) });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list connected objects' });
   }
 });
@@ -112,7 +112,7 @@ relationshipsRouter.get('/:id', (req, res) => {
       return;
     }
     res.json(relationship);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to get relationship' });
   }
 });
@@ -126,7 +126,7 @@ relationshipsRouter.delete('/:id', requireRole('admin', 'editor'), (req, res) =>
       return;
     }
     res.status(204).send();
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to delete relationship' });
   }
 });

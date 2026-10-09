@@ -22,7 +22,6 @@ vi.mock('@/components/entity-pickers/PersonPicker', () => ({
   ),
 }));
 
-const noop = () => {};
 
 beforeEach(() => {
   useModalStore.setState({ stack: [] });

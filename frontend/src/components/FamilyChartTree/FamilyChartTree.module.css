@@ -1,0 +1,21 @@
+.chart {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  background: var(--color-bg-primary, #fff);
+  --text-color: #1f2937;
+  --background-color: var(--color-bg-primary, #fff);
+  /* The library's default genderless grey is too light for the white card text. */
+  --genderless-color: var(--color-gray-500, #6b7280);
+}
+
+/* family-chart is designed for a dark canvas and hardcodes white links. */
+.chart :global(path.link) {
+  stroke: #9ca3af;
+  stroke-width: 2;
+}
+
+.chart :global(.card-label) {
+  color: #fff;
+}

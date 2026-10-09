@@ -8,7 +8,18 @@ import ArchiveObjectLayout from '@/components/archive-object/ArchiveObjectLayout
 import { type ContextActionItem } from '@/components/archive-object/ContextActionsMenu';
 import { usePageActions } from '@/contexts/PageActionsContext';
 import { usePermissions } from '@/hooks/usePermissions';
+import { getPersonDisplayName } from '@/utils/entityDisplay';
+import { formatEventType, isAttributeType, payloadLabel } from '@/utils/eventTypes';
 import styles from '@/components/archive-object/ArchiveDetailPage.module.css';
+
+interface PersonSummary {
+  id: string;
+  displayName?: string | null;
+  display_name?: string | null;
+  given_name: string | null;
+  middle_name?: string | null;
+  surname: string | null;
+}
 
 interface EventRecord {
   id: string;
@@ -18,6 +29,10 @@ interface EventRecord {
   event_date: string | null;
   event_place: string | null;
   description: string | null;
+  /** The person this event belongs to, when it is a person event. */
+  person?: PersonSummary | null;
+  /** The family this event belongs to, when it is a family event. */
+  family?: { id: string; spouse1: PersonSummary | null; spouse2: PersonSummary | null } | null;
 }
 
 interface ConnectedObject {
@@ -29,16 +44,51 @@ interface ConnectedObject {
   summary: string | null;
 }
 
-function formatEventType(type: string): string {
-  return type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
 const InfoRow: React.FC<{ label: string; value: string | null }> = ({ label, value }) => (
   <div className={styles.infoRow}>
     <span>{label}</span>
     <strong>{value || '—'}</strong>
   </div>
 );
+
+const LinkRow: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <div className={styles.infoRow}>
+    <span>{label}</span>
+    <strong>{children}</strong>
+  </div>
+);
+
+/**
+ * Every event belongs to exactly one subject. `events.person_id` /
+ * `events.family_id` is that link; the Connections tab shows the separate
+ * archive_objects relationship graph, which stays empty for imported events.
+ */
+const SubjectRow: React.FC<{ event: EventRecord }> = ({ event }) => {
+  if (event.person) {
+    return (
+      <LinkRow label="Person">
+        <Link to={`/people/${event.person.id}`}>{getPersonDisplayName(event.person)}</Link>
+      </LinkRow>
+    );
+  }
+
+  if (event.family) {
+    const partners = [event.family.spouse1, event.family.spouse2].filter(
+      (p): p is PersonSummary => p !== null,
+    );
+    return (
+      <LinkRow label="Family">
+        <Link to={`/families/${event.family.id}`}>
+          {partners.length > 0
+            ? partners.map((p) => getPersonDisplayName(p)).join(' + ')
+            : 'Family union'}
+        </Link>
+      </LinkRow>
+    );
+  }
+
+  return <InfoRow label="Subject" value={null} />;
+};
 
 const EventDetailPage: React.FC = () => {
   const { id } = useParams();
@@ -185,7 +235,7 @@ const EventDetailPage: React.FC = () => {
                         </label>
                       </div>
                       <label className={styles.field}>
-                        <span>Description</span>
+                        <span>{payloadLabel(form.event_type)}</span>
                         <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} />
                       </label>
                       <div className={styles.formActions}>
@@ -199,10 +249,17 @@ const EventDetailPage: React.FC = () => {
                         <h2 className={styles.sectionTitle} id="event-details-heading">Event Details</h2>
                       </div>
                       <div className={styles.infoGrid}>
-                        <InfoRow label="Type" value={formatEventType(event.event_type)} />
+                        <SubjectRow event={event} />
+                        <InfoRow
+                          label={isAttributeType(event.event_type) ? 'Attribute' : 'Event Type'}
+                          value={formatEventType(event.event_type)}
+                        />
                         <InfoRow label="Date" value={event.event_date} />
                         <InfoRow label="Place Text" value={event.event_place} />
-                        <InfoRow label="Description" value={event.description} />
+                        <InfoRow
+                          label={payloadLabel(event.event_type)}
+                          value={event.description}
+                        />
                       </div>
                     </section>
                   )}

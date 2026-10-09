@@ -76,10 +76,10 @@ export class SettingsRepository extends BaseRepository {
   }
 
   /**
-   * Get the global name display format (defaults to '%f %m %s' if not set)
+   * Get the global name display format (defaults to '%t %f %m %s %x' if not set)
    */
   getNameDisplayFormat(): string {
-    return this.getSettingValue('name_display_format') || '%f %m %s';
+    return this.getSettingValue('name_display_format') || '%t %f %m %s %x';
   }
 
   // ─── Feature Flags ────────────────────────────────────────────────────────

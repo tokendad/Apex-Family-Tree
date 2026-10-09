@@ -79,13 +79,11 @@ export const useSearchStore = create<SearchState>()(
       migrate: (persisted: unknown) => {
         // v0 → v1: remove dead 'place' field
         const state = persisted as Record<string, unknown>;
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { place: _p, ...rest } = state;
         return rest;
       },
       partialize: (state) => {
         // Only persist filter fields, not totalCount or actions
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { totalCount: _tc, setFilter: _sf, setFilters: _sfs, resetFilters: _rf, setTotalCount: _stc, ...filters } = state;
         return filters;
       },

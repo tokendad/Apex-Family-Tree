@@ -3,11 +3,32 @@ import { findChildByTag, findChildrenByTag } from './parser.js';
 
 // ─── Mapped Types ───────────────────────────────────────────────────────────
 
+/**
+ * A SOUR pointer hanging off a record, with its locator. GEDCOM 5.5.1 allows
+ * these on individuals, families, names and events; every one of them used to
+ * be discarded, leaving sources in the archive that nothing cited (#36).
+ */
+export interface MappedCitation {
+  /** The SOUR xref, e.g. "@S0010@". */
+  sourceXref: string;
+  /** PAGE — where in the source the claim is found. */
+  page: string | null;
+  /** DATA/TEXT — the quoted text of the record. */
+  text: string | null;
+  /**
+   * _APID — Ancestry's stable pointer into its record collections. Not standard
+   * 5.5.1, but useful for re-finding a record, so it is kept in the citation
+   * notes rather than dropped.
+   */
+  apid: string | null;
+}
+
 export interface MappedPerson {
   xref: string;
   sex: 'M' | 'F' | 'X' | 'U';
   names: MappedName[];
   events: MappedEvent[];
+  citations: MappedCitation[];
   gedcomId: string;
 }
 
@@ -20,6 +41,7 @@ export interface MappedName {
   suffix: string | null;
   nickname: string | null;
   isPrimary: boolean;
+  citations: MappedCitation[];
 }
 
 export interface MappedEvent {
@@ -27,6 +49,7 @@ export interface MappedEvent {
   date: string | null;
   place: string | null;
   description: string | null;
+  citations: MappedCitation[];
 }
 
 export interface MappedFamily {
@@ -39,6 +62,7 @@ export interface MappedFamily {
   marriagePlace: string | null;
   divorceDate: string | null;
   divorcePlace: string | null;
+  citations: MappedCitation[];
   gedcomId: string;
 }
 
@@ -68,6 +92,12 @@ export interface MappedData {
   families: MappedFamily[];
   sources: MappedSource[];
   repositories: MappedRepository[];
+  /**
+   * SOUR entries that embed their text instead of pointing at a SOUR record.
+   * These cannot become source_citations rows without inventing a source, so
+   * they are counted and reported rather than dropped in silence (#36).
+   */
+  inlineSourceCount: number;
 }
 
 // ─── Event Tag Mapping ──────────────────────────────────────────────────────
@@ -89,6 +119,9 @@ const INDIVIDUAL_EVENT_TAGS: Record<string, string> = {
   PROB: 'probate',
   WILL: 'will',
   RETI: 'retirement',
+  // _MILT is the de-facto extension tag for military service; 5.5.1 has no
+  // standard one, and without this every service record is dropped on import.
+  _MILT: 'military_service',
   EVEN: 'other',
   OCCU: 'occupation',
   RESI: 'residence',
@@ -135,7 +168,42 @@ function extractEvent(record: GedcomRecord, eventType: string): MappedEvent {
     date: dateRec?.value || null,
     place: placeRec?.value || null,
     description: descRec || null,
+    citations: extractCitations(record),
   };
+}
+
+/**
+ * Collect the SOUR pointers directly under a record. An inline SOUR — one with
+ * embedded text instead of an xref — is skipped here and reported by the
+ * importer, rather than being silently dropped as before.
+ */
+function extractCitations(record: GedcomRecord): MappedCitation[] {
+  const citations: MappedCitation[] = [];
+
+  for (const sourRec of findChildrenByTag(record, 'SOUR')) {
+    const value = sourRec.value?.trim() || '';
+    if (!/^@[^@]+@$/.test(value)) continue; // inline SOUR, not a pointer
+
+    const dataRec = findChildByTag(sourRec, 'DATA');
+    citations.push({
+      sourceXref: value,
+      page: findChildByTag(sourRec, 'PAGE')?.value?.trim() || null,
+      text: (dataRec ? findChildByTag(dataRec, 'TEXT')?.value : null)?.trim() || null,
+      apid: findChildByTag(sourRec, '_APID')?.value?.trim() || null,
+    });
+  }
+
+  return citations;
+}
+
+/** Counts SOUR entries that embed their text instead of pointing, at any depth. */
+function countInlineSources(record: GedcomRecord): number {
+  let count = 0;
+  for (const child of record.children) {
+    if (child.tag === 'SOUR' && !/^@[^@]+@$/.test(child.value?.trim() || '')) count++;
+    count += countInlineSources(child);
+  }
+  return count;
 }
 
 function splitGivenAndMiddle(value: string | null): { givenName: string | null; middleName: string | null } {
@@ -192,6 +260,7 @@ function parseName(nameRecord: GedcomRecord, index: number): MappedName {
     surname,
     suffix: nsfxRec?.value || null,
     nickname: nickRec?.value || null,
+    citations: extractCitations(nameRecord),
     isPrimary: index === 0,
   };
 }
@@ -214,6 +283,7 @@ function mapIndividual(record: GedcomRecord): MappedPerson {
       suffix: null,
       nickname: null,
       isPrimary: true,
+      citations: [],
     });
   }
 
@@ -225,7 +295,7 @@ function mapIndividual(record: GedcomRecord): MappedPerson {
     }
   }
 
-  return { xref, sex, names, events, gedcomId: xref };
+  return { xref, sex, names, events, citations: extractCitations(record), gedcomId: xref };
 }
 
 function mapFamily(record: GedcomRecord): MappedFamily {
@@ -269,6 +339,7 @@ function mapFamily(record: GedcomRecord): MappedFamily {
     marriagePlace,
     divorceDate,
     divorcePlace,
+    citations: extractCitations(record),
     gedcomId: xref,
   };
 }
@@ -335,8 +406,12 @@ export function mapGedcomRecords(records: GedcomRecord[]): MappedData {
   const families: MappedFamily[] = [];
   const sources: MappedSource[] = [];
   const repositories: MappedRepository[] = [];
+  let inlineSourceCount = 0;
 
   for (const record of records) {
+    if (record.tag === 'INDI' || record.tag === 'FAM') {
+      inlineSourceCount += countInlineSources(record);
+    }
     switch (record.tag) {
       case 'INDI':
         persons.push(mapIndividual(record));
@@ -354,5 +429,5 @@ export function mapGedcomRecords(records: GedcomRecord[]): MappedData {
     }
   }
 
-  return { persons, families, sources, repositories };
+  return { persons, families, sources, repositories, inlineSourceCount };
 }

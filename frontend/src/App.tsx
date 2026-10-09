@@ -94,6 +94,11 @@ function App() {
               {/* Main app routes (protected) */}
               <Route path="/" element={<ProtectedRoute><TreePage /></ProtectedRoute>} />
               <Route path="/tree" element={<Navigate to="/" replace />} />
+              {/* The classic hand-rolled canvas, kept as a fallback while
+                  family-chart beds in. Same page, different drawing. */}
+              <Route path="/tree-classic" element={<ProtectedRoute><TreePage renderer="classic" /></ProtectedRoute>} />
+              {/* family-chart is now the tree at "/". */}
+              <Route path="/tree-family-chart" element={<Navigate to="/" replace />} />
               <Route path="/people" element={<ProtectedRoute><PeoplePage /></ProtectedRoute>} />
               <Route path="/people/:id" element={<ProtectedRoute><PersonDetailPage /></ProtectedRoute>} />
               <Route path="/families" element={<ProtectedRoute><FamiliesPage /></ProtectedRoute>} />

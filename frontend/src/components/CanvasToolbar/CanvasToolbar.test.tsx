@@ -16,7 +16,7 @@ vi.mock('@/stores/canvasStore', () => ({
 }));
 const navigateMock = vi.fn();
 vi.mock('react-router-dom', () => ({ useNavigate: () => navigateMock }));
-vi.mock('@/components/Button/Button', () => ({ default: ({ children, onClick }: any) => <button onClick={onClick}>{children}</button> }));
+vi.mock('@/components/Button/Button', () => ({ default: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => <button onClick={onClick}>{children}</button> }));
 
 const { default: CanvasToolbar } = await import('./CanvasToolbar');
 

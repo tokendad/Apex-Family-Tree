@@ -8,6 +8,17 @@ interface ContextMenuProps {
   onAddParent?: (personId: string) => void;
   onAddSpouse?: (personId: string) => void;
   onAddChild?: (personId: string) => void;
+  /**
+   * What "View Details" does. The main tree selects the person, which opens
+   * its detail panel; a page without one can navigate instead.
+   */
+  onViewDetails?: (personId: string) => void;
+  /**
+   * Omit entries that this page cannot carry out, rather than showing a menu
+   * item that does nothing when clicked. Off by default so the main tree is
+   * unaffected.
+   */
+  hideUnavailable?: boolean;
 }
 
 const ContextMenu: React.FC<ContextMenuProps> = ({
@@ -15,6 +26,8 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
   onAddParent,
   onAddSpouse,
   onAddChild,
+  onViewDetails,
+  hideUnavailable = false,
 }) => {
   const { contextMenuPosition, setContextMenu, setSelectedPerson } = useCanvasStore();
   const { user } = useAuth();
@@ -57,7 +70,8 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 
     switch (action) {
       case 'view':
-        setSelectedPerson(personId);
+        if (onViewDetails) onViewDetails(personId);
+        else setSelectedPerson(personId);
         break;
       case 'edit':
         onEditPerson?.(personId);
@@ -77,6 +91,10 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
     }
   };
 
+  // An entry appears if it has somewhere to go, or if this page has not asked
+  // for unavailable entries to be hidden.
+  const show = (available: boolean) => available || !hideUnavailable;
+
   return (
     <>
       <div className={styles.overlay} onClick={close} />
@@ -86,27 +104,39 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
         style={{ left: contextMenuPosition.x, top: contextMenuPosition.y }}
         role="menu"
       >
-        <button className={styles.item} role="menuitem" onClick={() => handleAction('view')}>
-          View Details
-        </button>
-        <button className={styles.item} role="menuitem" onClick={() => handleAction('edit')}>
-          Edit Person
-        </button>
-        <div className={styles.separator} />
-        <button className={styles.item} role="menuitem" onClick={() => handleAction('add-parent')}>
-          Add Parent
-        </button>
-        <button className={styles.item} role="menuitem" onClick={() => handleAction('add-spouse')}>
-          Add Spouse
-        </button>
-        <button className={styles.item} role="menuitem" onClick={() => handleAction('add-child')}>
-          Add Child
-        </button>
-        <div className={styles.separator} />
-        <button className={styles.item} role="menuitem" onClick={() => handleAction('set-home')}>
-          Set as Home Person
-        </button>
-        {isAdmin && (
+        {show(true) && (
+          <button className={styles.item} role="menuitem" onClick={() => handleAction('view')}>
+            View Details
+          </button>
+        )}
+        {show(!!onEditPerson) && (
+          <button className={styles.item} role="menuitem" onClick={() => handleAction('edit')}>
+            Edit Person
+          </button>
+        )}
+        {show(!!onAddParent || !!onAddSpouse || !!onAddChild) && <div className={styles.separator} />}
+        {show(!!onAddParent) && (
+          <button className={styles.item} role="menuitem" onClick={() => handleAction('add-parent')}>
+            Add Parent
+          </button>
+        )}
+        {show(!!onAddSpouse) && (
+          <button className={styles.item} role="menuitem" onClick={() => handleAction('add-spouse')}>
+            Add Spouse
+          </button>
+        )}
+        {show(!!onAddChild) && (
+          <button className={styles.item} role="menuitem" onClick={() => handleAction('add-child')}>
+            Add Child
+          </button>
+        )}
+        {show(false) && <div className={styles.separator} />}
+        {show(false) && (
+          <button className={styles.item} role="menuitem" onClick={() => handleAction('set-home')}>
+            Set as Home Person
+          </button>
+        )}
+        {isAdmin && show(false) && (
           <>
             <div className={styles.separator} />
             <button

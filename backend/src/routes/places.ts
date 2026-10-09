@@ -58,7 +58,7 @@ placesRouter.get('/', (req, res) => {
     const cursor = req.query.cursor as string | undefined;
     const search = req.query.q as string | undefined;
     res.json(repo.findAll({ limit, cursor, search }));
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list places' });
   }
 });
@@ -74,7 +74,7 @@ placesRouter.get('/:id', (req, res) => {
     }
 
     res.json({ ...place, aliases: repo.findAliases(id) });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to get place' });
   }
 });
@@ -101,7 +101,7 @@ placesRouter.post(
         created_by: req.user?.userId ?? null,
       });
       res.status(201).json(place);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to create place' });
     }
   },
@@ -127,7 +127,7 @@ placesRouter.put(
       }
 
       res.json(place);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to update place' });
     }
   },
@@ -143,7 +143,7 @@ placesRouter.delete('/:id', requireRole('admin', 'editor'), (req, res) => {
     }
 
     res.status(204).send();
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to delete place' });
   }
 });

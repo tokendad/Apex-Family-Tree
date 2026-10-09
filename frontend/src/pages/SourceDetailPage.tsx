@@ -26,6 +26,33 @@ interface Source {
 
 type QualityValue = 'primary' | 'secondary' | 'questionable' | 'unreliable';
 
+interface SourceMediaItem {
+  id: string;
+  filename?: string;
+  file_name?: string;
+  title?: string | null;
+  media_type?: string;
+}
+
+function mediaLabel(item: SourceMediaItem): string {
+  return item.title?.trim() || item.filename || item.file_name || `Media ${item.id.slice(0, 8)}`;
+}
+
+/** Falls back to a file glyph when a thumbnail cannot be rendered. */
+const MediaThumb: React.FC<{ item: SourceMediaItem }> = ({ item }) => {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <div className={localStyles.mediaFallback} aria-hidden="true">📄</div>;
+  return (
+    <img
+      className={localStyles.mediaThumb}
+      src={`/api/v1/media/${item.id}?thumb=1`}
+      alt={mediaLabel(item)}
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  );
+};
+
 interface Citation {
   id: string;
   person_id: string | null;
@@ -108,6 +135,13 @@ const SourceDetailPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
 
+  const [media, setMedia] = useState<SourceMediaItem[]>([]);
+  const [mediaLibrary, setMediaLibrary] = useState<SourceMediaItem[]>([]);
+  const [mediaQuery, setMediaQuery] = useState('');
+  const [isMediaLoading, setIsMediaLoading] = useState(true);
+  const [mediaError, setMediaError] = useState<string | null>(null);
+  const [showAttach, setShowAttach] = useState(false);
+
   const [citations, setCitations] = useState<Citation[]>([]);
   const [isCitationsLoading, setIsCitationsLoading] = useState(true);
   const [citationPersonId, setCitationPersonId] = useState<PersonResult | null>(null);
@@ -147,8 +181,66 @@ const SourceDetailPage: React.FC = () => {
     }
   }, [id]);
 
+  const loadMedia = useCallback(async () => {
+    if (!id) return;
+    setIsMediaLoading(true);
+    try {
+      const res = await fetch(`/api/v1/media/sources/${id}/media`, { credentials: 'include' });
+      if (!res.ok) return;
+      const data = await res.json();
+      setMedia(Array.isArray(data) ? data : []);
+    } finally {
+      setIsMediaLoading(false);
+    }
+  }, [id]);
+
+  const loadMediaLibrary = useCallback(async (search: string) => {
+    const query = search.trim() ? `&q=${encodeURIComponent(search.trim())}` : '';
+    const res = await fetch(`/api/v1/media?limit=24${query}`, { credentials: 'include' });
+    if (!res.ok) return;
+    const data = await res.json();
+    setMediaLibrary(data.data ?? []);
+  }, []);
+
+  const attachMedia = async (mediaId: string) => {
+    if (!id) return;
+    setMediaError(null);
+    const res = await fetch(`/api/v1/media/sources/${id}/media`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ media_id: mediaId }),
+    });
+    if (!res.ok) {
+      setMediaError('Could not attach that image');
+      return;
+    }
+    setShowAttach(false);
+    await loadMedia();
+  };
+
+  const detachMedia = async (mediaId: string) => {
+    if (!id) return;
+    setMediaError(null);
+    const res = await fetch(`/api/v1/media/sources/${id}/media/${mediaId}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (!res.ok) {
+      setMediaError('Could not remove that image');
+      return;
+    }
+    await loadMedia();
+  };
+
   useEffect(() => { void loadSource(); }, [loadSource]);
   useEffect(() => { void loadCitations(); }, [loadCitations]);
+  useEffect(() => { void loadMedia(); }, [loadMedia]);
+  useEffect(() => {
+    if (!showAttach) return;
+    const timer = setTimeout(() => void loadMediaLibrary(mediaQuery), 250);
+    return () => clearTimeout(timer);
+  }, [showAttach, mediaQuery, loadMediaLibrary]);
 
   const handleSave = async (event: FormEvent) => {
     event.preventDefault();
@@ -261,11 +353,13 @@ const SourceDetailPage: React.FC = () => {
               avatar={<span>📖</span>}
               stats={[
                 { label: 'Citations', value: citations.length },
+                { label: 'Images', value: media.length },
                 { label: 'Publisher', value: source.publisher ?? '—' },
               ]}
               tabs={[
                 { id: 'overview', label: 'Overview' },
                 { id: 'citations', label: 'Citations', count: citations.length },
+                { id: 'images', label: 'Images', count: media.length },
               ]}
               activeTab={activeTab}
               onTabChange={setActiveTab}
@@ -373,6 +467,86 @@ const SourceDetailPage: React.FC = () => {
                     </div>
                   )}
                   {citationError && <div className={styles.errorBanner} role="alert">{citationError}</div>}
+                </section>
+              )}
+
+              {activeTab === 'images' && (
+                <section className={styles.section} aria-labelledby="source-images-heading">
+                  <div className={styles.sectionHeader}>
+                    <h2 className={styles.sectionTitle} id="source-images-heading">Images</h2>
+                    {canEdit && (
+                      <Button variant="ghost" size="sm" onClick={() => setShowAttach((open) => !open)}>
+                        {showAttach ? 'Cancel' : '+ Attach Image'}
+                      </Button>
+                    )}
+                  </div>
+
+                  <p className={styles.muted}>
+                    A scan or photograph of the record itself — the census sheet, the register
+                    page, the muster roll.
+                  </p>
+
+                  {isMediaLoading ? (
+                    <p className={localStyles.citationsLoading}>Loading images…</p>
+                  ) : media.length === 0 ? (
+                    <p className={styles.muted}>No images attached to this source.</p>
+                  ) : (
+                    <div className={localStyles.mediaGrid}>
+                      {media.map((item) => (
+                        <div key={item.id} className={localStyles.mediaCard}>
+                          <Link to={`/media/${item.id}`}>
+                            <MediaThumb item={item} />
+                          </Link>
+                          <div className={localStyles.mediaCardFooter}>
+                            <span className={localStyles.mediaName}>{mediaLabel(item)}</span>
+                            {canEdit && (
+                              <button
+                                type="button"
+                                className={localStyles.mediaRemove}
+                                onClick={() => void detachMedia(item.id)}
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {showAttach && canEdit && (
+                    <div className={styles.connectBox}>
+                      <Input
+                        placeholder="Search the media library…"
+                        value={mediaQuery}
+                        onChange={(e) => setMediaQuery(e.target.value)}
+                      />
+                      {mediaLibrary.length === 0 ? (
+                        <p className={styles.muted}>
+                          Nothing matches. Images are uploaded on the Media page first, then
+                          attached here.
+                        </p>
+                      ) : (
+                        <div className={localStyles.mediaGrid}>
+                          {mediaLibrary
+                            .filter((candidate) => !media.some((attached) => attached.id === candidate.id))
+                            .map((candidate) => (
+                              <button
+                                key={candidate.id}
+                                type="button"
+                                className={localStyles.mediaPick}
+                                onClick={() => void attachMedia(candidate.id)}
+                              >
+                                <MediaThumb item={candidate} />
+                                <span className={localStyles.mediaName}>{mediaLabel(candidate)}</span>
+                              </button>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {mediaError && <div className={styles.errorBanner} role="alert">{mediaError}</div>}
                 </section>
               )}
             </ArchiveObjectLayout>

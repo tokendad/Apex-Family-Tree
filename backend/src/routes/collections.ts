@@ -31,7 +31,9 @@ function collectionBody(body: Record<string, unknown>) {
     title: typeof body.title === 'string' ? body.title.trim() : undefined,
     summary: cleanOptional(body.summary),
     privacy_level: typeof body.privacy_level === 'string' ? body.privacy_level as ArchivePrivacyLevel : undefined,
-    collection_type: body.collection_type === 'smart' ? 'smart' as const : body.collection_type === 'manual' ? 'manual' as const : undefined,
+    // 'smart' was retired in 060: nothing implemented saved-query collections,
+    // so the only value the schema now permits is 'manual'.
+    collection_type: body.collection_type === 'manual' ? 'manual' as const : undefined,
     description: cleanOptional(body.description),
     cover_artifact_id: cleanOptional(body.cover_artifact_id),
     sort_order: numberOptional(body.sort_order),
@@ -42,7 +44,7 @@ collectionsRouter.get('/tags', (_req, res) => {
   try {
     const repo = new CollectionRepository();
     res.json({ data: repo.findTags() });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list tags' });
   }
 });
@@ -67,7 +69,7 @@ collectionsRouter.delete('/objects/:objectId/tags/:tagId', requireRole('admin', 
       return;
     }
     res.status(204).send();
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to remove tag' });
   }
 });
@@ -79,8 +81,23 @@ collectionsRouter.get('/', (req, res) => {
     const cursor = req.query.cursor as string | undefined;
     const search = req.query.q as string | undefined;
     res.json(repo.findAll({ limit, cursor, search }));
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to list collections' });
+  }
+});
+
+/**
+ * The collections a given archive object belongs to.
+ *
+ * Registered before '/:id' so the literal segment wins, and so membership can
+ * be read from the object's own page rather than only from the collection.
+ */
+collectionsRouter.get('/for-object/:objectId', (req, res) => {
+  try {
+    const repo = new CollectionRepository();
+    res.json({ data: repo.findForObject(paramStr(req.params.objectId)) });
+  } catch {
+    res.status(500).json({ error: 'Failed to list collections for object' });
   }
 });
 
@@ -94,7 +111,7 @@ collectionsRouter.get('/:id', (req, res) => {
       return;
     }
     res.json({ ...collection, items: repo.findItems(id), tags: repo.findTagsForObject(id) });
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to get collection' });
   }
 });
@@ -116,7 +133,7 @@ collectionsRouter.post(
       }
       const collection = repo.create({ ...body, title: body.title, created_by: req.user?.userId ?? null });
       res.status(201).json(collection);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to create collection' });
     }
   },
@@ -141,7 +158,7 @@ collectionsRouter.put(
         return;
       }
       res.json(collection);
-    } catch (error) {
+    } catch {
       res.status(500).json({ error: 'Failed to update collection' });
     }
   },
@@ -156,7 +173,7 @@ collectionsRouter.delete('/:id', requireRole('admin', 'editor'), (req, res) => {
       return;
     }
     res.status(204).send();
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to delete collection' });
   }
 });
@@ -194,7 +211,7 @@ collectionsRouter.put('/:id/items/:itemId', requireRole('admin', 'editor', 'limi
       return;
     }
     res.json(item);
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to update collection item' });
   }
 });
@@ -208,7 +225,7 @@ collectionsRouter.delete('/:id/items/:itemId', requireRole('admin', 'editor'), (
       return;
     }
     res.status(204).send();
-  } catch (error) {
+  } catch {
     res.status(500).json({ error: 'Failed to remove collection item' });
   }
 });

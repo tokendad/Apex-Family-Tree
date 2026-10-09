@@ -14,10 +14,32 @@ interface CollectionRecord {
   title: string;
   summary: string | null;
   privacy_level: 'public' | 'family' | 'private' | 'restricted';
-  collection_type: 'manual' | 'smart';
+  collection_type: 'manual';
   description: string | null;
+  cover_artifact_id: string | null;
   item_count: number;
 }
+
+/**
+ * Thumbnail for a collection card.
+ *
+ * Artifacts bridged from legacy media (migration 045) keep the media row's id,
+ * so they are served at /api/v1/media/<id>. Anything without a servable image
+ * renders nothing rather than a broken frame.
+ */
+const CoverThumb: React.FC<{ artifactId: string }> = ({ artifactId }) => {
+  const [failed, setFailed] = useState(false);
+  if (failed) return null;
+  return (
+    <img
+      className={styles.cover}
+      src={`/api/v1/media/${artifactId}`}
+      alt=""
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  );
+};
 
 const EMPTY_FORM = { title: '', summary: '', description: '', privacy_level: 'family' as CollectionRecord['privacy_level'] };
 
@@ -106,7 +128,7 @@ const CollectionsPage: React.FC = () => {
         {isLoading ? <div className={styles.empty}>Loading collections...</div> : collections.length === 0 ? <div className={styles.empty}>No collections yet. Create one to gather related archive objects into a story.</div> : (
           <div className={styles.grid}>{collections.map((collection) => (
             <Link key={collection.id} to={`/collections/${collection.id}`} className={styles.card}>
-              <div className={styles.cardType}>Collection</div><h2>{collection.title}</h2>{collection.summary && <p>{collection.summary}</p>}
+              {collection.cover_artifact_id && <CoverThumb artifactId={collection.cover_artifact_id} />}<div className={styles.cardType}>Collection</div><h2>{collection.title}</h2>{collection.summary && <p>{collection.summary}</p>}
               <div className={styles.meta}><span>{collection.item_count} item{collection.item_count === 1 ? '' : 's'}</span><span>{collection.privacy_level}</span></div>
             </Link>
           ))}</div>

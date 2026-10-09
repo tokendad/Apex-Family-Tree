@@ -258,6 +258,11 @@
   color: var(--color-warning);
 }
 
+.chipSource {
+  background: color-mix(in srgb, var(--color-info, #6366f1) 15%, transparent);
+  color: var(--color-info, #6366f1);
+}
+
 .chipRemove {
   background: none;
   border: none;

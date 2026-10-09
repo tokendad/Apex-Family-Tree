@@ -6,7 +6,7 @@ import { formatName } from '../utils/nameFormatter.js';
 export class FamilyRepository extends BaseRepository {
   private getNameDisplayFormat(): string {
     const row = this.db.prepare('SELECT value FROM app_settings WHERE key = ?').get('name_display_format') as { value: string | null } | undefined;
-    return row?.value || '%f %m %s';
+    return row?.value || '%t %f %m %s %x';
   }
 
   findById(id: string): Family | undefined {
