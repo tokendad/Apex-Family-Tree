@@ -13,6 +13,14 @@ interface ContextMenuProps {
    * its detail panel; a page without one can navigate instead.
    */
   onViewDetails?: (personId: string) => void;
+  /** Make this person the one the tree opens on. */
+  onSetHomePerson?: (personId: string) => void;
+  /**
+   * Deleting a person is not built yet. The entry only appears once a page
+   * supplies a handler, so the menu never offers an action that does nothing —
+   * least of all a destructive-looking one.
+   */
+  onDeletePerson?: (personId: string) => void;
   /**
    * Omit entries that this page cannot carry out, rather than showing a menu
    * item that does nothing when clicked. Off by default so the main tree is
@@ -27,6 +35,8 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
   onAddSpouse,
   onAddChild,
   onViewDetails,
+  onSetHomePerson,
+  onDeletePerson,
   hideUnavailable = false,
 }) => {
   const { contextMenuPosition, setContextMenu, setSelectedPerson } = useCanvasStore();
@@ -86,7 +96,10 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
         onAddChild?.(personId);
         break;
       case 'set-home':
+        onSetHomePerson?.(personId);
+        break;
       case 'delete':
+        onDeletePerson?.(personId);
         break;
     }
   };
@@ -130,13 +143,13 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
             Add Child
           </button>
         )}
-        {show(false) && <div className={styles.separator} />}
-        {show(false) && (
+        {onSetHomePerson && <div className={styles.separator} />}
+        {onSetHomePerson && (
           <button className={styles.item} role="menuitem" onClick={() => handleAction('set-home')}>
             Set as Home Person
           </button>
         )}
-        {isAdmin && show(false) && (
+        {isAdmin && onDeletePerson && (
           <>
             <div className={styles.separator} />
             <button

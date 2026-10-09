@@ -50,6 +50,7 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
     setSelectedPerson,
     setContextMenu,
     homePersonId,
+    setHomePersonId,
   } = useCanvasStore();
   const navigate = useNavigate();
   const [orientation, setOrientation] = useState<FamilyChartOrientation>('vertical');
@@ -338,6 +339,28 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
         ? homePersonId
         : (chartPersons[0]?.id ?? null);
 
+  const setHomePerson = useCallback(
+    async (personId: string) => {
+      // Optimistic: the tree re-centres immediately, and reverts if the save
+      // fails rather than leaving the view and the server disagreeing.
+      const previous = homePersonId;
+      setHomePersonId(personId);
+      try {
+        const res = await fetch('/api/v1/home-person', {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ person_id: personId }),
+        });
+        if (!res.ok) throw new Error(`Failed to set home person (${res.status})`);
+      } catch (err) {
+        console.error('Set home person error:', err);
+        setHomePersonId(previous);
+      }
+    },
+    [homePersonId, setHomePersonId],
+  );
+
   const wizardTitle = editPersonId ? 'Edit Person' : 'Add Person';
 
   return (
@@ -421,6 +444,7 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
         onAddParent={(id) => openPreLinkedWizard(id, 'parent')}
         onAddSpouse={(id) => openPreLinkedWizard(id, 'spouse')}
         onAddChild={(id) => openPreLinkedWizard(id, 'child')}
+        onSetHomePerson={setHomePerson}
       />
       <PersonEditModal
         open={editModalPersonId !== null}
