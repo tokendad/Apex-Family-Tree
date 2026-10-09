@@ -20,9 +20,11 @@ ALTER TABLE collections_old RENAME TO collections;
 
 CREATE INDEX IF NOT EXISTS idx_collections_type ON collections(collection_type);
 
--- SQLite cannot drop a column on older versions, so is_active is left in place
--- and simply reset. It defaults to 1, which is the pre-migration behaviour.
 UPDATE relationship_types
-   SET is_active = 1,
-       description = 'An archive object belongs to a collection.'
+   SET description = 'An archive object belongs to a collection.'
  WHERE code = 'belongs_to_collection';
+
+-- better-sqlite3 bundles SQLite 3.49, well past the 3.35 that introduced
+-- ALTER TABLE ... DROP COLUMN, so the flag goes away rather than lingering as
+-- a column the pre-060 schema never had.
+ALTER TABLE relationship_types DROP COLUMN is_active;

@@ -88,6 +88,9 @@ beforeEach(() => {
     if (url.includes('/collections/for-object/')) {
       return Promise.resolve({ ok: true, json: async () => ({ data: stubCollectionMembership }) });
     }
+    if (url.includes('/collections/for-object/')) {
+      return Promise.resolve({ ok: true, json: async () => ({ data: stubCollectionMembership }) });
+    }
     if (url.includes('/connected')) {
       return Promise.resolve({ ok: true, json: async () => ({ data: stubConnectedObjects }) });
     }
