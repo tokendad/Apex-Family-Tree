@@ -1,6 +1,7 @@
 import { BaseRepository } from './base.js';
 import { ArchiveObjectRepository } from './ArchiveObjectRepository.js';
 import type {
+  ArtifactFile,
   ArtifactRecord,
   ArtifactType,
   CreateArtifactInput,
@@ -11,8 +12,22 @@ import type {
 export class ArtifactRepository extends BaseRepository {
   private archiveObjects = new ArchiveObjectRepository();
 
+  /**
+   * artifact_files arrived with the archive-model migrations. Schemas that
+   * predate them -- and the narrower fixtures some repository tests build --
+   * simply have no files, which is not an error. EventRepository guards its
+   * archive_objects access the same way.
+   */
+  private hasArtifactFilesTable(): boolean {
+    return Boolean(
+      this.db.prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'artifact_files'",
+      ).get(),
+    );
+  }
+
   findById(id: string): ArtifactRecord | undefined {
-    return this.db.prepare(
+    const artifact = this.db.prepare(
       `SELECT ao.*, a.*,
               at.name AS artifact_type_name,
               ec.name AS evidence_classification_name
@@ -22,6 +37,42 @@ export class ArtifactRepository extends BaseRepository {
        LEFT JOIN evidence_classifications ec ON ec.id = a.evidence_classification_id
        WHERE a.id = ? AND ao.is_deleted = 0`,
     ).get(id) as ArtifactRecord | undefined;
+
+    if (!artifact) return undefined;
+    // Fetched separately rather than as another JOIN: an artifact may have
+    // several files, and joining would multiply the artifact row by each one.
+    return { ...artifact, files: this.findFiles(id) };
+  }
+
+  /**
+   * The files belonging to an artifact, primary first.
+   *
+   * artifact_files is the complete record -- every artifact has a row here by
+   * construction, whereas the overlap with media_items is an accident of how
+   * the bridge migrations built it and is not maintained. See findPrimaryFile.
+   */
+  findFiles(artifactId: string): ArtifactFile[] {
+    if (!this.hasArtifactFilesTable()) return [];
+    return this.db.prepare(
+      `SELECT id, artifact_id, file_role, storage_provider, storage_path,
+              original_filename, mime_type, size_bytes, width, height, created_at
+       FROM artifact_files
+       WHERE artifact_id = ?
+       ORDER BY CASE file_role WHEN 'primary' THEN 0 ELSE 1 END, created_at ASC, id ASC`,
+    ).all(artifactId) as ArtifactFile[];
+  }
+
+  /** The file an artifact page displays, or undefined if it has none. */
+  findPrimaryFile(artifactId: string): ArtifactFile | undefined {
+    if (!this.hasArtifactFilesTable()) return undefined;
+    return this.db.prepare(
+      `SELECT id, artifact_id, file_role, storage_provider, storage_path,
+              original_filename, mime_type, size_bytes, width, height, created_at
+       FROM artifact_files
+       WHERE artifact_id = ? AND file_role = 'primary'
+       ORDER BY created_at ASC, id ASC
+       LIMIT 1`,
+    ).get(artifactId) as ArtifactFile | undefined;
   }
 
   findAll(options?: { limit?: number; cursor?: string; search?: string; typeId?: string }): { data: ArtifactRecord[]; next_cursor: string | null; total_count: number } {

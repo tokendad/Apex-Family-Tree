@@ -395,6 +395,18 @@ const ArtifactsPage: React.FC = () => {
                   />
                 )}
                 <Link to={`/artifacts/${artifact.id}`} className={styles.card}>
+                  {/* Picking a document scan out of a Photo bucket by eye is
+                      far easier with the image than with the title alone (#13).
+                      Lazy, because thumbnail_path is NULL on every row today,
+                      so this serves the full-size original -- generating real
+                      thumbnails is the proper fix and is its own issue. */}
+                  <img
+                    className={styles.cardThumb}
+                    src={`/api/v1/artifacts/${artifact.id}/file`}
+                    alt=""
+                    loading="lazy"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  />
                   <div className={styles.cardType}>{artifact.artifact_type_name}</div>
                   <h2>{artifact.title}</h2>
                   {artifact.summary && <p>{artifact.summary}</p>}

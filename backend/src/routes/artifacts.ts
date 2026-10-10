@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { Router } from 'express';
 import { requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -84,6 +86,63 @@ artifactsRouter.get('/', (req, res) => {
     res.json(repo.findAll({ limit, cursor, search, typeId }));
   } catch {
     res.status(500).json({ error: 'Failed to list artifacts' });
+  }
+});
+
+// GET /artifacts/:id/file — Serve the artifact's primary file
+//
+// Served from artifact_files rather than by reusing GET /media/:id. Every
+// artifact has an artifact_files row by construction; the overlap with
+// media_items is an artefact of how migrations 045 and 061 built the bridge
+// (they reused the media id as the artifact id) and nothing maintains it. An
+// artifact created by any other route would have no media row and would be
+// permanently blank here. See #22.
+//
+// Access control is the same as the media endpoint's: none of its own. Both sit
+// behind requireAuth, applied to everything under /v1 in api.ts. This does not
+// consult the artifact's privacy_level -- no endpoint in this archive does yet.
+artifactsRouter.get('/:id/file', (req, res) => {
+  try {
+    const repo = new ArtifactRepository();
+    const id = paramStr(req.params.id);
+
+    const artifact = repo.findById(id);
+    if (!artifact) {
+      res.status(404).json({ error: 'Artifact not found' });
+      return;
+    }
+
+    const file = repo.findPrimaryFile(id);
+    if (!file) {
+      // The artifact exists but carries no primary file. Distinguished from a
+      // missing artifact so the page can say which is wrong.
+      res.status(404).json({ error: 'Artifact has no primary file' });
+      return;
+    }
+
+    if (file.storage_provider !== 'local') {
+      res.status(501).json({ error: `Unsupported storage provider: ${file.storage_provider}` });
+      return;
+    }
+
+    const absolute = path.resolve(file.storage_path);
+    if (!fs.existsSync(absolute)) {
+      res.status(404).json({ error: 'Artifact file not found on disk' });
+      return;
+    }
+
+    const mime = file.mime_type ?? 'application/octet-stream';
+    // Images are shown in place; anything else is offered as a download, since
+    // a browser asked to render an unknown type inline will either prompt
+    // anyway or display bytes.
+    const disposition = mime.startsWith('image/') ? 'inline' : 'attachment';
+    const filename = (file.original_filename ?? path.basename(absolute)).replace(/"/g, '');
+
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Content-Disposition', `${disposition}; filename="${filename}"`);
+    res.sendFile(absolute);
+  } catch {
+    res.status(500).json({ error: 'Failed to serve artifact file' });
   }
 });
 
