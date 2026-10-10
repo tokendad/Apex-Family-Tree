@@ -51,17 +51,16 @@ export class EventRepository extends BaseRepository {
 
   findTimelineByPerson(personId: string): Event[] {
     const baseEvents = this.findByPerson(personId);
+    // Only families this person is a spouse in. family_members holds the
+    // children -- its role vocabulary is child/adopted/foster/step -- so
+    // including it put a couple's marriage, divorce and anniversary on each of
+    // their children's timelines, with Edit and Delete beside them as though
+    // the child owned the event.
     const familyRows = this.db.prepare(`
       SELECT DISTINCT f.id
       FROM families f
       WHERE f.spouse1_id = ? OR f.spouse2_id = ?
-         OR EXISTS (
-           SELECT 1
-           FROM family_members fm
-           WHERE fm.family_id = f.id
-             AND fm.person_id = ?
-         )
-    `).all(personId, personId, personId) as { id: string }[];
+    `).all(personId, personId) as { id: string }[];
 
     const familyIds = familyRows.map((row) => row.id);
     const familyEvents = familyIds.length === 0

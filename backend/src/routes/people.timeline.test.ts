@@ -116,3 +116,41 @@ describe('GET /api/v1/people/:id', () => {
     expect(res.body.events.find((e: { event_type: string }) => e.event_type === 'marriage')?.family_id).toBe('f1');
   });
 });
+
+describe('GET /api/v1/people/:id — a child does not inherit their parents’ events', () => {
+  beforeEach(() => {
+    // p3 is a child of the f1 marriage between p1 and p2.
+    db.exec(`
+      INSERT INTO persons (id, sex, is_living, created_at, updated_at)
+      VALUES ('p3', 'M', 1, '2024-01-01', '2024-01-01');
+      INSERT INTO names (id, person_id, given_name, surname, is_primary, sort_order, created_at, updated_at)
+      VALUES ('n3', 'p3', 'Child', 'Smith', 1, 0, '2024-01-01', '2024-01-01');
+      INSERT INTO family_members (id, family_id, person_id, role, sort_order, created_at)
+      VALUES ('fm1', 'f1', 'p3', 'child', 0, '2024-01-01');
+      INSERT INTO events (id, person_id, family_id, event_type, event_date, event_date_sort_key, event_place, created_at, updated_at)
+      VALUES ('e3', 'p3', NULL, 'birth', '2 FEB 1935', 19350202, 'Boston, MA', '2024-01-01', '2024-01-01');
+    `);
+  });
+
+  it('keeps the parents’ marriage off the child’s timeline', async () => {
+    const res = await request(buildApp()).get('/api/v1/people/p3');
+    expect(res.status).toBe(200);
+    const types = res.body.events.map((e: { event_type: string }) => e.event_type);
+    expect(types).toContain('birth');
+    expect(types).not.toContain('marriage');
+  });
+
+  it('shows the child only events of their own', async () => {
+    const res = await request(buildApp()).get('/api/v1/people/p3');
+    expect(res.body.events).toHaveLength(1);
+    expect(res.body.events[0]).toMatchObject({ event_type: 'birth', person_id: 'p3', family_id: null });
+  });
+
+  it('still shows each spouse their own marriage', async () => {
+    for (const id of ['p1', 'p2']) {
+      const res = await request(buildApp()).get(`/api/v1/people/${id}`);
+      const types = res.body.events.map((e: { event_type: string }) => e.event_type);
+      expect(types).toContain('marriage');
+    }
+  });
+});
