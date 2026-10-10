@@ -501,6 +501,15 @@ const PersonDetailPage: React.FC = () => {
 
   const connectedArtifacts = connectedObjects.filter((o) => o.object_type === 'artifact');
   const connectedStories = connectedObjects.filter((o) => o.object_type === 'story');
+  // person_media and the archive model describe the same photographs: the
+  // media-to-artifact bridge gives an artifact the media item's own id. So the
+  // tab counts the union of the two, not their sum -- adding them double-counted
+  // every linked photo once 063 backfilled the relationships, turning Walter's
+  // eight school photographs into sixteen.
+  const artifactCount = new Set([
+    ...connectedArtifacts.map((o) => o.object_id),
+    ...media.map((m) => m.id),
+  ]).size;
   const familyRoles = new Map<string, string>();
   childFamilies.forEach((rel) => {
     [rel.spouse1, rel.spouse2].forEach((p) => {
@@ -551,7 +560,7 @@ const PersonDetailPage: React.FC = () => {
             <Button variant="secondary" onClick={() => navigate('/')}>View in Tree</Button>
           )}
           stats={[
-            { label: 'Artifacts', value: connectedArtifacts.length },
+            { label: 'Artifacts', value: artifactCount },
             { label: 'Stories', value: connectedStories.length },
             { label: 'Events', value: timelineEvents.length },
             { label: 'Facts', value: attributes.length },
@@ -561,7 +570,7 @@ const PersonDetailPage: React.FC = () => {
           tabs={[
             { id: 'overview', label: 'Overview' },
             { id: 'timeline', label: 'Timeline', count: timelineEvents.length },
-            { id: 'artifacts', label: 'Artifacts', count: connectedArtifacts.length + media.length },
+            { id: 'artifacts', label: 'Artifacts', count: artifactCount },
             { id: 'stories', label: 'Stories', count: connectedStories.length },
             { id: 'collections', label: 'Collections', count: memberOf.length },
             { id: 'family', label: 'Family', count: relationships.length },

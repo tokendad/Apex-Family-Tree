@@ -525,27 +525,135 @@ export class MediaRepository extends BaseRepository {
   // ─── Person links ─────────────────────────────────────────────────────────
 
   linkToPerson(mediaId: string, personId: string, isPrimary = false): PersonMedia {
-    if (isPrimary) {
-      this.db.prepare('UPDATE person_media SET is_primary = 0 WHERE person_id = ?').run(personId);
-    }
+    const link = this.db.transaction(() => {
+      if (isPrimary) {
+        this.db.prepare('UPDATE person_media SET is_primary = 0 WHERE person_id = ?').run(personId);
+      }
 
-    const maxOrder = this.db.prepare(
-      'SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM person_media WHERE person_id = ?'
-    ).get(personId) as { next: number };
+      const maxOrder = this.db.prepare(
+        'SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM person_media WHERE person_id = ?'
+      ).get(personId) as { next: number };
 
-    this.db.prepare(
-      'INSERT OR IGNORE INTO person_media (person_id, media_id, is_primary, sort_order, created_at) VALUES (?, ?, ?, ?, ?)'
-    ).run(personId, mediaId, isPrimary ? 1 : 0, maxOrder.next, this.now());
+      this.db.prepare(
+        'INSERT OR IGNORE INTO person_media (person_id, media_id, is_primary, sort_order, created_at) VALUES (?, ?, ?, ?, ?)'
+      ).run(personId, mediaId, isPrimary ? 1 : 0, maxOrder.next, this.now());
 
-    return this.db.prepare(
-      'SELECT * FROM person_media WHERE person_id = ? AND media_id = ?'
-    ).get(personId, mediaId) as PersonMedia;
+      this.syncAppearsIn(mediaId, personId, maxOrder.next);
+
+      return this.db.prepare(
+        'SELECT * FROM person_media WHERE person_id = ? AND media_id = ?'
+      ).get(personId, mediaId) as PersonMedia;
+    });
+
+    return link();
   }
 
   unlinkFromPerson(mediaId: string, personId: string): boolean {
-    return this.db.prepare(
-      'DELETE FROM person_media WHERE person_id = ? AND media_id = ?'
-    ).run(personId, mediaId).changes > 0;
+    const unlink = this.db.transaction(() => {
+      const removed = this.db.prepare(
+        'DELETE FROM person_media WHERE person_id = ? AND media_id = ?'
+      ).run(personId, mediaId).changes > 0;
+
+      if (removed) this.removeAppearsIn(mediaId, personId);
+      return removed;
+    });
+
+    return unlink();
+  }
+
+  /** Whether this database has the archive-model tables the mirror needs. */
+  private hasArchiveTables(): boolean {
+    const row = this.db.prepare(
+      `SELECT COUNT(*) AS n FROM sqlite_master
+        WHERE type = 'table' AND name IN ('archive_objects', 'artifacts', 'relationships', 'relationship_members')`,
+    ).get() as { n: number };
+    return row.n === 4;
+  }
+
+  /**
+   * Mirror a person_media link into the archive model as an "appears in"
+   * relationship, so the person page's summary card and its Artifacts tab
+   * agree.
+   *
+   * Two link tables describe the same fact. person_media is the legacy one;
+   * relationships is what PersonDetailPage counts for "Artifacts" and lists
+   * under "Recent Artifacts". 063 backfilled the 125 existing links, but
+   * without this a newly tagged photo would drift straight back apart -- which
+   * is exactly how media and artifacts came to disagree before 061.
+   *
+   * One relationship per media item, carrying every depicted person as a
+   * subject: the appears_in contract allows a single artifact and any number
+   * of subjects, so a class photograph is one relationship with many subjects.
+   * The id is derived from the media id, matching 063, so a backfilled
+   * relationship and a freshly created one are indistinguishable.
+   */
+  private syncAppearsIn(mediaId: string, personId: string, sortOrder: number): void {
+    // Older schemas -- and the narrower fixtures some repository tests build --
+    // predate the archive model entirely. Mirroring is a no-op there rather
+    // than an error, which is how EventRepository guards its own archive sync.
+    if (!this.hasArchiveTables()) return;
+
+    // Without an artifact identity for the media or an archive identity for
+    // the person there is nothing to relate, and writing the member anyway
+    // would leave a row pointing at a missing archive object.
+    const hasArtifact = this.db.prepare('SELECT 1 FROM artifacts WHERE id = ?').get(mediaId);
+    const hasPerson = this.db
+      .prepare("SELECT 1 FROM archive_objects WHERE id = ? AND object_type = 'person'")
+      .get(personId);
+    if (!hasArtifact || !hasPerson) return;
+
+    const relationshipId = `rel_appears_in_media_${mediaId}`;
+    const now = this.now();
+
+    const exists = this.db.prepare('SELECT 1 FROM relationships WHERE id = ?').get(relationshipId);
+    if (!exists) {
+      this.db.prepare(
+        `INSERT OR IGNORE INTO archive_objects (id, object_type, title, summary, privacy_level,
+                                                is_deleted, created_at, updated_at, created_by, updated_by)
+         VALUES (?, 'relationship', 'Appears In', NULL, 'family', 0, ?, ?, NULL, NULL)`,
+      ).run(relationshipId, now, now);
+
+      this.db.prepare(
+        `INSERT OR IGNORE INTO relationships (id, relationship_type_id, label, description, notes)
+         VALUES (?, 'rel_type_appears_in', NULL, NULL, NULL)`,
+      ).run(relationshipId);
+
+      this.db.prepare(
+        `INSERT OR IGNORE INTO relationship_members (id, relationship_id, object_id, role, sort_order)
+         VALUES (?, ?, ?, 'artifact', 0)`,
+      ).run(`relm_artifact_${mediaId}`, relationshipId, mediaId);
+    }
+
+    this.db.prepare(
+      `INSERT OR IGNORE INTO relationship_members (id, relationship_id, object_id, role, sort_order)
+       VALUES (?, ?, ?, 'subject', ?)`,
+    ).run(`relm_subject_${mediaId}_${personId}`, relationshipId, personId, sortOrder);
+  }
+
+  /**
+   * Drop a person from a media item's "appears in" relationship, and drop the
+   * relationship itself once the last subject has gone -- an appears_in with
+   * an artifact and nobody in it is the half-emptied state that 063 had to
+   * clean up elsewhere.
+   */
+  private removeAppearsIn(mediaId: string, personId: string): void {
+    if (!this.hasArchiveTables()) return;
+    const relationshipId = `rel_appears_in_media_${mediaId}`;
+
+    this.db.prepare(
+      "DELETE FROM relationship_members WHERE relationship_id = ? AND object_id = ? AND role = 'subject'",
+    ).run(relationshipId, personId);
+
+    const remaining = this.db.prepare(
+      "SELECT COUNT(*) AS n FROM relationship_members WHERE relationship_id = ? AND role = 'subject'",
+    ).get(relationshipId) as { n: number };
+    if (remaining.n > 0) return;
+
+    // Child-first, not by cascade: the application runs with foreign keys on,
+    // but deleting in order keeps this correct either way.
+    this.db.prepare('DELETE FROM relationship_members WHERE relationship_id = ?').run(relationshipId);
+    this.db.prepare('DELETE FROM relationships WHERE id = ?').run(relationshipId);
+    this.db.prepare('DELETE FROM archive_objects WHERE id = ?').run(relationshipId);
   }
 
   // ─── Family links ─────────────────────────────────────────────────────────
