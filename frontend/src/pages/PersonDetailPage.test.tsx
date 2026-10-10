@@ -308,6 +308,31 @@ describe('PersonDetailPage — artifacts and attribute dates', () => {
     expect(document.querySelector('img[src="/api/v1/media/artifact-1"]')).toBeTruthy();
   });
 
+  it('shows photographs on the overview, not placeholder glyphs', async () => {
+    const photo = { id: 'artifact-1', filename: 'grade1.jpg', url: '/api/v1/media/artifact-1' };
+
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/collections/for-object/')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+      }
+      if (url.includes('/connected')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: stubConnectedObjects }) });
+      }
+      if (url.includes('/relationships')) return Promise.resolve({ ok: true, json: async () => [] });
+      if (url.includes('/media')) return Promise.resolve({ ok: true, json: async () => [photo] });
+      if (url.includes('/sources')) return Promise.resolve({ ok: true, json: async () => [] });
+      return Promise.resolve({ ok: true, json: async () => stubPerson });
+    });
+
+    renderPage();
+    // Recent Artifacts is on the default Overview tab.
+    await screen.findByText('Recent Artifacts');
+
+    await waitFor(() => {
+      expect(document.querySelector('img[src="/api/v1/media/artifact-1"]')).toBeTruthy();
+    });
+  });
+
   it('renders an attribute date span readably, not as raw GEDCOM', async () => {
     const personWithSchooling = {
       ...stubPerson,

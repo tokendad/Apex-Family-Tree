@@ -623,19 +623,27 @@ const PersonDetailPage: React.FC = () => {
                   View all
                 </Button>
               </div>
-              {connectedObjectsLoading ? (
+              {/* Draws on the same merged list as the Artifacts tab, so the
+                  overview cannot disagree with it -- and so these cards show
+                  the photographs rather than a placeholder glyph. */}
+              {connectedObjectsLoading || mediaLoading ? (
                 <div className={styles.skeletonLine} aria-hidden="true" />
-              ) : connectedArtifacts.length === 0 ? (
+              ) : personArtifacts.length === 0 ? (
                 <p className={styles.noInfo}>No artifacts connected yet. Use Actions → Connect Artifact.</p>
               ) : (
                 <div className={styles.cardGrid}>
-                  {connectedArtifacts.slice(0, 3).map((artifact) => (
+                  {personArtifacts.slice(0, 3).map((artifact) => (
                     <ArtifactCard
-                      key={`${artifact.relationship_id}-${artifact.object_id}`}
-                      href={`/artifacts/${artifact.object_id}`}
+                      key={artifact.id}
+                      href={`/artifacts/${artifact.id}`}
                       title={artifact.title}
-                      subtitle={artifact.artifact_type_name ?? artifact.relationship_type_name}
-                      typeName={artifact.artifact_type_name}
+                      subtitle={artifact.subtitle}
+                      typeName={artifact.typeName}
+                      imageSrc={
+                        artifact.media
+                          ? artifact.media.thumbnail_url ?? artifact.media.url ?? `/api/v1/media/${artifact.media.id}`
+                          : null
+                      }
                     />
                   ))}
                 </div>

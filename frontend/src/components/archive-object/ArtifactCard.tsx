@@ -37,7 +37,10 @@ const ArtifactCard: React.FC<ArtifactCardProps> = ({ href, title, subtitle, type
 
   return (
     <Link to={href} className={styles.card}>
-      <div className={styles.thumb} aria-hidden="true">
+      <div
+        className={showImage ? `${styles.thumb} ${styles.thumbImage}` : styles.thumb}
+        aria-hidden="true"
+      >
         {showImage ? (
           <img
             className={styles.thumbImg}

@@ -28,9 +28,34 @@
   color: var(--color-primary-800);
   font-size: 38px;
   border-bottom: 1px solid var(--color-border-warm);
+  /* Belt and braces: nothing in this band may paint over the title below. */
+  overflow: hidden;
 }
 
+/* A photograph needs more than the 96px band the glyph sits in: full width on
+   a phone, 96px of a class photograph is an unreadable sliver. Image cards get
+   a proper ratio instead, so the thumbnail scales with the card. Glyph cards
+   keep the fixed band.
+
+   No max-height here: capping the height while an aspect-ratio is set makes
+   Chrome shrink the width to preserve the ratio, which left a bare strip of
+   card showing to the right of every photograph at phone width. */
+.thumbImage {
+  height: auto;
+  aspect-ratio: 16 / 10;
+}
+
+/* The glyph is centred by place-items above, but an image must fill the band
+   instead. Centring leaves the item at its content size, so the image's
+   height: 100% had no definite area to resolve against and it fell back to its
+   natural aspect ratio -- a 800x600 photograph rendered ~175px tall inside a
+   96px box, overflowed it, and the card's title was drawn on top of the
+   photograph. Stretching the image over the grid area gives the percentage
+   something to resolve against. */
 .thumbImg {
+  grid-area: 1 / 1;
+  align-self: stretch;
+  justify-self: stretch;
   width: 100%;
   height: 100%;
   object-fit: cover;
