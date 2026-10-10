@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { getMediaPath } from './init.js';
+import { getThumbnailPath } from './init.js';
 import type { Logger } from './logger.js';
 import { MediaRepository } from '../repositories/MediaRepository.js';
 import type { MediaItem } from '../types/db.js';
@@ -27,9 +27,13 @@ export function canThumbnail(mimeType: string | null | undefined): boolean {
   return Boolean(mimeType && THUMBNAILABLE_MIME.test(mimeType.trim()));
 }
 
-/** Where a media item's thumbnail lives. Inside MEDIA_PATH, so inside the volume. */
+/**
+ * Where a media item's thumbnail lives: under DATA_DIR, which is the declared
+ * volume, rather than beside the originals in MEDIA_PATH. See
+ * THUMBNAIL_DIR_NAME for why it must not sit under MEDIA_PATH.
+ */
 export function thumbnailPathFor(mediaId: string): string {
-  return getMediaPath('thumbnails', `${mediaId}.webp`);
+  return getThumbnailPath(`${mediaId}.webp`);
 }
 
 /**

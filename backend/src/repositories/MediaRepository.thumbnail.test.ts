@@ -169,3 +169,36 @@ describe('delete', () => {
     expect(fs.existsSync(thumb)).toBe(false);
   });
 });
+
+describe('scanDirectory', () => {
+  /* Generated thumbnails live under DATA_DIR to stay out of the scan, but
+     DATA_DIR and MEDIA_PATH are separate settings and nothing stops them
+     overlapping. .webp is scannable and the walk recurses, so without the
+     guard such a setup would re-import every thumbnail as a new external
+     media item -- each appearing on the Artifacts page as its own artifact. */
+  it('does not import generated thumbnails as new media', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aft-scan-'));
+    tempDirs.push(root);
+    fs.mkdirSync(path.join(root, 'photos'));
+    fs.mkdirSync(path.join(root, 'thumbnails'));
+    fs.writeFileSync(path.join(root, 'photos', 'class-photo.jpg'), 'original');
+    fs.writeFileSync(path.join(root, 'thumbnails', 'class-photo.webp'), 'derived');
+
+    const result = new MediaRepository().scanDirectory(root);
+
+    expect(result.added).toBe(1);
+    const paths = db.prepare('SELECT file_path FROM media_items').all() as { file_path: string }[];
+    expect(paths.map((p) => path.basename(p.file_path))).toEqual(['class-photo.jpg']);
+  });
+
+  /* A "thumbnails" folder nested deeper is the user's own, not AFT's, so it
+     is still scanned -- the guard is scoped to the scan root. */
+  it('still scans a thumbnails folder that is not the generated one', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aft-scan-'));
+    tempDirs.push(root);
+    fs.mkdirSync(path.join(root, 'grandma', 'thumbnails'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'grandma', 'thumbnails', 'contact-sheet.jpg'), 'theirs');
+
+    expect(new MediaRepository().scanDirectory(root).added).toBe(1);
+  });
+});

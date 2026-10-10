@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { THUMBNAIL_DIR_NAME } from '../services/init.js';
 import { BaseRepository } from './base.js';
 import type { MediaItem, PersonMedia, FamilyMedia, EventMedia, SourceMedia, MediaPersonRegion } from '../types/db.js';
 
@@ -582,7 +583,18 @@ export class MediaRepository extends BaseRepository {
     return removed;
   }
 
-  private walkDir(dir: string): string[] {
+  /**
+   * Walk a directory for scannable files, skipping a "thumbnails" folder in
+   * the scan root.
+   *
+   * Generated thumbnails live under DATA_DIR precisely so they are out of
+   * reach here, but DATA_DIR and MEDIA_PATH are separate settings and nothing
+   * stops them overlapping. Without this guard such a setup would re-import
+   * every generated thumbnail as a new external media item on the next scan --
+   * .webp is scannable and the walk recurses -- and each would appear on the
+   * Artifacts page as its own artifact.
+   */
+  private walkDir(dir: string, root = dir): string[] {
     const results: string[] = [];
     let entries: fs.Dirent[];
     try {
@@ -594,7 +606,8 @@ export class MediaRepository extends BaseRepository {
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
-        results.push(...this.walkDir(fullPath));
+        if (dir === root && entry.name === THUMBNAIL_DIR_NAME) continue;
+        results.push(...this.walkDir(fullPath, root));
       } else if (entry.isFile()) {
         const ext = path.extname(entry.name).toLowerCase();
         if (SCANNABLE_EXTENSIONS.has(ext)) {

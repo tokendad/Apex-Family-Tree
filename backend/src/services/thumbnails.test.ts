@@ -9,7 +9,9 @@ let mediaDir: string;
 
 vi.mock('../db/connection.js', () => ({ getDatabase: () => db }));
 vi.mock('./init.js', () => ({
+  THUMBNAIL_DIR_NAME: 'thumbnails',
   getMediaPath: (...segments: string[]) => path.join(mediaDir, ...segments),
+  getThumbnailPath: (...segments: string[]) => path.join(mediaDir, 'thumbnails', ...segments),
 }));
 
 const { ensureThumbnail, backfillThumbnails, canThumbnail, THUMBNAIL_MIME } = await import('./thumbnails.js');
