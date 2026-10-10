@@ -20,6 +20,7 @@ import {
   partitionByKind,
 } from '@/utils/eventTypes';
 import { lifespanLabel } from '@/utils/personEvents';
+import { formatYear, type DateQualifier } from '@/utils/gedcomDate';
 import styles from './PersonDetailPage.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -44,6 +45,8 @@ interface PersonEvent {
   id: string;
   event_type: string;
   event_date: string | null;
+  /** Comes straight from the events table; the API passes the row through. */
+  event_date_qualifier?: DateQualifier;
   event_place: string | null;
   description: string | null;
 }
@@ -189,35 +192,6 @@ const InfoRow: React.FC<InfoRowProps> = ({ label, value }) => (
     <span className={value ? styles.infoValue : styles.noInfo}>{value ?? '—'}</span>
   </div>
 );
-
-interface MediaThumbProps {
-  item: MediaItem;
-}
-
-const MediaThumb: React.FC<MediaThumbProps> = ({ item }) => {
-  const [imgError, setImgError] = useState(false);
-  const src = item.thumbnail_url ?? item.url ?? (item.id ? `/api/v1/media/${item.id}` : undefined);
-
-  if (src && !imgError) {
-    return (
-      <img
-        className={styles.mediaThumbImg}
-        src={src}
-        alt={mediaDisplayName(item)}
-        onError={() => setImgError(true)}
-        loading="lazy"
-      />
-    );
-  }
-
-  return (
-    <div className={styles.mediaThumbPlaceholder} aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <path d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 18h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v10.5a1.5 1.5 0 001.5 1.5z" />
-      </svg>
-    </div>
-  );
-};
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -501,15 +475,72 @@ const PersonDetailPage: React.FC = () => {
 
   const connectedArtifacts = connectedObjects.filter((o) => o.object_type === 'artifact');
   const connectedStories = connectedObjects.filter((o) => o.object_type === 'story');
-  // person_media and the archive model describe the same photographs: the
-  // media-to-artifact bridge gives an artifact the media item's own id. So the
-  // tab counts the union of the two, not their sum -- adding them double-counted
-  // every linked photo once 063 backfilled the relationships, turning Walter's
-  // eight school photographs into sixteen.
-  const artifactCount = new Set([
-    ...connectedArtifacts.map((o) => o.object_id),
-    ...media.map((m) => m.id),
-  ]).size;
+
+  /**
+   * One list of this person's artifacts, merged from the two tables that
+   * describe them.
+   *
+   * person_media is the legacy link and carries the file to display;
+   * relationships is the archive model and carries the catalogued title and
+   * type. The media-to-artifact bridge gives an artifact the media item's own
+   * id, so the two are joined on it. Before 063 backfilled the relationships
+   * these lists barely overlapped and the page showed them as separate
+   * sections; afterwards that listed every photograph twice, once with a
+   * thumbnail and once as a placeholder card.
+   *
+   * Merging also fixes the placeholders: a connected artifact had no image to
+   * show until the media row was joined to it.
+   */
+  const personArtifacts = ((): Array<{
+    id: string;
+    title: string;
+    typeName: string | null;
+    subtitle: string | null;
+    media: MediaItem | null;
+  }> => {
+    const byId = new Map<string, {
+      id: string;
+      title: string;
+      typeName: string | null;
+      subtitle: string | null;
+      media: MediaItem | null;
+    }>();
+
+    for (const object of connectedArtifacts) {
+      byId.set(object.object_id, {
+        id: object.object_id,
+        title: object.title,
+        typeName: object.artifact_type_name,
+        subtitle: object.artifact_type_name ?? object.relationship_type_name,
+        media: null,
+      });
+    }
+
+    for (const item of media) {
+      const existing = byId.get(item.id);
+      if (existing) {
+        existing.media = item;
+        continue;
+      }
+      // Linked as media but never bridged into the archive model. It still
+      // belongs on this tab, so it is listed from what the media row knows.
+      byId.set(item.id, {
+        id: item.id,
+        title: mediaDisplayName(item),
+        typeName: null,
+        subtitle: null,
+        media: item,
+      });
+    }
+
+    return [...byId.values()];
+    // Derived inline rather than with useMemo: this sits below the
+    // `if (!person) return null` guard above, so a hook here would change the
+    // hook count between renders -- React's "Rendered more hooks than during
+    // the previous render". The list is a few dozen items at most.
+  })();
+
+  const artifactCount = personArtifacts.length;
   const familyRoles = new Map<string, string>();
   childFamilies.forEach((rel) => {
     [rel.spouse1, rel.spouse2].forEach((p) => {
@@ -803,7 +834,14 @@ const PersonDetailPage: React.FC = () => {
                       <span className={styles.infoValue}>
                         {attribute.description || '—'}
                         {attribute.event_date && (
-                          <span className={styles.eventDate}> · {attribute.event_date}</span>
+                          // Raw GEDCOM reads "BET 1985 AND 1992" on screen; the
+                          // shared helper renders that span as "1985–1992" and
+                          // carries the other qualifiers as "abt.", "bef." and
+                          // so on.
+                          <span className={styles.eventDate}>
+                            {' · '}
+                            {formatYear(attribute.event_date, attribute.event_date_qualifier) || attribute.event_date}
+                          </span>
                         )}
                         {attribute.event_place && (
                           <span className={styles.eventPlace}> 📍 {attribute.event_place}</span>
@@ -946,60 +984,36 @@ const PersonDetailPage: React.FC = () => {
 
           {activeTab === 'artifacts' && (
             <div className={styles.tabStack}>
-            {/* ── Media ── */}
-            <section className={styles.section} aria-labelledby="media-heading">
-              <h2 className={styles.sectionTitle} id="media-heading">
-                Media
-                {media.length > 0 && (
-                  <span className={styles.countBadge}>{media.length}</span>
+            {/* ── Artifacts ──
+                One section, merged from person_media and the archive model.
+                See personArtifacts above for why they are joined rather than
+                listed separately. */}
+            <section className={styles.section} aria-labelledby="artifacts-heading">
+              <h2 className={styles.sectionTitle} id="artifacts-heading">
+                Artifacts
+                {personArtifacts.length > 0 && (
+                  <span className={styles.countBadge}>{personArtifacts.length}</span>
                 )}
               </h2>
 
-              {mediaLoading ? (
+              {mediaLoading || connectedObjectsLoading ? (
                 <div className={styles.skeletonLine} aria-hidden="true" />
-              ) : media.length === 0 ? (
-                <p className={styles.noInfo}>No media linked to this person.</p>
-              ) : (
-                <div className={styles.mediaGrid}>
-                  {media.map((item) => (
-                    <a
-                      key={item.id}
-                      href={`/api/v1/media/${item.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={styles.mediaThumbnail}
-                      title={mediaDisplayName(item)}
-                    >
-                      <MediaThumb item={item} />
-                      <span className={styles.mediaFilename}>{mediaDisplayName(item)}</span>
-                    </a>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            {/* ── Connected Artifacts ── */}
-            <section className={styles.section} aria-labelledby="connected-artifacts-heading">
-              <h2 className={styles.sectionTitle} id="connected-artifacts-heading">
-                Connected Artifacts
-                {connectedArtifacts.length > 0 && (
-                  <span className={styles.countBadge}>{connectedArtifacts.length}</span>
-                )}
-              </h2>
-
-              {connectedObjectsLoading ? (
-                <div className={styles.skeletonLine} aria-hidden="true" />
-              ) : connectedArtifacts.length === 0 ? (
+              ) : personArtifacts.length === 0 ? (
                 <p className={styles.noInfo}>No artifacts connected to this person yet.</p>
               ) : (
                 <div className={styles.cardGrid}>
-                  {connectedArtifacts.map((artifact) => (
+                  {personArtifacts.map((artifact) => (
                     <ArtifactCard
-                      key={`${artifact.relationship_id}-${artifact.object_id}`}
-                      href={`/artifacts/${artifact.object_id}`}
+                      key={artifact.id}
+                      href={`/artifacts/${artifact.id}`}
                       title={artifact.title}
-                      subtitle={artifact.artifact_type_name ?? artifact.relationship_type_name}
-                      typeName={artifact.artifact_type_name}
+                      subtitle={artifact.subtitle}
+                      typeName={artifact.typeName}
+                      imageSrc={
+                        artifact.media
+                          ? artifact.media.thumbnail_url ?? artifact.media.url ?? `/api/v1/media/${artifact.media.id}`
+                          : null
+                      }
                     />
                   ))}
                 </div>

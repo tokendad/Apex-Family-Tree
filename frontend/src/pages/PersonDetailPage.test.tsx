@@ -268,3 +268,79 @@ describe('PersonDetailPage — events vs attributes', () => {
     expect(screen.getByText('Residence')).toBeInTheDocument();
   });
 });
+
+describe('PersonDetailPage — artifacts and attribute dates', () => {
+  /**
+   * person_media and the archive model describe the same photographs. Before
+   * they were merged the page showed two sections, and once migration 063
+   * backfilled the relationships every photo appeared twice -- a thumbnail in
+   * "Media" and a placeholder card in "Connected Artifacts".
+   */
+  it('lists a photograph once when both link tables know about it', async () => {
+    const photo = {
+      id: 'artifact-1',
+      filename: 'grade6.jpg',
+      url: '/api/v1/media/artifact-1',
+    };
+
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/collections/for-object/')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+      }
+      if (url.includes('/connected')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: stubConnectedObjects }) });
+      }
+      if (url.includes('/relationships')) return Promise.resolve({ ok: true, json: async () => [] });
+      // Same id as the connected artifact above: one photograph, two tables.
+      if (url.includes('/media')) return Promise.resolve({ ok: true, json: async () => [photo] });
+      if (url.includes('/sources')) return Promise.resolve({ ok: true, json: async () => [] });
+      return Promise.resolve({ ok: true, json: async () => stubPerson });
+    });
+
+    renderPage();
+    await screen.findByRole('heading', { level: 1, name: 'Jane Doe' });
+
+    fireEvent.click(await screen.findByRole('tab', { name: /artifacts/i }));
+
+    await screen.findByRole('link', { name: /wwii draft letter/i });
+    expect(screen.getAllByText('WWII Draft Letter')).toHaveLength(1);
+    // And it is shown with its own image rather than a placeholder glyph.
+    expect(document.querySelector('img[src="/api/v1/media/artifact-1"]')).toBeTruthy();
+  });
+
+  it('renders an attribute date span readably, not as raw GEDCOM', async () => {
+    const personWithSchooling = {
+      ...stubPerson,
+      events: [
+        {
+          id: 'ev-edu',
+          event_type: 'education',
+          event_date: 'BET 1985 AND 1992',
+          event_date_qualifier: 'between',
+          event_place: 'Worcester, Massachusetts, USA',
+          description: 'Nelson Place School',
+        },
+      ],
+    };
+
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/collections/for-object/')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+      }
+      if (url.includes('/connected')) return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+      if (url.includes('/relationships')) return Promise.resolve({ ok: true, json: async () => [] });
+      if (url.includes('/media')) return Promise.resolve({ ok: true, json: async () => [] });
+      if (url.includes('/sources')) return Promise.resolve({ ok: true, json: async () => [] });
+      return Promise.resolve({ ok: true, json: async () => personWithSchooling });
+    });
+
+    renderPage();
+    await screen.findByRole('heading', { level: 1, name: 'Jane Doe' });
+    // Facts & Attributes sits alongside Events under the Timeline tab.
+    fireEvent.click(await screen.findByRole('tab', { name: /timeline/i }));
+    await screen.findByText('Nelson Place School');
+
+    expect(screen.getByText(/1985–1992/)).toBeInTheDocument();
+    expect(screen.queryByText(/BET 1985 AND 1992/)).toBeNull();
+  });
+});
