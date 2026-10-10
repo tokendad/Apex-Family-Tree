@@ -9,6 +9,7 @@ const REQUIRED_DIRS = [
   DATA_DIR,
   MEDIA_PATH,
   path.join(MEDIA_PATH, 'photos'),
+  path.join(MEDIA_PATH, 'thumbnails'),
   path.join(MEDIA_PATH, 'documents'),
   path.join(DATA_DIR, 'logs'),
   path.join(DATA_DIR, 'imports'),

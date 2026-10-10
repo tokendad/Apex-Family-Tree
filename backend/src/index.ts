@@ -72,6 +72,15 @@ async function start() {
     logger.info(`Starting AFT server on port ${PORT}`);
     app.listen(PORT, '0.0.0.0', () => {
       logger.info(`AFT server running at http://0.0.0.0:${PORT}`);
+
+      // Thumbnails are generated after the server is already answering
+      // requests, never before: decoding a few hundred scans must not delay
+      // startup, and every card falls back to the original until its
+      // thumbnail lands. Idempotent, so it also self-heals any row whose
+      // upload-time generation failed.
+      import('./services/thumbnails.js')
+        .then(({ backfillThumbnails }) => backfillThumbnails(logger))
+        .catch((error) => logger.error('Thumbnail backfill failed to start:', error));
     });
   } catch (error) {
     logger.error('Failed to start server:', error);

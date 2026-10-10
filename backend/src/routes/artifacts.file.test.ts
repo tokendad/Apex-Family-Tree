@@ -188,3 +188,75 @@ describe('GET /artifacts/:id includes its files', () => {
     expect(res.body.files).toEqual([]);
   });
 });
+
+describe('GET /artifacts/:id/thumbnail', () => {
+  it('serves the generated thumbnail when there is one', async () => {
+    const primary = writeFixtureFile('big.jpg', 'a much larger original');
+    const thumb = writeFixtureFile('small.webp', 'tiny');
+    seedArtifact('t1', 'Grade 6 school photograph');
+    seedFile('t1', { storagePath: primary, mime: 'image/jpeg', filename: 'big.jpg' });
+    seedFile('t1', { role: 'thumbnail', storagePath: thumb, mime: 'image/webp', filename: 'big.jpg' });
+
+    const res = await request(buildApp()).get('/api/v1/artifacts/t1/thumbnail');
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('image/webp');
+    // The body, not just the status: serving the original here would look
+    // identical to a caller checking only the code.
+    expect(res.body.toString()).toBe('tiny');
+  });
+
+  /* The fallback is the reason this is its own path: a card must never be
+     blank just because the backfill has not reached that row yet. */
+  it('falls back to the original when no thumbnail has been generated', async () => {
+    const primary = writeFixtureFile('only.jpg', 'original bytes');
+    seedArtifact('t2', 'Freshly uploaded scan');
+    seedFile('t2', { storagePath: primary, mime: 'image/jpeg', filename: 'only.jpg' });
+
+    const res = await request(buildApp()).get('/api/v1/artifacts/t2/thumbnail');
+
+    expect(res.status).toBe(200);
+    expect(res.body.toString()).toBe('original bytes');
+  });
+
+  /* A recorded thumbnail whose file has vanished must not 404 the card. */
+  it('falls back to the original when the thumbnail file is missing on disk', async () => {
+    const primary = writeFixtureFile('kept.jpg', 'original bytes');
+    seedArtifact('t3', 'Thumbnail lost from the volume');
+    seedFile('t3', { storagePath: primary, mime: 'image/jpeg', filename: 'kept.jpg' });
+    seedFile('t3', { role: 'thumbnail', storagePath: '/nowhere/gone.webp', mime: 'image/webp' });
+
+    const res = await request(buildApp()).get('/api/v1/artifacts/t3/thumbnail');
+
+    expect(res.status).toBe(200);
+    expect(res.body.toString()).toBe('original bytes');
+  });
+
+  it('404s for an artifact that does not exist', async () => {
+    const res = await request(buildApp()).get('/api/v1/artifacts/nope/thumbnail');
+    expect(res.status).toBe(404);
+    expect(res.body.error).toMatch(/artifact not found/i);
+  });
+
+  it('404s when the artifact has neither a thumbnail nor a primary file', async () => {
+    seedArtifact('t4', 'Catalogued but unscanned');
+
+    const res = await request(buildApp()).get('/api/v1/artifacts/t4/thumbnail');
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toMatch(/no primary file/i);
+  });
+
+  /* "thumbnail" must not be swallowed by the /:id route, which would return
+     the artifact's JSON instead of an image. */
+  it('is matched as its own route rather than as an artifact id', async () => {
+    const thumb = writeFixtureFile('card.webp', 'tiny');
+    seedArtifact('t5', 'Routing check');
+    seedFile('t5', { role: 'thumbnail', storagePath: thumb, mime: 'image/webp' });
+
+    const res = await request(buildApp()).get('/api/v1/artifacts/t5/thumbnail');
+
+    expect(res.headers['content-type']).toContain('image/webp');
+    expect(res.body.toString()).toBe('tiny');
+  });
+});

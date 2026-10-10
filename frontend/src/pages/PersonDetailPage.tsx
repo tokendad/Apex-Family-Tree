@@ -639,11 +639,11 @@ const PersonDetailPage: React.FC = () => {
                       title={artifact.title}
                       subtitle={artifact.subtitle}
                       typeName={artifact.typeName}
-                      imageSrc={
-                        artifact.media
-                          ? artifact.media.thumbnail_url ?? artifact.media.url ?? `/api/v1/media/${artifact.media.id}`
-                          : null
-                      }
+                      /* The endpoint serves the generated thumbnail where one
+                         exists and the original where it does not. No
+                         thumbnail_url fallback: nothing in the backend has
+                         ever populated that field. */
+                      imageSrc={artifact.media ? `/api/v1/media/${artifact.media.id}/thumbnail` : null}
                     />
                   ))}
                 </div>
@@ -1017,11 +1017,11 @@ const PersonDetailPage: React.FC = () => {
                       title={artifact.title}
                       subtitle={artifact.subtitle}
                       typeName={artifact.typeName}
-                      imageSrc={
-                        artifact.media
-                          ? artifact.media.thumbnail_url ?? artifact.media.url ?? `/api/v1/media/${artifact.media.id}`
-                          : null
-                      }
+                      /* The endpoint serves the generated thumbnail where one
+                         exists and the original where it does not. No
+                         thumbnail_url fallback: nothing in the backend has
+                         ever populated that field. */
+                      imageSrc={artifact.media ? `/api/v1/media/${artifact.media.id}/thumbnail` : null}
                     />
                   ))}
                 </div>

@@ -190,7 +190,7 @@ const DetailPanel: React.FC<DetailPanelProps> = ({ onEditPerson }) => {
                 <img
                   key={item.id}
                   className={styles.mediaThumb}
-                  src={item.thumbnail_url ?? item.url ?? `/api/v1/media/${item.id}`}
+                  src={`/api/v1/media/${item.id}/thumbnail`}
                   alt={item.title ?? item.filename ?? 'Media'}
                   title={item.title ?? item.filename ?? undefined}
                   loading="lazy"

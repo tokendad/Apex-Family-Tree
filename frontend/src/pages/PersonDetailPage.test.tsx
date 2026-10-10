@@ -305,7 +305,7 @@ describe('PersonDetailPage — artifacts and attribute dates', () => {
     await screen.findByRole('link', { name: /wwii draft letter/i });
     expect(screen.getAllByText('WWII Draft Letter')).toHaveLength(1);
     // And it is shown with its own image rather than a placeholder glyph.
-    expect(document.querySelector('img[src="/api/v1/media/artifact-1"]')).toBeTruthy();
+    expect(document.querySelector('img[src="/api/v1/media/artifact-1/thumbnail"]')).toBeTruthy();
   });
 
   it('shows photographs on the overview, not placeholder glyphs', async () => {
@@ -329,7 +329,7 @@ describe('PersonDetailPage — artifacts and attribute dates', () => {
     await screen.findByText('Recent Artifacts');
 
     await waitFor(() => {
-      expect(document.querySelector('img[src="/api/v1/media/artifact-1"]')).toBeTruthy();
+      expect(document.querySelector('img[src="/api/v1/media/artifact-1/thumbnail"]')).toBeTruthy();
     });
   });
 

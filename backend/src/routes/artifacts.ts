@@ -1,10 +1,11 @@
 import fs from 'fs';
 import path from 'path';
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import { requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { ArtifactRepository } from '../repositories/ArtifactRepository.js';
 import type { ArchivePrivacyLevel } from '../types/archive.js';
+import type { ArtifactFile } from '../types/artifact.js';
 
 export const artifactsRouter = Router();
 
@@ -89,6 +90,33 @@ artifactsRouter.get('/', (req, res) => {
   }
 });
 
+// Stream one artifact_files row to the client, or answer with why it cannot.
+// Shared by /file and /thumbnail so the two never drift on disposition or on
+// how a missing file is reported.
+function sendArtifactFile(res: Response, file: ArtifactFile): void {
+  if (file.storage_provider !== 'local') {
+    res.status(501).json({ error: `Unsupported storage provider: ${file.storage_provider}` });
+    return;
+  }
+
+  const absolute = path.resolve(file.storage_path);
+  if (!fs.existsSync(absolute)) {
+    res.status(404).json({ error: 'Artifact file not found on disk' });
+    return;
+  }
+
+  const mime = file.mime_type ?? 'application/octet-stream';
+  // Images are shown in place; anything else is offered as a download, since
+  // a browser asked to render an unknown type inline will either prompt
+  // anyway or display bytes.
+  const disposition = mime.startsWith('image/') ? 'inline' : 'attachment';
+  const filename = (file.original_filename ?? path.basename(absolute)).replace(/"/g, '');
+
+  res.setHeader('Content-Type', mime);
+  res.setHeader('Content-Disposition', `${disposition}; filename="${filename}"`);
+  res.sendFile(absolute);
+}
+
 // GET /artifacts/:id/file — Serve the artifact's primary file
 //
 // Served from artifact_files rather than by reusing GET /media/:id. Every
@@ -120,27 +148,44 @@ artifactsRouter.get('/:id/file', (req, res) => {
       return;
     }
 
-    if (file.storage_provider !== 'local') {
-      res.status(501).json({ error: `Unsupported storage provider: ${file.storage_provider}` });
+    sendArtifactFile(res, file);
+  } catch {
+    res.status(500).json({ error: 'Failed to serve artifact file' });
+  }
+});
+
+// GET /artifacts/:id/thumbnail — Serve a card-sized version of the artifact
+//
+// Falls back to the primary file when no thumbnail has been generated, so a
+// card is never blank merely because the backfill has not reached that row.
+// The fallback is the whole reason this is a separate path from /file: the
+// Artifacts grid can point every card here and get the small file where one
+// exists without having to know which rows have one.
+artifactsRouter.get('/:id/thumbnail', (req, res) => {
+  try {
+    const repo = new ArtifactRepository();
+    const id = paramStr(req.params.id);
+
+    const artifact = repo.findById(id);
+    if (!artifact) {
+      res.status(404).json({ error: 'Artifact not found' });
       return;
     }
 
-    const absolute = path.resolve(file.storage_path);
-    if (!fs.existsSync(absolute)) {
-      res.status(404).json({ error: 'Artifact file not found on disk' });
+    const thumbnail = repo.findThumbnailFile(id);
+    // A recorded thumbnail whose file has gone missing falls through to the
+    // original rather than 404ing; the startup backfill regenerates it.
+    const usable =
+      thumbnail && thumbnail.storage_provider === 'local' && fs.existsSync(path.resolve(thumbnail.storage_path))
+        ? thumbnail
+        : repo.findPrimaryFile(id);
+
+    if (!usable) {
+      res.status(404).json({ error: 'Artifact has no primary file' });
       return;
     }
 
-    const mime = file.mime_type ?? 'application/octet-stream';
-    // Images are shown in place; anything else is offered as a download, since
-    // a browser asked to render an unknown type inline will either prompt
-    // anyway or display bytes.
-    const disposition = mime.startsWith('image/') ? 'inline' : 'attachment';
-    const filename = (file.original_filename ?? path.basename(absolute)).replace(/"/g, '');
-
-    res.setHeader('Content-Type', mime);
-    res.setHeader('Content-Disposition', `${disposition}; filename="${filename}"`);
-    res.sendFile(absolute);
+    sendArtifactFile(res, usable);
   } catch {
     res.status(500).json({ error: 'Failed to serve artifact file' });
   }

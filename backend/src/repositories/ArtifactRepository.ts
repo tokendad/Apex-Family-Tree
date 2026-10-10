@@ -75,6 +75,19 @@ export class ArtifactRepository extends BaseRepository {
     ).get(artifactId) as ArtifactFile | undefined;
   }
 
+  /** The thumbnail an artifact's card shows, or undefined if none was generated. */
+  findThumbnailFile(artifactId: string): ArtifactFile | undefined {
+    if (!this.hasArtifactFilesTable()) return undefined;
+    return this.db.prepare(
+      `SELECT id, artifact_id, file_role, storage_provider, storage_path,
+              original_filename, mime_type, size_bytes, width, height, created_at
+       FROM artifact_files
+       WHERE artifact_id = ? AND file_role = 'thumbnail'
+       ORDER BY created_at ASC, id ASC
+       LIMIT 1`,
+    ).get(artifactId) as ArtifactFile | undefined;
+  }
+
   findAll(options?: { limit?: number; cursor?: string; search?: string; typeId?: string }): { data: ArtifactRecord[]; next_cursor: string | null; total_count: number } {
     const limit = options?.limit ?? 50;
     const conditions = ['ao.object_type = ?', 'ao.is_deleted = 0'];
