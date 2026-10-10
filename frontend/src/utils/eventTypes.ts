@@ -37,6 +37,7 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   medical: 'Medical',
   annulment: 'Annulment',
   engagement: 'Engagement',
+  anniversary: 'Anniversary',
   marriage_bann: 'Marriage Bann',
   marriage_contract: 'Marriage Contract',
   marriage_license: 'Marriage Licence',
