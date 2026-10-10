@@ -70,6 +70,10 @@ export async function ensureThumbnail(media: MediaItem): Promise<ThumbnailOutcom
   if (!sharp) return 'failed';
 
   const target = thumbnailPathFor(media.id);
+  // The database write is inside the try with the decode. Outside it, one
+  // failing write would reject out of the backfill's loop and leave every
+  // later item unprocessed -- on this boot and on every boot after, since it
+  // would stop at the same row each time.
   try {
     fs.mkdirSync(path.dirname(target), { recursive: true });
     await sharp(media.file_path)
@@ -79,11 +83,11 @@ export async function ensureThumbnail(media: MediaItem): Promise<ThumbnailOutcom
       .resize({ width: THUMBNAIL_WIDTH, withoutEnlargement: true })
       .webp({ quality: 80 })
       .toFile(target);
+    new MediaRepository().setThumbnail(media.id, target, THUMBNAIL_MIME);
   } catch {
     return 'failed';
   }
 
-  new MediaRepository().setThumbnail(media.id, target, THUMBNAIL_MIME);
   return 'generated';
 }
 

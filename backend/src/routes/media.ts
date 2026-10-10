@@ -8,7 +8,7 @@ import { MediaRepository } from '../repositories/MediaRepository.js';
 import { PersonRepository } from '../repositories/PersonRepository.js';
 import { SourceRepository } from '../repositories/SourceRepository.js';
 import { getMediaPath } from '../services/init.js';
-import { ensureThumbnail, THUMBNAIL_MIME } from '../services/thumbnails.js';
+import { backfillThumbnails, ensureThumbnail, THUMBNAIL_MIME } from '../services/thumbnails.js';
 import { createLogger } from '../services/logger.js';
 
 export const mediaRouter = Router();
@@ -192,6 +192,15 @@ mediaRouter.post(
         message: `Scan complete: ${result.added} added, ${result.relinked} relinked, ${result.removed} removed, ${result.skipped} skipped`,
         ...result,
       });
+
+      // Scanned rows arrive with thumbnail_path NULL, so without this a
+      // dropped-in photograph would serve its full-size original to every card
+      // until the next restart. Deliberately not awaited: a first scan of a
+      // large library plus sequential decodes would hold the response open
+      // past any sensible timeout. Idempotent, so it only touches the new rows.
+      void backfillThumbnails(uploadLogger).catch((error) =>
+        uploadLogger.error('Thumbnail generation after scan failed:', error),
+      );
     } catch {
       res.status(500).json({ error: 'Failed to scan media directory' });
     }

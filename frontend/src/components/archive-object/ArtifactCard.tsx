@@ -11,8 +11,8 @@ interface ArtifactCardProps {
   /**
    * The artifact's own image, when there is a file to show. Falls back to the
    * glyph if absent or if the image fails to load -- which it will for an
-   * artifact that has no file behind it, and for any media item whose
-   * thumbnail has not been generated.
+   * artifact that has no file behind it. A missing thumbnail is not such a
+   * case: the endpoint serves the original instead.
    */
   imageSrc?: string | null;
 }

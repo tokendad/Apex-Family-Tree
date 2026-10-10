@@ -198,6 +198,27 @@ describe('backfillThumbnails', () => {
     expect(await backfillThumbnails(logger as never)).toEqual({ generated: 1, skipped: 2, failed: 0 });
   });
 
+  /* A failing database write must not take the rest of the run down with it.
+     Before the write moved inside the try, ensureThumbnail rejected, the loop
+     died, and every later item went unprocessed -- on that boot and on every
+     boot after, since it stopped at the same row each time. */
+  it('keeps going when one item cannot be recorded', async () => {
+    seedMedia('b5', { file_path: await writeImage('b5.jpg') });
+    seedMedia('b6', { file_path: await writeImage('b6.jpg') });
+
+    // artifact_files is fine; media_items is what setThumbnail writes first.
+    db.exec('CREATE TRIGGER block_b5 BEFORE UPDATE ON media_items WHEN NEW.id = \'b5\' BEGIN SELECT RAISE(ABORT, \'nope\'); END');
+
+    const counts = await backfillThumbnails(logger as never);
+
+    expect(counts.failed).toBe(1);
+    expect(counts.generated).toBe(1);
+    const done = db
+      .prepare('SELECT id FROM media_items WHERE thumbnail_path IS NOT NULL')
+      .all() as { id: string }[];
+    expect(done.map((r) => r.id)).toEqual(['b6']);
+  });
+
   /* Idempotence is what lets this run on every single startup. */
   it('does nothing on a second pass', async () => {
     seedMedia('b4', { file_path: await writeImage('b4.jpg') });
