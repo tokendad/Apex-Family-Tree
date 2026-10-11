@@ -13,6 +13,7 @@ const TreePage = React.lazy(() => import('./pages/TreePage'));
 const PeoplePage = React.lazy(() => import('./pages/PeoplePage'));
 const AdminUsersPage = React.lazy(() => import('./pages/AdminUsersPage'));
 const AdminSettingsPage = React.lazy(() => import('./pages/AdminSettingsPage'));
+const AdminAuditPage = React.lazy(() => import('./pages/AdminAuditPage'));
 const AdminPage = React.lazy(() => import('./pages/AdminPage'));
 const FamiliesPage = React.lazy(() => import('./pages/FamiliesPage'));
 const FamilyDetailPage = React.lazy(() => import('./pages/FamilyDetailPage'));
@@ -140,6 +141,7 @@ function App() {
               <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
               <Route path="/admin/users" element={<AdminRoute><AdminUsersPage /></AdminRoute>} />
               <Route path="/admin/settings" element={<AdminRoute><AdminSettingsPage /></AdminRoute>} />
+              <Route path="/admin/audit" element={<AdminRoute><AdminAuditPage /></AdminRoute>} />
 
               {/* Catch-all */}
               <Route path="*" element={<ComingSoonPage title="404 — Page Not Found" />} />

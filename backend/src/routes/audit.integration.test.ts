@@ -16,7 +16,7 @@ const { requestContextMiddleware } = await import('../services/requestContext.js
 const ACTOR = { userId: 'user-1', email: 'wes@example.test', role: 'admin' };
 
 /** Mirrors api.ts: auth populates req.user, then the context middleware runs. */
-function buildApp(role = 'admin') {
+function buildApp(role: 'admin' | 'editor' | 'limited_editor' | 'viewer' = 'admin') {
   const app = express();
   app.use(express.json());
   app.use((req, _res, next) => {

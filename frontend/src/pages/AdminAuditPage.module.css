@@ -1,0 +1,228 @@
+.page {
+  padding: var(--space-8);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.header {
+  margin-bottom: var(--space-6);
+}
+
+.title {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.subtitle {
+  color: var(--color-text-secondary);
+  margin: var(--space-2) 0 0;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  margin-bottom: var(--space-5);
+}
+
+.search {
+  flex: 1 1 280px;
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-warm);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-base);
+}
+
+.select {
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-warm);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.status,
+.emptyDetail {
+  color: var(--color-text-secondary);
+  padding: var(--space-6) 0;
+}
+
+.error {
+  color: var(--color-danger, #b3261e);
+  margin-bottom: var(--space-4);
+}
+
+.entries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--color-border-warm);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--color-bg-primary);
+}
+
+.entry + .entry {
+  border-top: 1px solid var(--color-border-warm);
+}
+
+.entryHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+
+.entryHeader:hover {
+  background: var(--color-bg-app);
+}
+
+.chevron {
+  color: var(--color-text-secondary);
+  flex: none;
+  width: 1em;
+}
+
+.action {
+  flex: none;
+  text-transform: uppercase;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.04em;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.actionCreate { background: #dcf0e4; color: #1d5134; }
+.actionUpdate { background: #fdeccd; color: #6b4708; }
+.actionDelete { background: #fadcd9; color: #7a1f17; }
+.actionBulk   { background: #e0e6f0; color: #2c3a52; }
+
+.entityType {
+  flex: none;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+/* The label is the one part worth reading at a glance, so it takes the slack
+   and everything else keeps its natural width. */
+.entryLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: var(--font-weight-medium);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actor,
+.when {
+  flex: none;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.entryBody {
+  padding: 0 var(--space-4) var(--space-4);
+  background: var(--color-bg-app);
+}
+
+.diff {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.diff th {
+  text-align: left;
+  padding: var(--space-2);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+  border-bottom: 1px solid var(--color-border-warm);
+}
+
+.diff td {
+  padding: var(--space-2);
+  vertical-align: top;
+  border-bottom: 1px solid var(--color-border-warm);
+  word-break: break-word;
+}
+
+.diffField { font-weight: var(--font-weight-medium); white-space: nowrap; }
+.diffOld { color: #7a1f17; text-decoration: line-through; }
+.diffNew { color: #1d5134; }
+
+.snapshot {
+  margin: 0;
+  padding: var(--space-2) 0 0;
+  font-size: var(--font-size-sm);
+}
+
+.snapshotRow {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+}
+
+.snapshotRow dt {
+  flex: none;
+  width: 160px;
+  color: var(--color-text-secondary);
+}
+
+.snapshotRow dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.meta {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.more {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-5);
+}
+
+/* On a phone the row becomes two lines: the action and what it touched, then
+   who and when. A single scrolling row would truncate the label to nothing. */
+@media (max-width: 640px) {
+  .page { padding: var(--space-4); }
+
+  .entryHeader {
+    flex-wrap: wrap;
+    row-gap: var(--space-1);
+  }
+
+  .entryLabel { flex: 1 0 100%; order: 3; }
+  .actor { order: 4; }
+  .when { order: 5; margin-left: auto; }
+
+  .snapshotRow { flex-direction: column; gap: 0; }
+  .snapshotRow dt { width: auto; }
+}
