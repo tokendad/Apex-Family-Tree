@@ -1,4 +1,5 @@
 import { BaseRepository } from './base.js';
+import { recordChange } from '../services/audit.js';
 import { ArchiveObjectRepository } from './ArchiveObjectRepository.js';
 import type { Event } from '../types/db.js';
 import { parseGedcomDate } from '../utils/gedcom-date.js';
@@ -128,7 +129,10 @@ export class EventRepository extends BaseRepository {
     });
 
     createEvent();
-    return this.findById(id)!;
+
+    const created = this.findById(id)!;
+    recordChange('create', 'event', id, null, created);
+    return created;
   }
 
   syncFamilyEvent(
@@ -184,6 +188,8 @@ export class EventRepository extends BaseRepository {
 
     if (fields.length === 0) return this.findById(id);
 
+    const before = this.findById(id);
+
     fields.push('updated_at = ?');
     values.push(this.now());
     values.push(id);
@@ -200,10 +206,15 @@ export class EventRepository extends BaseRepository {
     });
 
     updateEvent();
-    return this.findById(id);
+
+    const after = this.findById(id);
+    recordChange('update', 'event', id, before, after);
+    return after;
   }
 
   delete(id: string): boolean {
+    const before = this.findById(id);
+
     const deleteEvent = this.db.transaction(() => {
       if (this.hasArchiveObjectsTable()) {
         this.db.prepare('DELETE FROM archive_objects WHERE id = ?').run(id);
@@ -211,7 +222,11 @@ export class EventRepository extends BaseRepository {
       return this.db.prepare('DELETE FROM events WHERE id = ?').run(id).changes > 0;
     });
 
-    return deleteEvent();
+    const deleted = deleteEvent();
+    // One entry for the event; the archive_objects row goes with it and is not
+    // a separate thing anyone chose to delete.
+    if (deleted) recordChange('delete', 'event', id, before, null);
+    return deleted;
   }
 
   private eventTitle(eventType: string, eventDate?: string | null): string {

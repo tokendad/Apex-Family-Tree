@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { requireRole } from '../middleware/auth.js';
+import { recordChange } from '../services/audit.js';
+import { AuditRepository } from '../repositories/AuditRepository.js';
 import { UserRepository } from '../repositories/UserRepository.js';
 import { generateRefreshToken, hashToken, hashPassword } from '../services/auth.js';
 import { createEmailService } from '../services/email.js';
@@ -116,6 +118,7 @@ adminRouter.post('/users/create', async (req, res) => {
     const user = userRepo.create({ email, display_name: display_name.trim(), password_hash, role });
 
     const { password_hash: _, ...safeUser } = user;
+    recordChange('create', 'user', user.id, null, safeUser);
     res.status(201).json({ user: safeUser as SafeUser });
   } catch (error) {
     logger.error('Failed to create user', error);
@@ -184,6 +187,7 @@ adminRouter.put('/users/:id', (req, res) => {
       return;
     }
 
+    const { password_hash: _before, ...safeBefore } = user;
     const updated = userRepo.update(req.params.id, update);
     if (!updated) {
       res.status(500).json({ error: 'Failed to update user' });
@@ -191,6 +195,7 @@ adminRouter.put('/users/:id', (req, res) => {
     }
 
     const { password_hash: _, ...safeUser } = updated;
+    recordChange('update', 'user', req.params.id as string, safeBefore, safeUser);
     res.json({ user: safeUser as SafeUser });
   } catch (error) {
     logger.error('Failed to update user', error);
@@ -216,15 +221,50 @@ adminRouter.delete('/users/:id', (req, res) => {
     const db = getDatabase();
     db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?').run(req.params.id);
 
+    const { password_hash: _, ...safeUser } = user;
     const deleted = userRepo.delete(req.params.id);
     if (!deleted) {
       res.status(500).json({ error: 'Failed to delete user' });
       return;
     }
 
+    recordChange('delete', 'user', req.params.id as string, safeUser, null, { email: user.email });
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
     logger.error('Failed to delete user', error);
     res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+// ─── Audit Log ──────────────────────────────────────────────────────────────
+
+// GET /api/v1/admin/audit — Recent changes, newest first
+adminRouter.get('/audit', (req, res) => {
+  try {
+    const repo = new AuditRepository();
+    const result = repo.list({
+      limit: parseInt(req.query.limit as string) || 20,
+      cursor: req.query.cursor as string | undefined,
+      q: req.query.q as string | undefined,
+      entityType: req.query.entity_type as string | undefined,
+      action: req.query.action as string | undefined,
+      userId: req.query.user_id as string | undefined,
+      includeSystem: req.query.include_system === 'true',
+    });
+
+    res.json(result);
+  } catch (error) {
+    logger.error('Failed to list audit log', error);
+    res.status(500).json({ error: 'Failed to list audit log' });
+  }
+});
+
+// GET /api/v1/admin/audit/facets — Distinct entity types and actions, for filters
+adminRouter.get('/audit/facets', (_req, res) => {
+  try {
+    res.json(new AuditRepository().facets());
+  } catch (error) {
+    logger.error('Failed to load audit facets', error);
+    res.status(500).json({ error: 'Failed to load audit facets' });
   }
 });

@@ -1,4 +1,5 @@
 import { BaseRepository } from './base.js';
+import { recordChange } from '../services/audit.js';
 import { ArchiveObjectRepository } from './ArchiveObjectRepository.js';
 import { soundex } from '../utils/soundex.js';
 import { formatName, normalizeToNull, sanitizeDisplayName, sanitizeNameField } from '../utils/nameFormatter.js';
@@ -587,7 +588,10 @@ export class PersonRepository extends BaseRepository {
     });
 
     createPerson();
-    return this.db.prepare('SELECT * FROM persons WHERE id = ?').get(id) as Person;
+
+    const created = this.db.prepare('SELECT * FROM persons WHERE id = ?').get(id) as Person;
+    recordChange('create', 'person', id, null, created);
+    return created;
   }
 
   update(id: string, data: Partial<Pick<Person, 'sex' | 'is_living' | 'is_private' | 'notes' | 'display_name'>>): Person | undefined {
@@ -602,6 +606,8 @@ export class PersonRepository extends BaseRepository {
     }
 
     if (fields.length === 0) return this.db.prepare('SELECT * FROM persons WHERE id = ?').get(id) as Person | undefined;
+
+    const before = this.db.prepare('SELECT * FROM persons WHERE id = ?').get(id) as Person | undefined;
 
     fields.push('updated_at = ?');
     values.push(this.now());
@@ -619,10 +625,35 @@ export class PersonRepository extends BaseRepository {
     });
 
     updatePerson();
-    return this.db.prepare('SELECT * FROM persons WHERE id = ?').get(id) as Person | undefined;
+
+    const after = this.db.prepare('SELECT * FROM persons WHERE id = ?').get(id) as Person | undefined;
+    recordChange('update', 'person', id, before, after, { label: this.auditLabel(id, before) });
+    return after;
+  }
+
+  /**
+   * A human-readable name for an audit entry.
+   *
+   * Recorded alongside the change because an id is useless in a log once the
+   * row it points at has been deleted -- "deleted person 2512ea47" tells you
+   * nothing, "deleted Eunice Louise Lagor" tells you everything.
+   */
+  private auditLabel(personId: string, person?: { display_name?: string | null } | null): string | null {
+    if (person?.display_name) return person.display_name;
+
+    const name = this.db.prepare(
+      'SELECT given_name, middle_name, surname FROM names WHERE person_id = ? ORDER BY is_primary DESC LIMIT 1',
+    ).get(personId) as { given_name?: string; middle_name?: string; surname?: string } | undefined;
+
+    if (!name) return null;
+    return [name.given_name, name.middle_name, name.surname].filter(Boolean).join(' ') || null;
   }
 
   delete(id: string): boolean {
+    const before = this.db.prepare('SELECT * FROM persons WHERE id = ?').get(id) as Person | undefined;
+    // Read the name while the row still exists.
+    const label = this.auditLabel(id, before);
+
     const deletePerson = this.db.transaction(() => {
       const result = this.db.prepare('DELETE FROM persons WHERE id = ?').run(id);
       if (result.changes > 0) {
@@ -632,7 +663,10 @@ export class PersonRepository extends BaseRepository {
       }
       return result.changes > 0;
     });
-    return deletePerson();
+
+    const deleted = deletePerson();
+    if (deleted) recordChange('delete', 'person', id, before, null, { label });
+    return deleted;
   }
 
   addName(personId: string, data: {
@@ -676,7 +710,10 @@ export class PersonRepository extends BaseRepository {
     );
 
     this.refreshArchiveTitle(personId);
-    return this.db.prepare('SELECT * FROM names WHERE id = ?').get(id) as Name;
+
+    const created = this.db.prepare('SELECT * FROM names WHERE id = ?').get(id) as Name;
+    recordChange('create', 'name', id, null, created, { person_id: personId });
+    return created;
   }
 
   findNameById(id: string): Name | undefined {
@@ -718,13 +755,19 @@ export class PersonRepository extends BaseRepository {
 
     this.db.prepare(`UPDATE names SET ${fields.join(', ')} WHERE id = ?`).run(...values);
     this.refreshArchiveTitle(existing.person_id);
-    return this.findNameById(nameId);
+
+    const updated = this.findNameById(nameId);
+    recordChange('update', 'name', nameId, existing, updated, { person_id: existing.person_id });
+    return updated;
   }
 
   deleteName(nameId: string): boolean {
     const existing = this.findNameById(nameId);
     const deleted = this.db.prepare('DELETE FROM names WHERE id = ?').run(nameId).changes > 0;
-    if (deleted && existing) this.refreshArchiveTitle(existing.person_id);
+    if (deleted && existing) {
+      this.refreshArchiveTitle(existing.person_id);
+      recordChange('delete', 'name', nameId, existing, null, { person_id: existing.person_id });
+    }
     return deleted;
   }
 

@@ -8,6 +8,8 @@ import { MediaRepository } from '../repositories/MediaRepository.js';
 import { PersonRepository } from '../repositories/PersonRepository.js';
 import { SourceRepository } from '../repositories/SourceRepository.js';
 import { getMediaPath } from '../services/init.js';
+import { recordBulk } from '../services/audit.js';
+import { runWithFlags } from '../services/requestContext.js';
 import { backfillThumbnails, ensureThumbnail, THUMBNAIL_MIME } from '../services/thumbnails.js';
 import { createLogger } from '../services/logger.js';
 
@@ -187,7 +189,11 @@ mediaRouter.post(
     try {
       const repo = new MediaRepository();
       const mediaPath = process.env.MEDIA_PATH || getMediaPath();
-      const result = repo.scanDirectory(mediaPath);
+      // One entry for the scan, not one per file it imported.
+      const result = runWithFlags({ bulkSource: 'scan' }, () => repo.scanDirectory(mediaPath));
+
+      recordBulk('scan', 'media', null, { path: mediaPath, ...result });
+
       res.json({
         message: `Scan complete: ${result.added} added, ${result.relinked} relinked, ${result.removed} removed, ${result.skipped} skipped`,
         ...result,

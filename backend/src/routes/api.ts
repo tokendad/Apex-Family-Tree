@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
+import { requestContextMiddleware } from '../services/requestContext.js';
 import { peopleRouter } from './people.js';
 import { eventsRouter } from './events.js';
 import { familiesRouter } from './families.js';
@@ -23,6 +24,9 @@ const apiRouter = Router();
 
 // All v1 routes require authentication
 apiRouter.use('/v1', requireAuth);
+// Then carry who is acting, for the audit layer. Must follow requireAuth: it
+// reads req.user, which requireAuth populates.
+apiRouter.use('/v1', requestContextMiddleware);
 apiRouter.use('/v1/people', peopleRouter);
 apiRouter.use('/v1/events', eventsRouter);
 apiRouter.use('/v1/families', familiesRouter);

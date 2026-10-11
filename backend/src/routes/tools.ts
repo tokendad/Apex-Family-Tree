@@ -1,5 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { requireRole } from '../middleware/auth.js';
+import { recordBulk } from '../services/audit.js';
+import { runWithFlags } from '../services/requestContext.js';
 import {
   applyPeopleMerge,
   previewPeopleMerge,
@@ -64,7 +66,19 @@ toolsRouter.post('/people-dedup/apply', (req: Request, res: Response) => {
       res.status(400).json({ error: 'duplicatePersonIds must include at least one person' });
       return;
     }
-    res.json(applyPeopleMerge(input));
+    /* A merge rewrites person_media, family_members, names and relationship
+       rows across the archive. Diffing that would produce dozens of entries
+       describing one decision, so it is recorded as the decision: which
+       person survived, which were folded into it. */
+    const result = runWithFlags({ bulkSource: 'merge' }, () => applyPeopleMerge(input));
+
+    recordBulk('merge', 'person', input.canonicalPersonId, {
+      canonical_person_id: input.canonicalPersonId,
+      merged_person_ids: input.duplicatePersonIds,
+      result,
+    });
+
+    res.json(result);
   } catch (error) {
     res.status(400).json({ error: String(error instanceof Error ? error.message : error) });
   }

@@ -9,6 +9,8 @@ import { validateGedcom, processImport, analyzeMerge } from '../services/gedcom/
 import { startExport, type ExportOptions } from '../services/gedcom/exportService.js';
 import { createPreImportBackup } from '../services/backup.js';
 import { createLogger } from '../services/logger.js';
+import { recordBulk } from '../services/audit.js';
+import { runWithFlags } from '../services/requestContext.js';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -224,7 +226,22 @@ gedcomRouter.post(
         return;
       }
 
-      const stats = processImport(job.id, content, req.user!.userId, mode);
+      /* Only the job itself runs in the bulk context. processImport writes
+         thousands of rows through the same repositories, and one audit entry
+         per row would bury every hand edit in the log; the per-record detail
+         is already in import_audit_log. recordBulk is deliberately called
+         after this returns, outside the context, or it would suppress itself. */
+      const stats = runWithFlags(
+        { bulkSource: 'import' },
+        () => processImport(job.id, content, req.user!.userId, mode),
+      );
+
+      recordBulk('import', 'gedcom_import', job.id, {
+        filename: job.filename,
+        mode,
+        stats,
+      });
+
       const updatedJob = importRepo.findJobById(job.id);
 
       res.json({ job: updatedJob, stats });

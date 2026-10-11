@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { Router, type Response } from 'express';
 import { requireRole } from '../middleware/auth.js';
+import { recordChange } from '../services/audit.js';
 import { validate } from '../middleware/validate.js';
 import { ArtifactRepository } from '../repositories/ArtifactRepository.js';
 import type { ArchivePrivacyLevel } from '../types/archive.js';
@@ -317,7 +318,9 @@ artifactsRouter.delete(
   (req, res) => {
     try {
       const repo = new ArtifactRepository();
+      const before = repo.findById(paramStr(req.params.id));
       const deleted = repo.delete(paramStr(req.params.id), req.user?.userId ?? null);
+      if (deleted) recordChange('delete', 'artifact', paramStr(req.params.id), before, null);
       if (!deleted) {
         res.status(404).json({ error: 'Artifact not found' });
         return;
