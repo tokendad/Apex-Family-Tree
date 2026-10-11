@@ -15,9 +15,9 @@ import { useModal } from '@/components/modals/useModal';
 import type { FamilySummary } from '@/types/genealogy';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
 import {
-  EVENT_EARLY_ORDER,
   formatEventType,
   partitionByKind,
+  sortEventsForTimeline,
 } from '@/utils/eventTypes';
 import { lifespanLabel } from '@/utils/personEvents';
 import { formatYear, type DateQualifier } from '@/utils/gedcomDate';
@@ -47,6 +47,8 @@ interface PersonEvent {
   event_date: string | null;
   /** Comes straight from the events table; the API passes the row through. */
   event_date_qualifier?: DateQualifier;
+  /** Numeric YYYYMMDD the backend derives from the GEDCOM date, 0 for unknown parts. */
+  event_date_sort_key?: number | null;
   event_place: string | null;
   description: string | null;
 }
@@ -156,18 +158,6 @@ function fullName(name: PersonName): string {
 
 function primaryName(names: PersonName[]): PersonName | null {
   return names.find((n) => n.is_primary === 1) ?? names[0] ?? null;
-}
-
-function sortEvents(events: PersonEvent[]): PersonEvent[] {
-  return [...events].sort((a, b) => {
-    const aOrder = a.event_type === 'death' ? 999 : (EVENT_EARLY_ORDER[a.event_type] ?? 50);
-    const bOrder = b.event_type === 'death' ? 999 : (EVENT_EARLY_ORDER[b.event_type] ?? 50);
-    if (aOrder !== bOrder) return aOrder - bOrder;
-    if (a.event_date && b.event_date) return a.event_date.localeCompare(b.event_date);
-    if (a.event_date) return -1;
-    if (b.event_date) return 1;
-    return 0;
-  });
 }
 
 function mediaDisplayName(item: MediaItem): string {
@@ -466,7 +456,7 @@ const PersonDetailPage: React.FC = () => {
 
   // ─── Derived values ────────────────────────────────────────────────────────
 
-  const sortedEventsList = sortEvents(person.events);
+  const sortedEventsList = sortEventsForTimeline(person.events);
   // Attributes describe the person rather than occurring at a moment, so they
   // are listed separately instead of interleaved into the timeline (#32).
   const { events: timelineEvents, attributes } = partitionByKind(sortedEventsList);

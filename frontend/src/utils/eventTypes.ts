@@ -122,3 +122,43 @@ export function groupedTypeOptions(): {
   }
   return { events, attributes };
 }
+
+
+/** The fields an event needs for the timeline to place it. */
+export interface TimelineEvent {
+  event_type: string;
+  event_date_sort_key?: number | null;
+}
+
+/**
+ * Chronological order, oldest first.
+ *
+ * This used to sort by event type and only then by date, comparing the raw
+ * GEDCOM strings: "1 JUL 2014" sorted before "ABT 1986" because "1" precedes
+ * "A". Death was also pinned last whatever its date, so a funeral or a
+ * celebration of life held after it appeared above it.
+ *
+ * The numeric sort key the backend derives is the thing to order on. Type
+ * order survives only as a tie-break, so a birth and a baptism recorded on one
+ * day still read in the sensible order, and undated events -- an occupation, a
+ * residence with no year -- fall to the end rather than to the beginning.
+ */
+export function sortEventsForTimeline<T extends TimelineEvent>(events: T[]): T[] {
+  const sortKey = (event: TimelineEvent): number | null =>
+    typeof event.event_date_sort_key === 'number' ? event.event_date_sort_key : null;
+
+  return [...events].sort((a, b) => {
+    const aKey = sortKey(a);
+    const bKey = sortKey(b);
+
+    if (aKey !== null && bKey !== null && aKey !== bKey) return aKey - bKey;
+    if (aKey !== null && bKey === null) return -1;
+    if (aKey === null && bKey !== null) return 1;
+
+    const aOrder = EVENT_EARLY_ORDER[a.event_type] ?? 50;
+    const bOrder = EVENT_EARLY_ORDER[b.event_type] ?? 50;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+
+    return a.event_type.localeCompare(b.event_type);
+  });
+}

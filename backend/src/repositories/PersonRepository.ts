@@ -837,13 +837,31 @@ export class PersonRepository extends BaseRepository {
       };
     };
 
+    /* Oldest first. The query had no ORDER BY at all, so children came back in
+       whatever order the table happened to yield -- usually insertion order,
+       which for an imported tree usually is birth order, which is why this
+       looked correct in most families and wrong in the rest.
+
+       Birth date leads. sort_order is the fallback rather than the rule
+       because it only records the order children were entered; a child added
+       years later sits at the end of it whenever they were born. Children with
+       no recorded birth follow the dated ones rather than sorting as year
+       zero. The subquery is used instead of a join so a person with two birth
+       rows cannot duplicate themselves into the list. */
     const childMembers = (familyId: string) =>
       (this.db.prepare(
         `SELECT fm.id, fm.person_id, fm.role,
           n.prefix, n.given_name, n.middle_name, n.surname, n.suffix
          FROM family_members fm
          LEFT JOIN names n ON n.person_id = fm.person_id AND n.is_primary = 1
-         WHERE fm.family_id = ?`
+         WHERE fm.family_id = ?
+         ORDER BY
+           (SELECT MIN(e.event_date_sort_key) FROM events e
+             WHERE e.person_id = fm.person_id AND e.event_type = 'birth') IS NULL,
+           (SELECT MIN(e.event_date_sort_key) FROM events e
+             WHERE e.person_id = fm.person_id AND e.event_type = 'birth') ASC,
+           fm.sort_order ASC,
+           fm.id ASC`
       ).all(familyId) as ({ id: string; person_id: string; role: string } & RelationshipNameSummary)[]);
 
     const asChild = this.db.prepare(
