@@ -609,3 +609,16 @@
      no overflow, so a full-bleed image would paint outside the wrapper's
      rounded corners. */
 }
+
+/* Explains the lookup the user is choosing from, at the point of choosing it
+   (#17). The text is the selected value's own description, read from the same
+   endpoint the Glossary uses, so the two cannot drift apart. */
+.fieldHint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+}
+
+.fieldHint a {
+  color: var(--color-primary-600);
+}

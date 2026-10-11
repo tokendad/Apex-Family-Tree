@@ -1,0 +1,141 @@
+/* AppShell's .main is overflow: hidden, so a long page inside it has to be its
+   own scrolling container or it simply ends at the fold. */
+.page {
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--space-8) var(--space-6) var(--space-10);
+  max-width: 760px;
+  margin: 0 auto;
+  /* Prose, so a comfortable reading measure rather than the app's density. */
+  line-height: 1.65;
+  color: var(--color-text-primary);
+}
+
+.header { margin-bottom: var(--space-6); }
+
+.title {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  margin: 0;
+}
+
+.lede {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-lg);
+}
+
+.toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-4);
+  margin-bottom: var(--space-6);
+  border: 1px solid var(--color-border-warm);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-app);
+}
+
+.tocLink {
+  color: var(--color-primary-600);
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+}
+
+.tocLink:hover { text-decoration: underline; }
+
+.section {
+  margin-bottom: var(--space-8);
+  /* Anchored from the contents list; without this the heading lands under the
+     top of the scroll container. */
+  scroll-margin-top: var(--space-4);
+}
+
+.section h2 {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  margin: 0 0 var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border-warm);
+}
+
+.section p { margin: 0 0 var(--space-3); }
+
+.aside {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  border-left: 2px solid var(--color-border-warm);
+  padding-left: var(--space-3);
+}
+
+.quote {
+  margin: var(--space-4) 0;
+  padding: var(--space-4);
+  border-left: 3px solid var(--color-primary-600, #1d5134);
+  background: var(--color-bg-app);
+  font-size: var(--font-size-lg);
+}
+
+.unavailable {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-style: italic;
+}
+
+.terms {
+  margin: var(--space-4) 0 0;
+  border-top: 1px solid var(--color-border-warm);
+}
+
+.term {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border-warm);
+}
+
+.term dt {
+  font-weight: var(--font-weight-medium);
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.term dd {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+/* The number beside a classification or confidence level. Secondary to the
+   name: it ranks evidence, it does not decide anything by itself. */
+.weight {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-normal);
+  color: var(--color-text-secondary);
+  background: var(--color-bg-app);
+  border: 1px solid var(--color-border-warm);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
+}
+
+.footer {
+  margin-top: var(--space-8);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-warm);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.footer a { color: var(--color-primary-600); }
+
+@media (max-width: 640px) {
+  .page { padding: var(--space-4) var(--space-4) var(--space-8); }
+
+  /* Name above description: 200px of label beside text is unreadable on a
+     phone, and the names run to three words. */
+  .term {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
+}

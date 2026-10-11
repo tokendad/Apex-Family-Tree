@@ -44,8 +44,11 @@ interface ArtifactFile {
   size_bytes: number | null;
 }
 
-interface ArtifactType { id: string; name: string }
-interface EvidenceClassification { id: string; name: string }
+/* The descriptions come back from the same endpoints; showing the one that is
+   actually selected answers "which of these do I pick?" where the question is
+   asked, rather than only on the Glossary page (#17). */
+interface ArtifactType { id: string; name: string; description?: string | null }
+interface EvidenceClassification { id: string; name: string; description?: string | null }
 
 interface RelationshipRole {
   role: string;
@@ -524,6 +527,10 @@ const ArtifactDetailPage: React.FC = () => {
                       <select value={form.artifact_type_id} onChange={(e) => setForm({ ...form, artifact_type_id: e.target.value })} required>
                         {artifactTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
                       </select>
+                      <span className={styles.fieldHint}>
+                        {artifactTypes.find((type) => type.id === form.artifact_type_id)?.description
+                          ?? 'What the item is, not what it proves.'}
+                      </span>
                     </label>
                     <label className={styles.field}>
                       <span>Evidence Classification</span>
@@ -531,6 +538,12 @@ const ArtifactDetailPage: React.FC = () => {
                         <option value="">None yet</option>
                         {evidenceClassifications.map((classification) => <option key={classification.id} value={classification.id}>{classification.name}</option>)}
                       </select>
+                      <span className={styles.fieldHint}>
+                        {evidenceClassifications.find((c) => c.id === form.evidence_classification_id)?.description
+                          ?? 'How much authority this carries as evidence. Optional.'}
+                        {' '}
+                        <Link to="/glossary#evidence">What do these mean?</Link>
+                      </span>
                     </label>
                     <label className={styles.field}>
                       <span>Privacy</span>
