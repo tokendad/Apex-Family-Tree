@@ -23,6 +23,11 @@ interface Filters {
   includeSystem: boolean;
 }
 
+/* Where the backend puts context about an entry -- the label, the person a
+   name belongs to -- as distinct from the values that changed. It is never a
+   field of the record and must not be rendered as one. */
+const META_KEY = '_meta';
+
 const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -88,11 +93,22 @@ function formatValue(value: unknown): string {
  */
 function entryLabel(entry: AuditEntry): string {
   const values = parseJson(entry.new_values) ?? parseJson(entry.old_values);
-  for (const key of ['label', 'email', 'title', 'filename', 'display_name']) {
-    const candidate = values?.[key];
-    if (typeof candidate === 'string' && candidate.trim()) return candidate;
+  const meta = values?.[META_KEY] as Record<string, unknown> | undefined;
+
+  for (const source of [meta, values]) {
+    for (const key of ['label', 'email', 'title', 'filename', 'display_name']) {
+      const candidate = source?.[key];
+      if (typeof candidate === 'string' && candidate.trim()) return candidate;
+    }
   }
   return entry.entity_id ? entry.entity_id.slice(0, 8) : '—';
+}
+
+/** The changed values, without the entry's own description mixed in. */
+function withoutMeta(values: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (!values) return null;
+  const { [META_KEY]: _meta, ...rest } = values;
+  return rest;
 }
 
 function actorLabel(entry: AuditEntry): string {
@@ -100,8 +116,8 @@ function actorLabel(entry: AuditEntry): string {
 }
 
 function EntryDetail({ entry }: { entry: AuditEntry }) {
-  const oldValues = parseJson(entry.old_values);
-  const newValues = parseJson(entry.new_values);
+  const oldValues = withoutMeta(parseJson(entry.old_values));
+  const newValues = withoutMeta(parseJson(entry.new_values));
 
   if (entry.action === 'update' && oldValues && newValues) {
     const fields = Array.from(new Set([...Object.keys(oldValues), ...Object.keys(newValues)]));

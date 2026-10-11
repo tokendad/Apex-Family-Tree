@@ -320,7 +320,7 @@ artifactsRouter.delete(
       const repo = new ArtifactRepository();
       const before = repo.findById(paramStr(req.params.id));
       const deleted = repo.delete(paramStr(req.params.id), req.user?.userId ?? null);
-      if (deleted) recordChange('delete', 'artifact', paramStr(req.params.id), before, null);
+      if (deleted) recordChange('delete', 'artifact', paramStr(req.params.id), before, null, { label: before?.title });
       if (!deleted) {
         res.status(404).json({ error: 'Artifact not found' });
         return;

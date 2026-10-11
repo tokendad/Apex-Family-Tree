@@ -131,7 +131,7 @@ export class EventRepository extends BaseRepository {
     createEvent();
 
     const created = this.findById(id)!;
-    recordChange('create', 'event', id, null, created);
+    recordChange('create', 'event', id, null, created, { label: this.auditLabel(created) });
     return created;
   }
 
@@ -208,7 +208,7 @@ export class EventRepository extends BaseRepository {
     updateEvent();
 
     const after = this.findById(id);
-    recordChange('update', 'event', id, before, after);
+    recordChange('update', 'event', id, before, after, { label: this.auditLabel(after ?? before) });
     return after;
   }
 
@@ -225,8 +225,13 @@ export class EventRepository extends BaseRepository {
     const deleted = deleteEvent();
     // One entry for the event; the archive_objects row goes with it and is not
     // a separate thing anyone chose to delete.
-    if (deleted) recordChange('delete', 'event', id, before, null);
+    if (deleted) recordChange('delete', 'event', id, before, null, { label: this.auditLabel(before) });
     return deleted;
+  }
+
+  /** Reuses the archive title, so the log reads the way the record does. */
+  private auditLabel(event?: { event_type: string; event_date?: string | null } | null): string | null {
+    return event ? this.eventTitle(event.event_type, event.event_date ?? null) : null;
   }
 
   private eventTitle(eventType: string, eventDate?: string | null): string {

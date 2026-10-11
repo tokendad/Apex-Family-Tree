@@ -154,6 +154,31 @@ export class FamilyRepository extends BaseRepository {
     return { data, next_cursor: hasMore ? rows[rows.length - 1]?.id ?? null : null };
   }
 
+  /**
+   * The couple, so an entry reads "Raymond Earl LeFort & Eunice Louise Lagor"
+   * rather than a pair of hex ids. Read before a delete, while the rows exist.
+   */
+  private auditLabel(familyId: string): string | null {
+    const family = this.db.prepare(
+      'SELECT spouse1_id, spouse2_id FROM families WHERE id = ?',
+    ).get(familyId) as { spouse1_id: string | null; spouse2_id: string | null } | undefined;
+    if (!family) return null;
+
+    const names = [family.spouse1_id, family.spouse2_id]
+      .map((id) => (id ? this.personName(id) : null))
+      .filter(Boolean);
+
+    return names.length ? names.join(' & ') : null;
+  }
+
+  private personName(personId: string): string | null {
+    const name = this.db.prepare(
+      'SELECT given_name, middle_name, surname FROM names WHERE person_id = ? ORDER BY is_primary DESC LIMIT 1',
+    ).get(personId) as { given_name?: string; middle_name?: string; surname?: string } | undefined;
+    if (!name) return null;
+    return [name.given_name, name.middle_name, name.surname].filter(Boolean).join(' ') || null;
+  }
+
   create(data: {
     spouse1_id?: string;
     spouse2_id?: string;
@@ -169,7 +194,7 @@ export class FamilyRepository extends BaseRepository {
     runWithFlags({ inSync: true }, () => new TreeRepository().syncFamilyUnionFromLegacyFamily(id));
 
     const created = this.findById(id)!;
-    recordChange('create', 'family', id, null, created);
+    recordChange('create', 'family', id, null, created, { label: this.auditLabel(id) });
     return created;
   }
 
@@ -200,16 +225,17 @@ export class FamilyRepository extends BaseRepository {
     runWithFlags({ inSync: true }, () => new TreeRepository().syncFamilyUnionFromLegacyFamily(id));
 
     const after = this.findById(id);
-    recordChange('update', 'family', id, before, after);
+    recordChange('update', 'family', id, before, after, { label: this.auditLabel(id) });
     return after;
   }
 
   delete(id: string): boolean {
     const before = this.findById(id);
+    const label = this.auditLabel(id);
     const deleted = this.db.prepare('DELETE FROM families WHERE id = ?').run(id).changes > 0;
     if (deleted) {
       runWithFlags({ inSync: true }, () => new TreeRepository().deleteFamilyUnion(id));
-      recordChange('delete', 'family', id, before, null);
+      recordChange('delete', 'family', id, before, null, { label });
     }
     return deleted;
   }
@@ -225,7 +251,11 @@ export class FamilyRepository extends BaseRepository {
     runWithFlags({ inSync: true }, () => new TreeRepository().syncFamilyUnionFromLegacyFamily(familyId));
 
     const member = this.db.prepare('SELECT * FROM family_members WHERE id = ?').get(id) as FamilyMember;
-    recordChange('create', 'family_member', id, null, member, { family_id: familyId, person_id: personId });
+    recordChange('create', 'family_member', id, null, member, {
+      label: `${this.personName(personId) ?? personId.slice(0, 8)} (${role})`,
+      family_id: familyId,
+      person_id: personId,
+    });
     return member;
   }
 
@@ -234,10 +264,15 @@ export class FamilyRepository extends BaseRepository {
       'SELECT * FROM family_members WHERE family_id = ? AND person_id = ?',
     ).get(familyId, personId) as FamilyMember | undefined;
 
+    const label = this.personName(personId);
     const removed = this.db.prepare('DELETE FROM family_members WHERE family_id = ? AND person_id = ?').run(familyId, personId).changes > 0;
     if (removed) {
       runWithFlags({ inSync: true }, () => new TreeRepository().syncFamilyUnionFromLegacyFamily(familyId));
-      recordChange('delete', 'family_member', before?.id ?? null, before, null, { family_id: familyId, person_id: personId });
+      recordChange('delete', 'family_member', before?.id ?? null, before, null, {
+        label: label ?? personId.slice(0, 8),
+        family_id: familyId,
+        person_id: personId,
+      });
     }
     return removed;
   }

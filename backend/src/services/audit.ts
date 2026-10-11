@@ -28,6 +28,15 @@ const NOISE_FIELDS = new Set([
  */
 const REDACTED_FIELDS = new Set(['password_hash', 'token_hash']);
 
+/**
+ * Where context about an entry lives, as opposed to the changed values.
+ *
+ * An audit row outlives the record it describes, so it has to carry its own
+ * description: "deleted Eunice Louise Lagor", not "deleted 2512ea47". That
+ * description is not a field of the row and must never be read as one.
+ */
+export const META_KEY = '_meta';
+
 function redact(value: unknown): unknown {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
 
@@ -125,8 +134,12 @@ export function recordChange(
       newValues = diff.new;
     }
 
+    /* Under a reserved key, not merged in alongside the fields. On an update
+       newValues is the diff, and a label spliced into it would render as a
+       field that changed from nothing to something -- the log inventing an
+       edit nobody made. */
     if (extra) {
-      newValues = { ...(newValues as Record<string, unknown> ?? {}), ...extra };
+      newValues = { ...(newValues as Record<string, unknown> ?? {}), [META_KEY]: extra };
     }
 
     new AuditRepository().record({

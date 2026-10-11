@@ -140,6 +140,28 @@ describe('AdminAuditPage', () => {
     await waitFor(() => expect(screen.getByText(/no changes recorded yet/i)).toBeInTheDocument());
   });
 
+  /* The label rides under _meta precisely so it cannot be mistaken for a
+     field that changed. Rendering it in the diff would show the log inventing
+     an edit that nobody made. */
+  it('names an entry from its metadata without showing it as a changed field', async () => {
+    mockApi([{
+      data: [entry(1, {
+        old_values: JSON.stringify({ event_place: 'Culver City' }),
+        new_values: JSON.stringify({ event_place: 'Las Vegas', _meta: { label: 'Marriage - 14 MAR 1983' } }),
+      })],
+      next_cursor: null,
+    }]);
+    render(<AdminAuditPage />);
+
+    await waitFor(() => expect(screen.getByText('Marriage - 14 MAR 1983')).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('button', { expanded: false }));
+
+    const table = screen.getByRole('table');
+    expect(within(table).getByText('event_place')).toBeInTheDocument();
+    expect(within(table).queryByText('_meta')).not.toBeInTheDocument();
+    expect(within(table).getAllByRole('row')).toHaveLength(2); // header plus the one real change
+  });
+
   /* A delete entry outlives the record, so the name it carries is all there is. */
   it('names what was deleted, from the entry itself', async () => {
     mockApi([{
@@ -147,7 +169,7 @@ describe('AdminAuditPage', () => {
         action: 'delete',
         entity_type: 'person',
         old_values: JSON.stringify({ id: 'p1', sex: 'F', notes: null }),
-        new_values: JSON.stringify({ label: 'Eunice Louise Lagor' }),
+        new_values: JSON.stringify({ _meta: { label: 'Eunice Louise Lagor' } }),
       })],
       next_cursor: null,
     }]);

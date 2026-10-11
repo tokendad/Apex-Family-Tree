@@ -1,5 +1,11 @@
 import { BaseRepository } from './base.js';
 import { recordChange } from '../services/audit.js';
+
+/** The name as written, so a log entry about a name says which name. */
+function nameLabel(name?: { given_name?: string | null; middle_name?: string | null; surname?: string | null } | null): string | null {
+  if (!name) return null;
+  return [name.given_name, name.middle_name, name.surname].filter(Boolean).join(' ') || null;
+}
 import { ArchiveObjectRepository } from './ArchiveObjectRepository.js';
 import { soundex } from '../utils/soundex.js';
 import { formatName, normalizeToNull, sanitizeDisplayName, sanitizeNameField } from '../utils/nameFormatter.js';
@@ -590,7 +596,7 @@ export class PersonRepository extends BaseRepository {
     createPerson();
 
     const created = this.db.prepare('SELECT * FROM persons WHERE id = ?').get(id) as Person;
-    recordChange('create', 'person', id, null, created);
+    recordChange('create', 'person', id, null, created, { label: this.auditLabel(id, created) });
     return created;
   }
 
@@ -712,7 +718,7 @@ export class PersonRepository extends BaseRepository {
     this.refreshArchiveTitle(personId);
 
     const created = this.db.prepare('SELECT * FROM names WHERE id = ?').get(id) as Name;
-    recordChange('create', 'name', id, null, created, { person_id: personId });
+    recordChange('create', 'name', id, null, created, { label: nameLabel(created), person_id: personId });
     return created;
   }
 
@@ -757,7 +763,7 @@ export class PersonRepository extends BaseRepository {
     this.refreshArchiveTitle(existing.person_id);
 
     const updated = this.findNameById(nameId);
-    recordChange('update', 'name', nameId, existing, updated, { person_id: existing.person_id });
+    recordChange('update', 'name', nameId, existing, updated, { label: nameLabel(updated ?? existing), person_id: existing.person_id });
     return updated;
   }
 
@@ -766,7 +772,7 @@ export class PersonRepository extends BaseRepository {
     const deleted = this.db.prepare('DELETE FROM names WHERE id = ?').run(nameId).changes > 0;
     if (deleted && existing) {
       this.refreshArchiveTitle(existing.person_id);
-      recordChange('delete', 'name', nameId, existing, null, { person_id: existing.person_id });
+      recordChange('delete', 'name', nameId, existing, null, { label: nameLabel(existing), person_id: existing.person_id });
     }
     return deleted;
   }

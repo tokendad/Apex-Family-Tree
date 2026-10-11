@@ -93,7 +93,14 @@ describe('audit: what changed, who changed it, what the change was', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ user_id: 'user-1', action: 'update', entity_type: 'event', entity_id: 'ev1' });
     expect(JSON.parse(rows[0].old_values!)).toEqual({ event_place: 'Leominster' });
-    expect(JSON.parse(rows[0].new_values!)).toEqual({ event_place: 'Las Vegas, Clark, Nevada' });
+
+    /* The entry's own description rides under _meta, never alongside the
+       changed fields: in the diff it would read as a field that went from
+       nothing to something, inventing an edit nobody made. */
+    const newValues = JSON.parse(rows[0].new_values!) as Record<string, unknown>;
+    const { _meta, ...changed } = newValues;
+    expect(changed).toEqual({ event_place: 'Las Vegas, Clark, Nevada' });
+    expect(_meta).toMatchObject({ label: 'Birth - 12 OCT 1926' });
   });
 
   /* The sync-suppression decision, pinned. A family edit regenerates its
@@ -119,7 +126,7 @@ describe('audit: what changed, who changed it, what the change was', () => {
     const rows = audit('person');
     expect(rows).toHaveLength(1);
     expect(rows[0].action).toBe('delete');
-    expect(JSON.parse(rows[0].new_values!)).toMatchObject({ label: 'Eunice Louise Lagor' });
+    expect(JSON.parse(rows[0].new_values!)).toMatchObject({ _meta: { label: 'Eunice Louise Lagor' } });
   });
 
   it('records a role change, with the old and new role', async () => {

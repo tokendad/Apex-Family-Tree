@@ -97,6 +97,7 @@ relationshipsRouter.post('/', requireRole('admin', 'editor', 'limited_editor'), 
     /* The kind of link matters as much as the fact of one: "linked Cheryle to
        the LeFort union" reads very differently from "tagged her in a photo". */
     recordChange('create', 'relationship', relationship.id, null, relationship, {
+      label: relationship.label ?? cleanOptional(body.relationship_type_code) ?? 'relationship',
       type_code: cleanOptional(body.relationship_type_code),
       member_ids: members.map((m) => m.object_id),
     });
@@ -135,7 +136,7 @@ relationshipsRouter.delete('/:id', requireRole('admin', 'editor'), (req, res) =>
       return;
     }
 
-    recordChange('delete', 'relationship', paramStr(req.params.id), before, null);
+    recordChange('delete', 'relationship', paramStr(req.params.id), before, null, { label: before?.label ?? 'relationship' });
     res.status(204).send();
   } catch {
     res.status(500).json({ error: 'Failed to delete relationship' });

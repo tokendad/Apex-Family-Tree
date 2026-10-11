@@ -118,7 +118,7 @@ adminRouter.post('/users/create', async (req, res) => {
     const user = userRepo.create({ email, display_name: display_name.trim(), password_hash, role });
 
     const { password_hash: _, ...safeUser } = user;
-    recordChange('create', 'user', user.id, null, safeUser);
+    recordChange('create', 'user', user.id, null, safeUser, { label: user.email });
     res.status(201).json({ user: safeUser as SafeUser });
   } catch (error) {
     logger.error('Failed to create user', error);
@@ -195,7 +195,7 @@ adminRouter.put('/users/:id', (req, res) => {
     }
 
     const { password_hash: _, ...safeUser } = updated;
-    recordChange('update', 'user', req.params.id as string, safeBefore, safeUser);
+    recordChange('update', 'user', req.params.id as string, safeBefore, safeUser, { label: updated.email });
     res.json({ user: safeUser as SafeUser });
   } catch (error) {
     logger.error('Failed to update user', error);
@@ -228,7 +228,7 @@ adminRouter.delete('/users/:id', (req, res) => {
       return;
     }
 
-    recordChange('delete', 'user', req.params.id as string, safeUser, null, { email: user.email });
+    recordChange('delete', 'user', req.params.id as string, safeUser, null, { label: user.email });
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
     logger.error('Failed to delete user', error);

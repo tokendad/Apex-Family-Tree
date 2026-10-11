@@ -53,7 +53,7 @@ sourcesRouter.post(
       const { title, repository_id, author, publisher, publication_date, url, notes } = req.body;
 
       const source = repo.create({ title, repository_id, author, publisher, publication_date, url, notes });
-      recordChange('create', 'source', source.id, null, source);
+      recordChange('create', 'source', source.id, null, source, { label: source.title });
       res.status(201).json(source);
     } catch {
       res.status(500).json({ error: 'Failed to create source' });
@@ -72,7 +72,7 @@ sourcesRouter.put(
 
       const before = repo.findById(paramStr(req.params.id));
       const source = repo.update(paramStr(req.params.id), { title, author, publisher, publication_date, url, notes, repository_id });
-      recordChange('update', 'source', paramStr(req.params.id), before, source);
+      recordChange('update', 'source', paramStr(req.params.id), before, source, { label: source?.title ?? before?.title });
       if (!source) {
         res.status(404).json({ error: 'Source not found' });
         return;
@@ -94,7 +94,7 @@ sourcesRouter.delete(
       const repo = new SourceRepository();
       const before = repo.findById(paramStr(req.params.id));
       const deleted = repo.deleteSource(paramStr(req.params.id));
-      if (deleted) recordChange('delete', 'source', paramStr(req.params.id), before, null);
+      if (deleted) recordChange('delete', 'source', paramStr(req.params.id), before, null, { label: before?.title });
       if (!deleted) {
         res.status(404).json({ error: 'Source not found' });
         return;
