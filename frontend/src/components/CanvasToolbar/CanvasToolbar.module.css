@@ -117,3 +117,29 @@
   border-color: var(--color-warning-dark, #b45309);
   background: #fef3c7;
 }
+
+/*
+ * On a phone the toolbar is wider than the viewport, and centring it with
+ * left: 50% / translateX(-50%) pushes its left edge off-screen — "Import
+ * GEDCOM" was cut in half with no way to scroll back to it (#27).
+ *
+ * Below 768px it spans the width instead and scrolls horizontally, so every
+ * control stays reachable.
+ */
+@media (max-width: 768px) {
+  .toolbar {
+    left: var(--space-2);
+    right: var(--space-2);
+    transform: none;
+    max-width: none;
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius-lg);
+  }
+
+  /* Controls must keep their width or they collapse the same way the nav did. */
+  .toolbar > * {
+    flex-shrink: 0;
+  }
+}

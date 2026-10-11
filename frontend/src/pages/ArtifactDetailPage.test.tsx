@@ -293,3 +293,79 @@ describe('ArtifactDetailPage', () => {
     });
   });
 });
+
+describe('ArtifactDetailPage — the artifact\'s own file (#22)', () => {
+  /** Serve the page's normal payload but with the given files attached. */
+  function fetchWithFiles(files: unknown[]) {
+    return (url: string) => {
+      if (url === '/api/v1/artifacts/artifact-1') {
+        return Promise.resolve({ ok: true, json: async () => ({ ...artifact, files }) });
+      }
+      return baseFetch(url);
+    };
+  }
+
+  it('shows an image artifact in place', async () => {
+    fetchMock.mockImplementation(fetchWithFiles([
+      {
+        id: 'f1',
+        file_role: 'primary',
+        storage_path: '/media/ancestry/photos/scan.jpg',
+        original_filename: 'scan.jpg',
+        mime_type: 'image/jpeg',
+        size_bytes: 320224,
+      },
+    ]));
+
+    renderPage();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Family Letter' })).toBeInTheDocument());
+
+    const img = await screen.findByAltText('Family Letter');
+    // Served from artifact_files, not from the media endpoint.
+    expect(img).toHaveAttribute('src', '/api/v1/artifacts/artifact-1/file');
+    expect(screen.getByText(/scan\.jpg/)).toBeInTheDocument();
+    // 320224 bytes rendered for a human.
+    expect(screen.getByText(/313 KB/)).toBeInTheDocument();
+  });
+
+  it('offers a download for a document rather than rendering it', async () => {
+    fetchMock.mockImplementation(fetchWithFiles([
+      {
+        id: 'f2',
+        file_role: 'primary',
+        storage_path: '/media/ancestry/docs/will.pdf',
+        original_filename: 'will.pdf',
+        mime_type: 'application/pdf',
+        size_bytes: 1048576,
+      },
+    ]));
+
+    renderPage();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Family Letter' })).toBeInTheDocument());
+
+    const link = await screen.findByRole('link', { name: /download will\.pdf/i });
+    expect(link).toHaveAttribute('href', '/api/v1/artifacts/artifact-1/file');
+    expect(screen.queryByAltText('Family Letter')).toBeNull();
+  });
+
+  it('says so plainly when an artifact has no file attached', async () => {
+    fetchMock.mockImplementation(fetchWithFiles([]));
+
+    renderPage();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Family Letter' })).toBeInTheDocument());
+
+    expect(await screen.findByText(/no file is attached to this artifact/i)).toBeInTheDocument();
+  });
+
+  it('prefers the primary file over the other roles', async () => {
+    fetchMock.mockImplementation(fetchWithFiles([
+      { id: 'f3', file_role: 'thumbnail', storage_path: '/t.jpg', original_filename: 't.jpg', mime_type: 'image/jpeg', size_bytes: 10 },
+      { id: 'f4', file_role: 'primary', storage_path: '/p.jpg', original_filename: 'primary.jpg', mime_type: 'image/jpeg', size_bytes: 20 },
+    ]));
+
+    renderPage();
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Family Letter' })).toBeInTheDocument());
+
+    expect(await screen.findByText(/primary\.jpg/)).toBeInTheDocument();
+  });
+});

@@ -1,4 +1,6 @@
 import { BaseRepository } from './base.js';
+import { recordChange } from '../services/audit.js';
+import { runWithFlags } from '../services/requestContext.js';
 import { TreeRepository } from './TreeRepository.js';
 import type { Family, FamilyMember, FamilyWithSpouseNames, Name, SpouseNameSummary } from '../types/db.js';
 import { formatName } from '../utils/nameFormatter.js';
@@ -152,6 +154,31 @@ export class FamilyRepository extends BaseRepository {
     return { data, next_cursor: hasMore ? rows[rows.length - 1]?.id ?? null : null };
   }
 
+  /**
+   * The couple, so an entry reads "Raymond Earl LeFort & Eunice Louise Lagor"
+   * rather than a pair of hex ids. Read before a delete, while the rows exist.
+   */
+  private auditLabel(familyId: string): string | null {
+    const family = this.db.prepare(
+      'SELECT spouse1_id, spouse2_id FROM families WHERE id = ?',
+    ).get(familyId) as { spouse1_id: string | null; spouse2_id: string | null } | undefined;
+    if (!family) return null;
+
+    const names = [family.spouse1_id, family.spouse2_id]
+      .map((id) => (id ? this.personName(id) : null))
+      .filter(Boolean);
+
+    return names.length ? names.join(' & ') : null;
+  }
+
+  private personName(personId: string): string | null {
+    const name = this.db.prepare(
+      'SELECT given_name, middle_name, surname FROM names WHERE person_id = ? ORDER BY is_primary DESC LIMIT 1',
+    ).get(personId) as { given_name?: string; middle_name?: string; surname?: string } | undefined;
+    if (!name) return null;
+    return [name.given_name, name.middle_name, name.surname].filter(Boolean).join(' ') || null;
+  }
+
   create(data: {
     spouse1_id?: string;
     spouse2_id?: string;
@@ -164,8 +191,11 @@ export class FamilyRepository extends BaseRepository {
     this.db.prepare(
       'INSERT INTO families (id, spouse1_id, spouse2_id, marriage_date, marriage_place, gedcom_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(id, data.spouse1_id || null, data.spouse2_id || null, data.marriage_date || null, data.marriage_place || null, data.gedcom_id || null, now, now);
-    new TreeRepository().syncFamilyUnionFromLegacyFamily(id);
-    return this.findById(id)!;
+    runWithFlags({ inSync: true }, () => new TreeRepository().syncFamilyUnionFromLegacyFamily(id));
+
+    const created = this.findById(id)!;
+    recordChange('create', 'family', id, null, created, { label: this.auditLabel(id) });
+    return created;
   }
 
   update(id: string, data: Partial<Pick<Family, 'spouse1_id' | 'spouse2_id' | 'marriage_date' | 'marriage_place' | 'divorce_date' | 'divorce_place'>>): Family | undefined {
@@ -181,18 +211,32 @@ export class FamilyRepository extends BaseRepository {
 
     if (fields.length === 0) return this.findById(id);
 
+    const before = this.findById(id);
+
     fields.push('updated_at = ?');
     values.push(this.now());
     values.push(id);
 
     this.db.prepare(`UPDATE families SET ${fields.join(', ')} WHERE id = ?`).run(...values);
-    new TreeRepository().syncFamilyUnionFromLegacyFamily(id);
-    return this.findById(id);
+
+    /* The union rows this rebuilds are derived from the family, not edited in
+       their own right. Marking the region as a sync keeps one edit to one
+       entry instead of scattering it over the rows it happened to touch. */
+    runWithFlags({ inSync: true }, () => new TreeRepository().syncFamilyUnionFromLegacyFamily(id));
+
+    const after = this.findById(id);
+    recordChange('update', 'family', id, before, after, { label: this.auditLabel(id) });
+    return after;
   }
 
   delete(id: string): boolean {
+    const before = this.findById(id);
+    const label = this.auditLabel(id);
     const deleted = this.db.prepare('DELETE FROM families WHERE id = ?').run(id).changes > 0;
-    if (deleted) new TreeRepository().deleteFamilyUnion(id);
+    if (deleted) {
+      runWithFlags({ inSync: true }, () => new TreeRepository().deleteFamilyUnion(id));
+      recordChange('delete', 'family', id, before, null, { label });
+    }
     return deleted;
   }
 
@@ -204,13 +248,32 @@ export class FamilyRepository extends BaseRepository {
     this.db.prepare(
       'INSERT INTO family_members (id, family_id, person_id, role, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?)'
     ).run(id, familyId, personId, role, maxOrder.next, this.now());
-    new TreeRepository().syncFamilyUnionFromLegacyFamily(familyId);
-    return this.db.prepare('SELECT * FROM family_members WHERE id = ?').get(id) as FamilyMember;
+    runWithFlags({ inSync: true }, () => new TreeRepository().syncFamilyUnionFromLegacyFamily(familyId));
+
+    const member = this.db.prepare('SELECT * FROM family_members WHERE id = ?').get(id) as FamilyMember;
+    recordChange('create', 'family_member', id, null, member, {
+      label: `${this.personName(personId) ?? personId.slice(0, 8)} (${role})`,
+      family_id: familyId,
+      person_id: personId,
+    });
+    return member;
   }
 
   removeMember(familyId: string, personId: string): boolean {
+    const before = this.db.prepare(
+      'SELECT * FROM family_members WHERE family_id = ? AND person_id = ?',
+    ).get(familyId, personId) as FamilyMember | undefined;
+
+    const label = this.personName(personId);
     const removed = this.db.prepare('DELETE FROM family_members WHERE family_id = ? AND person_id = ?').run(familyId, personId).changes > 0;
-    if (removed) new TreeRepository().syncFamilyUnionFromLegacyFamily(familyId);
+    if (removed) {
+      runWithFlags({ inSync: true }, () => new TreeRepository().syncFamilyUnionFromLegacyFamily(familyId));
+      recordChange('delete', 'family_member', before?.id ?? null, before, null, {
+        label: label ?? personId.slice(0, 8),
+        family_id: familyId,
+        person_id: personId,
+      });
+    }
     return removed;
   }
 

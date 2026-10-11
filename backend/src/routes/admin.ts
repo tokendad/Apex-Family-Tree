@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import { requireRole } from '../middleware/auth.js';
+import { recordChange } from '../services/audit.js';
+import { AuditRepository } from '../repositories/AuditRepository.js';
+import { InviteCodeRepository, formatCode, type InviteCode } from '../repositories/InviteCodeRepository.js';
 import { UserRepository } from '../repositories/UserRepository.js';
-import { generateRefreshToken, hashToken, hashPassword } from '../services/auth.js';
+import { generateRefreshToken, hashToken, hashPassword, validatePassword, generateTemporaryPassword } from '../services/auth.js';
 import { createEmailService } from '../services/email.js';
 import { createLogger } from '../services/logger.js';
 import { getDatabase } from '../db/connection.js';
@@ -95,8 +98,9 @@ adminRouter.post('/users/create', async (req, res) => {
       return;
     }
 
-    if (!password || typeof password !== 'string' || password.length < 8) {
-      res.status(400).json({ error: 'Password must be at least 8 characters' });
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      res.status(400).json({ error: passwordError });
       return;
     }
 
@@ -116,6 +120,7 @@ adminRouter.post('/users/create', async (req, res) => {
     const user = userRepo.create({ email, display_name: display_name.trim(), password_hash, role });
 
     const { password_hash: _, ...safeUser } = user;
+    recordChange('create', 'user', user.id, null, safeUser, { label: user.email });
     res.status(201).json({ user: safeUser as SafeUser });
   } catch (error) {
     logger.error('Failed to create user', error);
@@ -184,6 +189,7 @@ adminRouter.put('/users/:id', (req, res) => {
       return;
     }
 
+    const { password_hash: _before, ...safeBefore } = user;
     const updated = userRepo.update(req.params.id, update);
     if (!updated) {
       res.status(500).json({ error: 'Failed to update user' });
@@ -191,6 +197,7 @@ adminRouter.put('/users/:id', (req, res) => {
     }
 
     const { password_hash: _, ...safeUser } = updated;
+    recordChange('update', 'user', req.params.id as string, safeBefore, safeUser, { label: updated.email });
     res.json({ user: safeUser as SafeUser });
   } catch (error) {
     logger.error('Failed to update user', error);
@@ -216,15 +223,193 @@ adminRouter.delete('/users/:id', (req, res) => {
     const db = getDatabase();
     db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?').run(req.params.id);
 
+    const { password_hash: _, ...safeUser } = user;
     const deleted = userRepo.delete(req.params.id);
     if (!deleted) {
       res.status(500).json({ error: 'Failed to delete user' });
       return;
     }
 
+    recordChange('delete', 'user', req.params.id as string, safeUser, null, { label: user.email });
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
     logger.error('Failed to delete user', error);
     res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+// ─── Audit Log ──────────────────────────────────────────────────────────────
+
+// GET /api/v1/admin/audit — Recent changes, newest first
+adminRouter.get('/audit', (req, res) => {
+  try {
+    const repo = new AuditRepository();
+    const result = repo.list({
+      limit: parseInt(req.query.limit as string) || 20,
+      cursor: req.query.cursor as string | undefined,
+      q: req.query.q as string | undefined,
+      entityType: req.query.entity_type as string | undefined,
+      action: req.query.action as string | undefined,
+      userId: req.query.user_id as string | undefined,
+      includeSystem: req.query.include_system === 'true',
+    });
+
+    res.json(result);
+  } catch (error) {
+    logger.error('Failed to list audit log', error);
+    res.status(500).json({ error: 'Failed to list audit log' });
+  }
+});
+
+// GET /api/v1/admin/audit/facets — Distinct entity types and actions, for filters
+adminRouter.get('/audit/facets', (_req, res) => {
+  try {
+    res.json(new AuditRepository().facets());
+  } catch (error) {
+    logger.error('Failed to load audit facets', error);
+    res.status(500).json({ error: 'Failed to load audit facets' });
+  }
+});
+
+// ─── Invite Codes ───────────────────────────────────────────────────────────
+
+const VALID_INVITE_ROLES = ['admin', 'editor', 'limited_editor', 'viewer'] as const;
+
+/** The stored code is normalised; everything leaving the API is formatted. */
+function presentCode(row: InviteCode) {
+  return {
+    id: row.id,
+    code: formatCode(row.code),
+    role: row.role,
+    note: row.note,
+    max_uses: row.max_uses,
+    use_count: row.use_count,
+    uses_left: row.max_uses - row.use_count,
+    expires_at: row.expires_at,
+    created_at: row.created_at,
+  };
+}
+
+// POST /api/v1/admin/invite-codes — Generate a code for someone to sign up with
+adminRouter.post('/invite-codes', (req, res) => {
+  try {
+    const { role, note, expires_in_hours, max_uses } = req.body ?? {};
+
+    const chosenRole = role ?? 'editor';
+    if (!VALID_INVITE_ROLES.includes(chosenRole)) {
+      res.status(400).json({ error: `Role must be one of: ${VALID_INVITE_ROLES.join(', ')}` });
+      return;
+    }
+
+    const hours = Number(expires_in_hours ?? 24);
+    if (!Number.isFinite(hours) || hours < 1 || hours > 720) {
+      res.status(400).json({ error: 'Expiry must be between 1 and 720 hours' });
+      return;
+    }
+
+    const uses = Number(max_uses ?? 1);
+    if (!Number.isInteger(uses) || uses < 1 || uses > 50) {
+      res.status(400).json({ error: 'Uses must be a whole number between 1 and 50' });
+      return;
+    }
+
+    const created = new InviteCodeRepository().create({
+      role: chosenRole,
+      note: typeof note === 'string' ? note : null,
+      expiresInHours: hours,
+      maxUses: uses,
+      createdBy: req.user!.userId,
+    });
+
+    recordChange('create', 'invite_code', created.id, null, presentCode(created), {
+      label: created.note || formatCode(created.code),
+      role: created.role,
+    });
+
+    res.status(201).json({ invite_code: presentCode(created) });
+  } catch (error) {
+    logger.error('Failed to create invite code', error);
+    res.status(500).json({ error: 'Failed to create invite code' });
+  }
+});
+
+// GET /api/v1/admin/invite-codes — Codes that can still be used
+adminRouter.get('/invite-codes', (_req, res) => {
+  try {
+    res.json({ invite_codes: new InviteCodeRepository().findActive().map(presentCode) });
+  } catch (error) {
+    logger.error('Failed to list invite codes', error);
+    res.status(500).json({ error: 'Failed to list invite codes' });
+  }
+});
+
+// DELETE /api/v1/admin/invite-codes/:id — Revoke a code before it is used
+adminRouter.delete('/invite-codes/:id', (req, res) => {
+  try {
+    const repo = new InviteCodeRepository();
+    const before = repo.findById(req.params.id as string);
+    if (!before) {
+      res.status(404).json({ error: 'Invite code not found' });
+      return;
+    }
+
+    if (!repo.revoke(before.id)) {
+      res.status(404).json({ error: 'Invite code has already been revoked' });
+      return;
+    }
+
+    recordChange('delete', 'invite_code', before.id, presentCode(before), null, {
+      label: before.note || formatCode(before.code),
+    });
+
+    res.json({ message: 'Invite code revoked' });
+  } catch (error) {
+    logger.error('Failed to revoke invite code', error);
+    res.status(500).json({ error: 'Failed to revoke invite code' });
+  }
+});
+
+// ─── Password Reset ─────────────────────────────────────────────────────────
+
+/**
+ * POST /api/v1/admin/users/:id/reset-password
+ *
+ * For when somebody forgets theirs. Returns a temporary password once, for the
+ * admin to pass on; it is never stored in readable form and cannot be fetched
+ * again. Every session that account had is ended, because a forgotten password
+ * and a borrowed one look identical from here.
+ */
+adminRouter.post('/users/:id/reset-password', async (req, res) => {
+  try {
+    const user = userRepo.findById(req.params.id as string);
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const temporaryPassword = generateTemporaryPassword();
+    const passwordHash = await hashPassword(temporaryPassword);
+    const db = getDatabase();
+    const now = new Date().toISOString().replace('T', ' ').replace('Z', '');
+
+    db.transaction(() => {
+      db.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?')
+        .run(passwordHash, now, user.id);
+      db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?').run(user.id);
+    })();
+
+    // The password itself never goes near the log, only the fact of the reset.
+    recordChange('update', 'user', user.id, { password_reset: false }, { password_reset: true }, {
+      label: user.email,
+      reset_by: req.user!.email,
+    });
+
+    res.json({
+      temporary_password: temporaryPassword,
+      message: 'Password reset. Give them this password and ask them to change it.',
+    });
+  } catch (error) {
+    logger.error('Failed to reset password', error);
+    res.status(500).json({ error: 'Failed to reset password' });
   }
 });

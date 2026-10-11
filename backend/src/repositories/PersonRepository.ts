@@ -1,4 +1,11 @@
 import { BaseRepository } from './base.js';
+import { recordChange } from '../services/audit.js';
+
+/** The name as written, so a log entry about a name says which name. */
+function nameLabel(name?: { given_name?: string | null; middle_name?: string | null; surname?: string | null } | null): string | null {
+  if (!name) return null;
+  return [name.given_name, name.middle_name, name.surname].filter(Boolean).join(' ') || null;
+}
 import { ArchiveObjectRepository } from './ArchiveObjectRepository.js';
 import { soundex } from '../utils/soundex.js';
 import { formatName, normalizeToNull, sanitizeDisplayName, sanitizeNameField } from '../utils/nameFormatter.js';
@@ -26,6 +33,44 @@ export interface RelationshipNameSummary {
   middle_name: string | null;
   surname: string | null;
   suffix: string | null;
+}
+
+/** One row of a family's child list: the membership plus the child's name. */
+export type RelationshipChildRow = { id: string; family_id: string; person_id: string; role: string } & RelationshipNameSummary;
+
+/**
+ * Children of one of the subject's parents by someone else. `via` is always
+ * the subject's own parent, because "half-siblings" is not interpretable when
+ * both parents remarried -- the reader has to be told which side it runs
+ * through.
+ */
+export interface HalfSiblingGroup {
+  via: RelationshipNameSummary;
+  children: RelationshipChildRow[];
+}
+
+/**
+ * Children of a parent's later spouse by someone else -- no shared ancestry
+ * with the subject at all, so they are kept apart from the half-siblings
+ * rather than pooled with them. `via` is the subject's parent, `step_parent`
+ * that parent's spouse whose children these are.
+ */
+export interface StepSiblingGroup {
+  via: RelationshipNameSummary;
+  step_parent: RelationshipNameSummary | null;
+  children: RelationshipChildRow[];
+}
+
+/**
+ * The people one of the subject's parents married apart from the other parent.
+ * They are not ancestors of the subject, so they are listed apart from the
+ * parents rather than alongside them, and `via` names the parent each one
+ * married. A step-parent is worth showing whether or not they brought
+ * children of their own -- they are who the subject grew up with.
+ */
+export interface StepParentGroup {
+  via: RelationshipNameSummary;
+  people: RelationshipNameSummary[];
 }
 
 export class PersonRepository extends BaseRepository {
@@ -587,7 +632,10 @@ export class PersonRepository extends BaseRepository {
     });
 
     createPerson();
-    return this.db.prepare('SELECT * FROM persons WHERE id = ?').get(id) as Person;
+
+    const created = this.db.prepare('SELECT * FROM persons WHERE id = ?').get(id) as Person;
+    recordChange('create', 'person', id, null, created, { label: this.auditLabel(id, created) });
+    return created;
   }
 
   update(id: string, data: Partial<Pick<Person, 'sex' | 'is_living' | 'is_private' | 'notes' | 'display_name'>>): Person | undefined {
@@ -602,6 +650,8 @@ export class PersonRepository extends BaseRepository {
     }
 
     if (fields.length === 0) return this.db.prepare('SELECT * FROM persons WHERE id = ?').get(id) as Person | undefined;
+
+    const before = this.db.prepare('SELECT * FROM persons WHERE id = ?').get(id) as Person | undefined;
 
     fields.push('updated_at = ?');
     values.push(this.now());
@@ -619,10 +669,35 @@ export class PersonRepository extends BaseRepository {
     });
 
     updatePerson();
-    return this.db.prepare('SELECT * FROM persons WHERE id = ?').get(id) as Person | undefined;
+
+    const after = this.db.prepare('SELECT * FROM persons WHERE id = ?').get(id) as Person | undefined;
+    recordChange('update', 'person', id, before, after, { label: this.auditLabel(id, before) });
+    return after;
+  }
+
+  /**
+   * A human-readable name for an audit entry.
+   *
+   * Recorded alongside the change because an id is useless in a log once the
+   * row it points at has been deleted -- "deleted person 2512ea47" tells you
+   * nothing, "deleted Eunice Louise Lagor" tells you everything.
+   */
+  private auditLabel(personId: string, person?: { display_name?: string | null } | null): string | null {
+    if (person?.display_name) return person.display_name;
+
+    const name = this.db.prepare(
+      'SELECT given_name, middle_name, surname FROM names WHERE person_id = ? ORDER BY is_primary DESC LIMIT 1',
+    ).get(personId) as { given_name?: string; middle_name?: string; surname?: string } | undefined;
+
+    if (!name) return null;
+    return [name.given_name, name.middle_name, name.surname].filter(Boolean).join(' ') || null;
   }
 
   delete(id: string): boolean {
+    const before = this.db.prepare('SELECT * FROM persons WHERE id = ?').get(id) as Person | undefined;
+    // Read the name while the row still exists.
+    const label = this.auditLabel(id, before);
+
     const deletePerson = this.db.transaction(() => {
       const result = this.db.prepare('DELETE FROM persons WHERE id = ?').run(id);
       if (result.changes > 0) {
@@ -632,7 +707,10 @@ export class PersonRepository extends BaseRepository {
       }
       return result.changes > 0;
     });
-    return deletePerson();
+
+    const deleted = deletePerson();
+    if (deleted) recordChange('delete', 'person', id, before, null, { label });
+    return deleted;
   }
 
   addName(personId: string, data: {
@@ -676,7 +754,10 @@ export class PersonRepository extends BaseRepository {
     );
 
     this.refreshArchiveTitle(personId);
-    return this.db.prepare('SELECT * FROM names WHERE id = ?').get(id) as Name;
+
+    const created = this.db.prepare('SELECT * FROM names WHERE id = ?').get(id) as Name;
+    recordChange('create', 'name', id, null, created, { label: nameLabel(created), person_id: personId });
+    return created;
   }
 
   findNameById(id: string): Name | undefined {
@@ -718,13 +799,19 @@ export class PersonRepository extends BaseRepository {
 
     this.db.prepare(`UPDATE names SET ${fields.join(', ')} WHERE id = ?`).run(...values);
     this.refreshArchiveTitle(existing.person_id);
-    return this.findNameById(nameId);
+
+    const updated = this.findNameById(nameId);
+    recordChange('update', 'name', nameId, existing, updated, { label: nameLabel(updated ?? existing), person_id: existing.person_id });
+    return updated;
   }
 
   deleteName(nameId: string): boolean {
     const existing = this.findNameById(nameId);
     const deleted = this.db.prepare('DELETE FROM names WHERE id = ?').run(nameId).changes > 0;
-    if (deleted && existing) this.refreshArchiveTitle(existing.person_id);
+    if (deleted && existing) {
+      this.refreshArchiveTitle(existing.person_id);
+      recordChange('delete', 'name', nameId, existing, null, { label: nameLabel(existing), person_id: existing.person_id });
+    }
     return deleted;
   }
 
@@ -771,7 +858,10 @@ export class PersonRepository extends BaseRepository {
     role: 'spouse1' | 'spouse2' | 'child';
     spouse1: RelationshipNameSummary | null;
     spouse2: RelationshipNameSummary | null;
-    children: ({ id: string; person_id: string; role: string } & RelationshipNameSummary)[];
+    children: RelationshipChildRow[];
+    step_parents: StepParentGroup[];
+    half_siblings: HalfSiblingGroup[];
+    step_siblings: StepSiblingGroup[];
   }[] {
     const nameSummary = (pid: string | null): RelationshipNameSummary | null => {
       if (!pid) return null;
@@ -788,39 +878,222 @@ export class PersonRepository extends BaseRepository {
       };
     };
 
-    const childMembers = (familyId: string) =>
-      (this.db.prepare(
-        `SELECT fm.id, fm.person_id, fm.role,
+    /* Oldest first. The query had no ORDER BY at all, so children came back in
+       whatever order the table happened to yield -- usually insertion order,
+       which for an imported tree usually is birth order, which is why this
+       looked correct in most families and wrong in the rest.
+
+       Birth date leads. sort_order is the fallback rather than the rule
+       because it only records the order children were entered; a child added
+       years later sits at the end of it whenever they were born. Children with
+       no recorded birth follow the dated ones rather than sorting as year
+       zero. The subquery is used instead of a join so a person with two birth
+       rows cannot duplicate themselves into the list. */
+    const CHILD_ORDER = `ORDER BY
+           (SELECT MIN(e.event_date_sort_key) FROM events e
+             WHERE e.person_id = fm.person_id AND e.event_type = 'birth') IS NULL,
+           (SELECT MIN(e.event_date_sort_key) FROM events e
+             WHERE e.person_id = fm.person_id AND e.event_type = 'birth') ASC,
+           fm.sort_order ASC,
+           fm.id ASC`;
+
+    /* Several families at a time, in one query rather than one call per
+       family, because half-siblings have to be birth-ordered across all of a
+       parent's other unions -- concatenating per-family lists would only sort
+       within each union. */
+    const membersOfFamilies = (familyIds: string[]): RelationshipChildRow[] => {
+      if (familyIds.length === 0) return [];
+      const placeholders = familyIds.map(() => '?').join(', ');
+      return this.db.prepare(
+        `SELECT fm.id, fm.family_id, fm.person_id, fm.role,
           n.prefix, n.given_name, n.middle_name, n.surname, n.suffix
          FROM family_members fm
          LEFT JOIN names n ON n.person_id = fm.person_id AND n.is_primary = 1
-         WHERE fm.family_id = ?`
-      ).all(familyId) as ({ id: string; person_id: string; role: string } & RelationshipNameSummary)[]);
+         WHERE fm.family_id IN (${placeholders})
+         ${CHILD_ORDER}`
+      ).all(...familyIds) as RelationshipChildRow[];
+    };
 
-    const asChild = this.db.prepare(
+    const childMembers = (familyId: string) => membersOfFamilies([familyId]);
+
+    const familiesAsSpouse = (spouseId: string): Family[] =>
+      this.db.prepare(
+        'SELECT * FROM families WHERE spouse1_id = ? OR spouse2_id = ?'
+      ).all(spouseId, spouseId) as Family[];
+
+    const otherSpouseOf = (family: Family, spouseId: string): string | null =>
+      family.spouse1_id === spouseId ? family.spouse2_id : family.spouse1_id;
+
+    /* A `child | adopted | foster` membership says this is the couple's own
+       child; `step` says the opposite -- the child came into the family with
+       one of the spouses. So a `step` row in a parent's later family is not a
+       half-sibling of the subject, it is one of that later spouse's children,
+       which makes it a step-sibling.
+
+       The line is drawn on the parent, not on biology: a child the parent
+       adopted or fostered is the parent's own child and so a half-sibling,
+       the same way an adopted child of the subject's own parents is listed as
+       a sibling and not as something lesser. The role rides along on the row
+       so the page can say which kind it is. */
+    const isOwnChild = (role: string) => role !== 'step';
+
+    /**
+     * The relationships the panel was missing, for one of the subject's child
+     * families.
+     *
+     * Step-parents: the people each parent married apart from the other
+     * parent. Listed even when they brought no children, because the panel
+     * otherwise gives no sign a parent remarried at all.
+     *
+     * Half-siblings: for each parent, the children of that parent's other
+     * unions. A union with the same pair of spouses is skipped -- a couple
+     * recorded twice produces full siblings, not half ones.
+     *
+     * Step-siblings: the children of the person that parent went on to marry,
+     * by someone else. They share no ancestor with the subject, hence the
+     * separate list.
+     *
+     * Dedup runs full -> half -> step, so the closest relationship a person
+     * holds is the one they are listed under and nobody appears twice. Half is
+     * collected for both parents before either step pass, because the passes
+     * are not independent: if the father's later wife had an earlier child by
+     * the subject's own mother, that child is a half-sibling through the
+     * mother, and taking the father's side first would have fixed them as a
+     * step-sibling.
+     */
+    const siblingsBeyondTheFamily = (
+      family: Family,
+      fullSiblings: RelationshipChildRow[]
+    ): { stepParents: StepParentGroup[]; half: HalfSiblingGroup[]; step: StepSiblingGroup[] } => {
+      const stepParents: StepParentGroup[] = [];
+      const half: HalfSiblingGroup[] = [];
+      const step: StepSiblingGroup[] = [];
+      const seen = new Set<string>([personId, ...fullSiblings.map(c => c.person_id)]);
+
+      const parentIds = [family.spouse1_id, family.spouse2_id].filter((p): p is string => !!p);
+
+      /* The unions each parent had apart from this one, read once and shared
+         by both passes. */
+      const sides = parentIds.flatMap(parentId => {
+        const via = nameSummary(parentId);
+        if (!via) return [];
+        const coParentId = otherSpouseOf(family, parentId);
+        const otherUnions = familiesAsSpouse(parentId)
+          .filter(f => f.id !== family.id && !(coParentId && otherSpouseOf(f, parentId) === coParentId))
+          /* Earliest marriage first, undated unions last -- the same shape as
+             the birth-date rule for children. Step-parents are read straight
+             off this list, so its order is the order they are shown in. */
+          .sort((a, b) => {
+            const left = a.marriage_date_sort_key ?? null;
+            const right = b.marriage_date_sort_key ?? null;
+            if (left === right) return 0;
+            if (left === null) return 1;
+            if (right === null) return -1;
+            return left - right;
+          });
+        return otherUnions.length > 0 ? [{ parentId, via, otherUnions }] : [];
+      });
+
+      for (const { parentId, via, otherUnions } of sides) {
+        const people: RelationshipNameSummary[] = [];
+        const added = new Set<string>();
+        for (const union of otherUnions) {
+          const stepParentId = otherSpouseOf(union, parentId);
+          /* A couple can hold more than one union row, and a parent recorded
+             as their own child's spouse is a data error, not a step-parent. */
+          if (!stepParentId || stepParentId === personId || added.has(stepParentId)) continue;
+          const summary = nameSummary(stepParentId);
+          if (!summary) continue;
+          added.add(stepParentId);
+          people.push(summary);
+        }
+        if (people.length > 0) stepParents.push({ via, people });
+      }
+
+      for (const { via, otherUnions } of sides) {
+        const children: RelationshipChildRow[] = [];
+        for (const row of membersOfFamilies(otherUnions.map(f => f.id))) {
+          if (seen.has(row.person_id)) continue;
+          if (!isOwnChild(row.role)) continue;
+          seen.add(row.person_id);
+          children.push(row);
+        }
+        if (children.length > 0) half.push({ via, children });
+      }
+
+      for (const { parentId, via, otherUnions } of sides) {
+        /* Keyed by the step-parent so each later spouse gets their own
+           labelled list; '' covers a union whose other spouse is unrecorded. */
+        const stepByParent = new Map<string, RelationshipChildRow[]>();
+
+        for (const union of otherUnions) {
+          const stepParentId = otherSpouseOf(union, parentId);
+          const key = stepParentId ?? '';
+
+          /* The later spouse's children by someone else, plus anyone recorded
+             in this union as a step-child -- both are children of the spouse
+             and not of the subject's parent. The two sets are read in one
+             query so they interleave by birth date. */
+          const sourceFamilyIds = [union.id];
+          if (stepParentId) {
+            for (const f of familiesAsSpouse(stepParentId)) {
+              if (f.id === union.id) continue;
+              if (f.spouse1_id === parentId || f.spouse2_id === parentId) continue;
+              sourceFamilyIds.push(f.id);
+            }
+          }
+
+          for (const row of membersOfFamilies(sourceFamilyIds)) {
+            if (seen.has(row.person_id)) continue;
+            if (row.family_id === union.id && isOwnChild(row.role)) continue;
+            seen.add(row.person_id);
+            const list = stepByParent.get(key);
+            if (list) list.push(row);
+            else stepByParent.set(key, [row]);
+          }
+        }
+
+        for (const [stepParentId, children] of stepByParent) {
+          if (children.length === 0) continue;
+          step.push({ via, step_parent: stepParentId ? nameSummary(stepParentId) : null, children });
+        }
+      }
+
+      return { stepParents, half, step };
+    };
+
+    const parentFamilies = this.db.prepare(
       'SELECT f.* FROM families f INNER JOIN family_members fm ON f.id = fm.family_id WHERE fm.person_id = ?'
     ).all(personId) as Family[];
 
-    const asSpouse = this.db.prepare(
-      'SELECT * FROM families WHERE spouse1_id = ? OR spouse2_id = ?'
-    ).all(personId, personId) as Family[];
+    const ownFamilies = familiesAsSpouse(personId);
 
     return [
-      ...asChild.map(f => ({
-        family_id: f.id,
-        type: 'child_family' as const,
-        role: 'child' as const,
-        spouse1: nameSummary(f.spouse1_id),
-        spouse2: nameSummary(f.spouse2_id),
-        children: childMembers(f.id),
-      })),
-      ...asSpouse.map(f => ({
+      ...parentFamilies.map(f => {
+        const children = childMembers(f.id);
+        const { stepParents, half, step } = siblingsBeyondTheFamily(f, children);
+        return {
+          family_id: f.id,
+          type: 'child_family' as const,
+          role: 'child' as const,
+          spouse1: nameSummary(f.spouse1_id),
+          spouse2: nameSummary(f.spouse2_id),
+          children,
+          step_parents: stepParents,
+          half_siblings: half,
+          step_siblings: step,
+        };
+      }),
+      ...ownFamilies.map(f => ({
         family_id: f.id,
         type: 'parent_family' as const,
         role: (f.spouse1_id === personId ? 'spouse1' : 'spouse2') as 'spouse1' | 'spouse2',
         spouse1: nameSummary(f.spouse1_id),
         spouse2: nameSummary(f.spouse2_id),
         children: childMembers(f.id),
+        step_parents: [],
+        half_siblings: [],
+        step_siblings: [],
       })),
     ];
   }

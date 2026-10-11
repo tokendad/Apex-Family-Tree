@@ -14,16 +14,9 @@ beforeEach(() => {
 const names = () => screen.getAllByRole('menuitem').map((b) => b.textContent);
 
 describe('ContextMenu — default behaviour is unchanged', () => {
-  it('shows every entry when no page opts out', () => {
+  it('shows the entries that work, and not the ones that do not', () => {
     render(<ContextMenu />);
-    expect(names()).toEqual([
-      'View Details',
-      'Edit Person',
-      'Add Parent',
-      'Add Spouse',
-      'Add Child',
-      'Set as Home Person',
-    ]);
+    expect(names()).toEqual(['View Details', 'Edit Person', 'Add Parent', 'Add Spouse', 'Add Child']);
   });
 
   it('still shows all the add entries when the handlers are supplied', () => {
@@ -36,7 +29,6 @@ describe('ContextMenu — default behaviour is unchanged', () => {
       />,
     );
     expect(names()).toContain('Add Parent');
-    expect(names()).toContain('Set as Home Person');
   });
 });
 
@@ -72,5 +64,31 @@ describe('ContextMenu — View Details', () => {
     render(<ContextMenu onEditPerson={vi.fn()} />);
     fireEvent.click(screen.getByRole('menuitem', { name: 'Edit Person' }));
     expect(useCanvasStore.getState().contextMenuPosition).toBeNull();
+  });
+});
+
+describe('ContextMenu — entries that used to do nothing', () => {
+  // Both cases were empty `break`s with no prop to supply them, so the menu
+  // offered a Set as Home Person that did not and a red Delete Person that
+  // did not. On a phone, where a long press raises this menu, Delete sat
+  // under the thumb.
+  it('offers Set as Home Person only when a page can do it', () => {
+    render(<ContextMenu />);
+    expect(screen.queryByRole('menuitem', { name: 'Set as Home Person' })).not.toBeInTheDocument();
+
+    render(<ContextMenu onSetHomePerson={vi.fn()} />);
+    expect(screen.getAllByRole('menuitem', { name: 'Set as Home Person' })).toHaveLength(1);
+  });
+
+  it('calls back with the person when Set as Home Person is chosen', () => {
+    const onSetHomePerson = vi.fn();
+    render(<ContextMenu onSetHomePerson={onSetHomePerson} />);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Set as Home Person' }));
+    expect(onSetHomePerson).toHaveBeenCalledWith('p1');
+  });
+
+  it('never shows Delete Person, because deleting is not built', () => {
+    render(<ContextMenu onEditPerson={vi.fn()} onSetHomePerson={vi.fn()} />);
+    expect(screen.queryByRole('menuitem', { name: 'Delete Person' })).not.toBeInTheDocument();
   });
 });

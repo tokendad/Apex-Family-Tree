@@ -8,8 +8,26 @@ import { MediaRepository } from '../repositories/MediaRepository.js';
 import { PersonRepository } from '../repositories/PersonRepository.js';
 import { SourceRepository } from '../repositories/SourceRepository.js';
 import { getMediaPath } from '../services/init.js';
+import { recordBulk } from '../services/audit.js';
+import { runWithFlags } from '../services/requestContext.js';
+import { backfillThumbnails, ensureThumbnail, THUMBNAIL_MIME } from '../services/thumbnails.js';
+import { createLogger } from '../services/logger.js';
 
 export const mediaRouter = Router();
+
+const uploadLogger = createLogger();
+
+/**
+ * A thumbnail's own type, which is not the original's -- the generator writes
+ * WebP whatever went in. Derived from the extension because media_items has
+ * only one mime_type column, describing the original.
+ */
+function thumbnailMimeFor(thumbnailPath: string): string {
+  const ext = path.extname(thumbnailPath).toLowerCase();
+  if (ext === '.webp') return THUMBNAIL_MIME;
+  if (ext === '.png') return 'image/png';
+  return 'image/jpeg';
+}
 
 function paramStr(val: string | string[]): string {
   return Array.isArray(val) ? val[0] : val;
@@ -142,7 +160,21 @@ mediaRouter.post(
       if (family_id) repo.linkToFamily(media.id, family_id);
       if (event_id) repo.linkToEvent(media.id, event_id);
 
-      res.status(201).json(media);
+      // Generated before responding, so the gallery the client re-renders
+      // straight after the upload already has a small file to show. A failure
+      // is logged and ignored: the upload itself succeeded, the card falls
+      // back to the original, and the startup backfill will try again.
+      ensureThumbnail(media)
+        .then((outcome) => {
+          if (outcome === 'failed') {
+            uploadLogger.warn(`Thumbnail generation failed for media ${media.id}`);
+          }
+          res.status(201).json(repo.findById(media.id) ?? media);
+        })
+        .catch((error) => {
+          uploadLogger.error(`Thumbnail generation errored for media ${media.id}:`, error);
+          res.status(201).json(media);
+        });
     } catch {
       res.status(500).json({ error: 'Failed to upload media' });
     }
@@ -157,11 +189,24 @@ mediaRouter.post(
     try {
       const repo = new MediaRepository();
       const mediaPath = process.env.MEDIA_PATH || getMediaPath();
-      const result = repo.scanDirectory(mediaPath);
+      // One entry for the scan, not one per file it imported.
+      const result = runWithFlags({ bulkSource: 'scan' }, () => repo.scanDirectory(mediaPath));
+
+      recordBulk('scan', 'media', null, { path: mediaPath, ...result });
+
       res.json({
         message: `Scan complete: ${result.added} added, ${result.relinked} relinked, ${result.removed} removed, ${result.skipped} skipped`,
         ...result,
       });
+
+      // Scanned rows arrive with thumbnail_path NULL, so without this a
+      // dropped-in photograph would serve its full-size original to every card
+      // until the next restart. Deliberately not awaited: a first scan of a
+      // large library plus sequential decodes would hold the response open
+      // past any sensible timeout. Idempotent, so it only touches the new rows.
+      void backfillThumbnails(uploadLogger).catch((error) =>
+        uploadLogger.error('Thumbnail generation after scan failed:', error),
+      );
     } catch {
       res.status(500).json({ error: 'Failed to scan media directory' });
     }
@@ -349,6 +394,41 @@ mediaRouter.delete(
     }
   },
 );
+
+// GET /media/:id/thumbnail — Serve a card-sized version of a media item
+//
+// Declared before GET /:id so Express does not match "thumbnail" as an id.
+// Falls back to the original whenever no thumbnail exists or its file has gone
+// missing, so a gallery tile is never blank while the backfill catches up.
+mediaRouter.get('/:id/thumbnail', (req, res) => {
+  try {
+    const repo = new MediaRepository();
+    const media = repo.findById(paramStr(req.params.id));
+    if (!media) {
+      res.status(404).json({ error: 'Media not found' });
+      return;
+    }
+
+    const thumb = media.thumbnail_path?.trim();
+    if (thumb && fs.existsSync(thumb)) {
+      res.setHeader('Content-Type', thumbnailMimeFor(thumb));
+      res.setHeader('Content-Disposition', 'inline');
+      res.sendFile(path.resolve(thumb));
+      return;
+    }
+
+    if (!fs.existsSync(media.file_path)) {
+      res.status(404).json({ error: 'Media file not found on disk' });
+      return;
+    }
+
+    res.setHeader('Content-Type', media.mime_type);
+    res.setHeader('Content-Disposition', `inline; filename="${media.original_filename}"`);
+    res.sendFile(path.resolve(media.file_path));
+  } catch {
+    res.status(500).json({ error: 'Failed to serve media thumbnail' });
+  }
+});
 
 // GET /media/:id — Serve media file
 mediaRouter.get('/:id', (req, res) => {

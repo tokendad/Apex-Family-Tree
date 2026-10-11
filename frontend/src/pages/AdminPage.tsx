@@ -23,6 +23,14 @@ export default function AdminPage() {
             Configure application settings, SMTP email, and feature flags for your instance.
           </p>
         </Link>
+
+        <Link to="/admin/audit" className={styles.card}>
+          <div className={styles.cardIcon}>📋</div>
+          <h2 className={styles.cardTitle}>Audit Log</h2>
+          <p className={styles.cardDesc}>
+            See every change to the archive: what changed, who changed it, and what the change was.
+          </p>
+        </Link>
       </div>
     </div>
   );

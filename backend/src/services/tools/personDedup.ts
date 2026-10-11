@@ -551,6 +551,60 @@ function moveMedia(canonicalPersonId: string, duplicateIds: string[]) {
   }
 }
 
+/**
+ * Carry a duplicate's archive-model memberships over to the surviving person.
+ *
+ * Relationships record their members as archive_objects, and nothing links
+ * relationship_members back to persons -- so deleting a duplicate used to
+ * leave its memberships behind pointing at an archive object for a person who
+ * no longer existed. One such ghost was found in this tree: "Alta Lefort",
+ * still listed as a child of Gustave and Mabel's union long after the merge
+ * that removed her. 063 cleaned that up and added a trigger that now sweeps
+ * such rows away on delete, but sweeping them away loses them; moving them
+ * first is what makes a merge inherit the duplicate's relationships, which is
+ * what a merge is supposed to do.
+ *
+ * Re-pointed one row at a time rather than with a bulk UPDATE, because
+ * relationship_members is UNIQUE on (relationship_id, object_id, role): where
+ * the canonical person is already a member in that role -- both halves of a
+ * duplicate pair sitting in the same family union, say -- the update would
+ * collide, so the duplicate's row is simply dropped instead.
+ */
+function moveArchiveMemberships(canonicalPersonId: string, duplicateIds: string[]) {
+  const db = getDatabase();
+  if (!tableExists('relationship_members')) return;
+
+  const placeholders = duplicateIds.map(() => '?').join(',');
+  const memberships = db.prepare(`
+    SELECT id, relationship_id, role
+    FROM relationship_members
+    WHERE object_id IN (${placeholders})
+  `).all(...duplicateIds) as Array<{ id: string; relationship_id: string; role: string }>;
+
+  for (const membership of memberships) {
+    const taken = db.prepare(`
+      SELECT 1 FROM relationship_members
+      WHERE relationship_id = ? AND object_id = ? AND role = ?
+    `).get(membership.relationship_id, canonicalPersonId, membership.role);
+
+    if (taken) {
+      db.prepare('DELETE FROM relationship_members WHERE id = ?').run(membership.id);
+    } else {
+      db.prepare('UPDATE relationship_members SET object_id = ? WHERE id = ?')
+        .run(canonicalPersonId, membership.id);
+    }
+  }
+
+  // The archive object itself goes with the person. The trigger added in 063
+  // would catch this too, but doing it here keeps the merge self-contained.
+  if (tableExists('archive_objects')) {
+    db.prepare(`
+      DELETE FROM archive_objects
+      WHERE object_type = 'person' AND id IN (${placeholders})
+    `).run(...duplicateIds);
+  }
+}
+
 function moveDirectReferences(canonicalPersonId: string, duplicateIds: string[]) {
   const db = getDatabase();
   db.prepare(`
@@ -589,6 +643,7 @@ export function applyPeopleMerge(input: PeopleMergeInput): PeopleMergeResult {
     moveFamilies(input.canonicalPersonId, duplicateIds);
     moveDirectReferences(input.canonicalPersonId, duplicateIds);
     moveMedia(input.canonicalPersonId, duplicateIds);
+    moveArchiveMemberships(input.canonicalPersonId, duplicateIds);
     db.prepare(`DELETE FROM persons WHERE id IN (${duplicateIds.map(() => '?').join(',')})`).run(...duplicateIds);
   });
 

@@ -31,10 +31,24 @@ interface ArtifactRecord {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  files?: ArtifactFile[];
 }
 
-interface ArtifactType { id: string; name: string }
-interface EvidenceClassification { id: string; name: string }
+/** A file belonging to the artifact; 'primary' is the one shown. */
+interface ArtifactFile {
+  id: string;
+  file_role: string;
+  storage_path: string;
+  original_filename: string | null;
+  mime_type: string | null;
+  size_bytes: number | null;
+}
+
+/* The descriptions come back from the same endpoints; showing the one that is
+   actually selected answers "which of these do I pick?" where the question is
+   asked, rather than only on the Glossary page (#17). */
+interface ArtifactType { id: string; name: string; description?: string | null }
+interface EvidenceClassification { id: string; name: string; description?: string | null }
 
 interface RelationshipRole {
   role: string;
@@ -151,6 +165,84 @@ const DetailRow: React.FC<{ label: string; value: string | null }> = ({ label, v
     <strong>{value || '—'}</strong>
   </div>
 );
+
+/** Human-readable file size for the download affordance. */
+function formatBytes(bytes: number | null): string | null {
+  if (bytes === null || bytes <= 0) return null;
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${value < 10 && unit > 0 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
+}
+
+/**
+ * The artifact's own file — the thing the page is about.
+ *
+ * Served from artifact_files via GET /artifacts/:id/file rather than from the
+ * media endpoint: every artifact has an artifact_files row by construction,
+ * while the overlap with media_items is an accident of the bridge migrations
+ * and is not maintained (#22).
+ *
+ * An image is shown in place. Anything else gets a download link, because the
+ * archive is expected to hold PDFs and other documents even though every file
+ * in it today is a JPEG.
+ */
+const ArtifactFileView: React.FC<{ artifact: ArtifactRecord }> = ({ artifact }) => {
+  const [failed, setFailed] = useState(false);
+
+  const file = artifact.files?.find((f) => f.file_role === 'primary') ?? artifact.files?.[0];
+  if (!file) {
+    return (
+      <section className={styles.detailCard}>
+        <p className={styles.muted}>No file is attached to this artifact.</p>
+      </section>
+    );
+  }
+
+  const href = `/api/v1/artifacts/${artifact.id}/file`;
+  const isImage = (file.mime_type ?? '').startsWith('image/');
+  const name = file.original_filename ?? artifact.title;
+  const size = formatBytes(file.size_bytes);
+
+  if (isImage && !failed) {
+    return (
+      <section className={styles.detailCard}>
+        <a href={href} target="_blank" rel="noopener noreferrer">
+          <img
+            className={styles.artifactImage}
+            src={href}
+            alt={artifact.title}
+            onError={() => setFailed(true)}
+          />
+        </a>
+        <p className={styles.muted}>
+          {name}
+          {size ? ` · ${size}` : ''}
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className={styles.detailCard}>
+      <p>
+        <a href={href} target="_blank" rel="noopener noreferrer">
+          {failed ? 'Download file' : `Download ${name}`}
+        </a>
+        {size ? <span className={styles.muted}> · {size}</span> : null}
+      </p>
+      {failed && (
+        <p className={styles.muted}>
+          The image could not be displayed. It may be missing from disk.
+        </p>
+      )}
+    </section>
+  );
+};
 
 const ArtifactDetailPage: React.FC = () => {
   const { id } = useParams();
@@ -435,6 +527,10 @@ const ArtifactDetailPage: React.FC = () => {
                       <select value={form.artifact_type_id} onChange={(e) => setForm({ ...form, artifact_type_id: e.target.value })} required>
                         {artifactTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
                       </select>
+                      <span className={styles.fieldHint}>
+                        {artifactTypes.find((type) => type.id === form.artifact_type_id)?.description
+                          ?? 'What the item is, not what it proves.'}
+                      </span>
                     </label>
                     <label className={styles.field}>
                       <span>Evidence Classification</span>
@@ -442,6 +538,12 @@ const ArtifactDetailPage: React.FC = () => {
                         <option value="">None yet</option>
                         {evidenceClassifications.map((classification) => <option key={classification.id} value={classification.id}>{classification.name}</option>)}
                       </select>
+                      <span className={styles.fieldHint}>
+                        {evidenceClassifications.find((c) => c.id === form.evidence_classification_id)?.description
+                          ?? 'How much authority this carries as evidence. Optional.'}
+                        {' '}
+                        <Link to="/glossary#evidence">What do these mean?</Link>
+                      </span>
                     </label>
                     <label className={styles.field}>
                       <span>Privacy</span>
@@ -465,6 +567,8 @@ const ArtifactDetailPage: React.FC = () => {
                   </div>
                 </form>
               ) : (
+                <>
+                <ArtifactFileView artifact={artifact} />
                 <section className={styles.detailCard}>
                   <DetailRow label="Artifact Type" value={artifact.artifact_type_name} />
                   <DetailRow label="Evidence Classification" value={artifact.evidence_classification_name} />
@@ -474,6 +578,7 @@ const ArtifactDetailPage: React.FC = () => {
                   <DetailRow label="Privacy" value={artifact.privacy_level} />
                   <DetailRow label="Notes" value={artifact.notes} />
                 </section>
+                </>
               ))}
 
               {activeTab === 'connections' && (

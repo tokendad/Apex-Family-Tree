@@ -66,7 +66,9 @@ describe('DetailPanel', () => {
     render(<DetailPanel onEditPerson={vi.fn()} />);
 
     const thumb = await screen.findByRole('img', { name: 'Grandpa funeral' });
-    expect(thumb).toHaveAttribute('src', '/api/v1/media/media-1');
+    // /thumbnail, which serves the generated card-sized copy where one exists
+    // and the original where it does not.
+    expect(thumb).toHaveAttribute('src', '/api/v1/media/media-1/thumbnail');
     expect(screen.queryByText('No media')).not.toBeInTheDocument();
   });
 

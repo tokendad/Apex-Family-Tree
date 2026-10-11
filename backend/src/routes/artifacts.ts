@@ -1,8 +1,12 @@
-import { Router } from 'express';
+import fs from 'fs';
+import path from 'path';
+import { Router, type Response } from 'express';
 import { requireRole } from '../middleware/auth.js';
+import { recordChange } from '../services/audit.js';
 import { validate } from '../middleware/validate.js';
 import { ArtifactRepository } from '../repositories/ArtifactRepository.js';
 import type { ArchivePrivacyLevel } from '../types/archive.js';
+import type { ArtifactFile } from '../types/artifact.js';
 
 export const artifactsRouter = Router();
 
@@ -84,6 +88,107 @@ artifactsRouter.get('/', (req, res) => {
     res.json(repo.findAll({ limit, cursor, search, typeId }));
   } catch {
     res.status(500).json({ error: 'Failed to list artifacts' });
+  }
+});
+
+// Stream one artifact_files row to the client, or answer with why it cannot.
+// Shared by /file and /thumbnail so the two never drift on disposition or on
+// how a missing file is reported.
+function sendArtifactFile(res: Response, file: ArtifactFile): void {
+  if (file.storage_provider !== 'local') {
+    res.status(501).json({ error: `Unsupported storage provider: ${file.storage_provider}` });
+    return;
+  }
+
+  const absolute = path.resolve(file.storage_path);
+  if (!fs.existsSync(absolute)) {
+    res.status(404).json({ error: 'Artifact file not found on disk' });
+    return;
+  }
+
+  const mime = file.mime_type ?? 'application/octet-stream';
+  // Images are shown in place; anything else is offered as a download, since
+  // a browser asked to render an unknown type inline will either prompt
+  // anyway or display bytes.
+  const disposition = mime.startsWith('image/') ? 'inline' : 'attachment';
+  const filename = (file.original_filename ?? path.basename(absolute)).replace(/"/g, '');
+
+  res.setHeader('Content-Type', mime);
+  res.setHeader('Content-Disposition', `${disposition}; filename="${filename}"`);
+  res.sendFile(absolute);
+}
+
+// GET /artifacts/:id/file — Serve the artifact's primary file
+//
+// Served from artifact_files rather than by reusing GET /media/:id. Every
+// artifact has an artifact_files row by construction; the overlap with
+// media_items is an artefact of how migrations 045 and 061 built the bridge
+// (they reused the media id as the artifact id) and nothing maintains it. An
+// artifact created by any other route would have no media row and would be
+// permanently blank here. See #22.
+//
+// Access control is the same as the media endpoint's: none of its own. Both sit
+// behind requireAuth, applied to everything under /v1 in api.ts. This does not
+// consult the artifact's privacy_level -- no endpoint in this archive does yet.
+artifactsRouter.get('/:id/file', (req, res) => {
+  try {
+    const repo = new ArtifactRepository();
+    const id = paramStr(req.params.id);
+
+    const artifact = repo.findById(id);
+    if (!artifact) {
+      res.status(404).json({ error: 'Artifact not found' });
+      return;
+    }
+
+    const file = repo.findPrimaryFile(id);
+    if (!file) {
+      // The artifact exists but carries no primary file. Distinguished from a
+      // missing artifact so the page can say which is wrong.
+      res.status(404).json({ error: 'Artifact has no primary file' });
+      return;
+    }
+
+    sendArtifactFile(res, file);
+  } catch {
+    res.status(500).json({ error: 'Failed to serve artifact file' });
+  }
+});
+
+// GET /artifacts/:id/thumbnail — Serve a card-sized version of the artifact
+//
+// Falls back to the primary file when no thumbnail has been generated, so a
+// card is never blank merely because the backfill has not reached that row.
+// The fallback is the whole reason this is a separate path from /file: the
+// Artifacts grid can point every card here and get the small file where one
+// exists without having to know which rows have one.
+artifactsRouter.get('/:id/thumbnail', (req, res) => {
+  try {
+    const repo = new ArtifactRepository();
+    const id = paramStr(req.params.id);
+
+    const artifact = repo.findById(id);
+    if (!artifact) {
+      res.status(404).json({ error: 'Artifact not found' });
+      return;
+    }
+
+    const thumbnail = repo.findThumbnailFile(id);
+    // A recorded thumbnail whose file has gone missing falls through to the
+    // original rather than 404ing; the startup backfill regenerates it.
+    const usable =
+      thumbnail && thumbnail.storage_provider === 'local' && fs.existsSync(path.resolve(thumbnail.storage_path))
+        ? thumbnail
+        : repo.findPrimaryFile(id);
+
+    if (!usable) {
+      res.status(404).json({ error: 'Artifact has no primary file' });
+      return;
+    }
+
+    sendArtifactFile(res, usable);
+  } catch {
+    res.status(500).json({ error: 'Failed to serve artifact file' });
   }
 });
 
@@ -213,7 +318,9 @@ artifactsRouter.delete(
   (req, res) => {
     try {
       const repo = new ArtifactRepository();
+      const before = repo.findById(paramStr(req.params.id));
       const deleted = repo.delete(paramStr(req.params.id), req.user?.userId ?? null);
+      if (deleted) recordChange('delete', 'artifact', paramStr(req.params.id), before, null, { label: before?.title });
       if (!deleted) {
         res.status(404).json({ error: 'Artifact not found' });
         return;

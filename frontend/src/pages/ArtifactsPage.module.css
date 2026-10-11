@@ -81,6 +81,22 @@
   overflow-y: auto;
   /* Without this a short list stretches its rows to fill the scroll area. */
   align-content: start;
+  /*
+   * Size rows to their content.
+   *
+   * This grid is a flex item with flex: 1, which gives it a definite height,
+   * and it is its own scroll container. Without this, the grid shares that
+   * definite height out across its rows instead of letting them grow: with
+   * six cards in one column each row was clamped to 77px while the card
+   * needed 134px, so headings spilled out of their boxes and painted over
+   * the cards below. Measured: 6 x 77px + 5 x 16px gap came to exactly the
+   * grid's height.
+   *
+   * It only showed on a phone. At desktop width the grid has several columns,
+   * so there are few enough rows that each one's equal share already exceeds
+   * the content (#27).
+   */
+  grid-auto-rows: max-content;
 }
 
 .card,
@@ -95,17 +111,46 @@
 }
 
 .card {
-  display: block;
+  /*
+   * A flex column rather than a plain block. The card is an <a>, and an
+   * anchor whose display is lost for any reason reverts to inline, at which
+   * point its block children escape the border box and paint over the cards
+   * beneath -- which is what the sources list did on a phone (#27). A flex
+   * container cannot do that: its children are always laid out inside it.
+   */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 0;
   padding: var(--space-4);
   color: inherit;
   text-decoration: none;
-  transition: border-color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
-.card:hover {
-  border-color: var(--color-primary-400);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
+/*
+ * Hover lift, on pointing devices only.
+ *
+ * On a touch screen :hover latches after a tap, so the transform stayed
+ * applied and promoted the card to its own compositing layer inside the
+ * scrolling grid. Chrome on Android then repainted the card's border but not
+ * the promoted text, leaving headings painted at a stale scroll offset on top
+ * of the cards below -- the sources list "overlap" (#27). It was never a
+ * layout fault, which is why nothing in the box model explained it and why
+ * switching to desktop mode, forcing a full repaint, appeared to fix it.
+ *
+ * A hover lift is meaningless on touch regardless.
+ */
+@media (hover: hover) and (pointer: fine) {
+  .card {
+    transition: border-color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+  }
+
+  .card:hover {
+    border-color: var(--color-primary-400);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
 }
 
 .card h2 {
@@ -116,10 +161,28 @@
 .card p {
   margin: 0 0 var(--space-3);
   color: var(--color-text-secondary);
+  /*
+   * Source notes in particular can run to a full paragraph -- a marriage
+   * return's note describes both towns' filings. At phone width those long
+   * notes made the cards overlap each other (#27). Clamping keeps the list
+   * scannable and the full text is on the source's own page.
+   */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/* Long unbroken strings in a card heading must not widen the grid column. */
+.card h2 {
+  overflow-wrap: anywhere;
 }
 
 .cardType {
   display: inline-flex;
+  align-self: flex-start;
   width: fit-content;
   padding: 0.15rem 0.5rem;
   border-radius: var(--radius-full);
@@ -482,4 +545,80 @@
   display: flex;
   align-items: flex-start;
   gap: var(--space-3);
+}
+
+/*
+ * On a phone, let the page scroll rather than an inner pane.
+ *
+ * .page is a fixed-height flex column and .grid is the scrolling part, which
+ * works while the header is short. The artifact type filter is seventeen pills
+ * that wrap to seven rows on a narrow screen, and header + filter then consume
+ * the whole viewport: the grid's flex-basis of 0 leaves it 26px, too little
+ * for a card or even the "no artifacts yet" message, and because the AppShell
+ * is overflow:hidden there is nothing to scroll to reach it. The page looked
+ * empty while the API was returning 49 rows (#13, #27).
+ *
+ * Making .page the scroll container and letting .grid take its natural height
+ * keeps everything reachable.
+ */
+@media (max-width: 768px) {
+  .page {
+    height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .grid {
+    flex: none;
+    overflow-y: visible;
+  }
+}
+
+/* The artifact's own file on its detail page. Capped by viewport height so a
+   tall scan does not push the metadata off the screen, and object-fit: contain
+   because a document must not be cropped the way a card thumbnail can be. */
+.artifactImage {
+  display: block;
+  width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  background: var(--color-bg-app);
+  border-radius: var(--radius-md);
+}
+
+/* Thumbnail on a list card. Cropped to a band -- unlike the detail page, where
+   the file must not be cropped -- because here it only has to be recognisable.
+   Hidden by its own onError when an artifact has no servable file, so a card
+   without one simply reads as it did before. */
+.cardThumb {
+  display: block;
+  width: 100%;
+  height: 170px;
+  margin-bottom: var(--space-3);
+  /* contain, not cover. A studio portrait is tall -- the generated thumbnails
+     are around 640x930 -- and cover scales it to fill a landscape box, which
+     threw away more than half its height and sliced the face off at the
+     forehead and chin. A catalogue thumbnail has to show what the photograph
+     is, so the whole frame is fitted inside the box and the background shows
+     in the margin. 170px rather than 140 so a portrait fitted by its height
+     is still big enough to recognise. */
+  object-fit: contain;
+  background: var(--color-bg-app);
+  border-radius: var(--radius-md);
+  /* Inset within the card's padding rather than bled to its edges: .card sets
+     no overflow, so a full-bleed image would paint outside the wrapper's
+     rounded corners. */
+}
+
+/* Explains the lookup the user is choosing from, at the point of choosing it
+   (#17). The text is the selected value's own description, read from the same
+   endpoint the Glossary uses, so the two cannot drift apart. */
+.fieldHint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+}
+
+.fieldHint a {
+  color: var(--color-primary-600);
 }

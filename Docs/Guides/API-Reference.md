@@ -294,15 +294,54 @@ Delete a person (soft delete).
 
 ### `GET /api/v1/people/:id/relationships`
 
-Get all relationships for a person (parents, spouses, children).
+Get the families a person belongs to — one entry per family, as a child
+(`child_family`) and as a spouse (`parent_family`). Children are listed oldest
+first, by birth date where one is recorded.
+
+A `child_family` entry also carries the relatives the family itself does not
+hold: `step_parents` groups the people each parent married apart from the other
+parent, `half_siblings` the children of one parent by someone else, and
+`step_siblings` the children of that parent's spouse by someone else. Each group
+names the parent the connection runs through, because with both parents
+remarried an unlabelled list cannot be read. All three are empty on a
+`parent_family` entry.
+
+Step-parents are listed even when they brought no children of their own, and
+are ordered earliest marriage first with undated unions last.
+
+Every child row carries its `role` — `child`, `adopted`, `foster` or `step`.
 
 **Response:** `200 OK`
 ```json
-{
-  "parents": [...],
-  "spouses": [...],
-  "children": [...]
-}
+[
+  {
+    "family_id": "fam-1",
+    "type": "child_family",
+    "role": "child",
+    "spouse1": { "id": "per-2", "given_name": "Raymond", "surname": "LeFort" },
+    "spouse2": { "id": "per-3", "given_name": "Eunice", "surname": "LeFort" },
+    "children": [
+      { "id": "fm-1", "family_id": "fam-1", "person_id": "per-1", "role": "child",
+        "given_name": "Raymond", "surname": "LeFort" }
+    ],
+    "step_parents": [
+      {
+        "via": { "id": "per-2", "given_name": "Raymond", "surname": "LeFort" },
+        "people": [{ "id": "per-8", "given_name": "Betty", "surname": "Mercier" }]
+      }
+    ],
+    "half_siblings": [
+      {
+        "via": { "id": "per-2", "given_name": "Raymond", "surname": "LeFort" },
+        "children": [
+          { "id": "fm-4", "family_id": "fam-2", "person_id": "per-9", "role": "child",
+            "given_name": "Harold", "surname": "Blake" }
+        ]
+      }
+    ],
+    "step_siblings": []
+  }
+]
 ```
 
 ---

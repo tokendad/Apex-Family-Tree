@@ -1,4 +1,5 @@
 import { BaseRepository } from './base.js';
+import { recordChange } from '../services/audit.js';
 import { ArchiveObjectRepository } from './ArchiveObjectRepository.js';
 import type { Event } from '../types/db.js';
 import { parseGedcomDate } from '../utils/gedcom-date.js';
@@ -51,17 +52,16 @@ export class EventRepository extends BaseRepository {
 
   findTimelineByPerson(personId: string): Event[] {
     const baseEvents = this.findByPerson(personId);
+    // Only families this person is a spouse in. family_members holds the
+    // children -- its role vocabulary is child/adopted/foster/step -- so
+    // including it put a couple's marriage, divorce and anniversary on each of
+    // their children's timelines, with Edit and Delete beside them as though
+    // the child owned the event.
     const familyRows = this.db.prepare(`
       SELECT DISTINCT f.id
       FROM families f
       WHERE f.spouse1_id = ? OR f.spouse2_id = ?
-         OR EXISTS (
-           SELECT 1
-           FROM family_members fm
-           WHERE fm.family_id = f.id
-             AND fm.person_id = ?
-         )
-    `).all(personId, personId, personId) as { id: string }[];
+    `).all(personId, personId) as { id: string }[];
 
     const familyIds = familyRows.map((row) => row.id);
     const familyEvents = familyIds.length === 0
@@ -129,7 +129,10 @@ export class EventRepository extends BaseRepository {
     });
 
     createEvent();
-    return this.findById(id)!;
+
+    const created = this.findById(id)!;
+    recordChange('create', 'event', id, null, created, { label: this.auditLabel(created) });
+    return created;
   }
 
   syncFamilyEvent(
@@ -185,6 +188,8 @@ export class EventRepository extends BaseRepository {
 
     if (fields.length === 0) return this.findById(id);
 
+    const before = this.findById(id);
+
     fields.push('updated_at = ?');
     values.push(this.now());
     values.push(id);
@@ -201,10 +206,15 @@ export class EventRepository extends BaseRepository {
     });
 
     updateEvent();
-    return this.findById(id);
+
+    const after = this.findById(id);
+    recordChange('update', 'event', id, before, after, { label: this.auditLabel(after ?? before) });
+    return after;
   }
 
   delete(id: string): boolean {
+    const before = this.findById(id);
+
     const deleteEvent = this.db.transaction(() => {
       if (this.hasArchiveObjectsTable()) {
         this.db.prepare('DELETE FROM archive_objects WHERE id = ?').run(id);
@@ -212,7 +222,16 @@ export class EventRepository extends BaseRepository {
       return this.db.prepare('DELETE FROM events WHERE id = ?').run(id).changes > 0;
     });
 
-    return deleteEvent();
+    const deleted = deleteEvent();
+    // One entry for the event; the archive_objects row goes with it and is not
+    // a separate thing anyone chose to delete.
+    if (deleted) recordChange('delete', 'event', id, before, null, { label: this.auditLabel(before) });
+    return deleted;
+  }
+
+  /** Reuses the archive title, so the log reads the way the record does. */
+  private auditLabel(event?: { event_type: string; event_date?: string | null } | null): string | null {
+    return event ? this.eventTitle(event.event_type, event.event_date ?? null) : null;
   }
 
   private eventTitle(eventType: string, eventDate?: string | null): string {

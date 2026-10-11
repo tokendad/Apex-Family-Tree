@@ -143,10 +143,15 @@
   outline: none;
 }
 
-.thumbCard:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-  border-color: var(--color-primary-400);
+/* Hover lift on pointing devices only: on touch :hover latches, and the
+   transform promotes the element to its own compositing layer inside a
+   scrolling list, where Chrome on Android can leave stale paint (#27). */
+@media (hover: hover) and (pointer: fine) {
+  .thumbCard:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--color-primary-400);
+  }
 }
 
 .thumbCard:focus-visible {

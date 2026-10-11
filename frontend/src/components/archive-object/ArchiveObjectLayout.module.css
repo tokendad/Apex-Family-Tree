@@ -108,6 +108,7 @@
 .tabs {
   display: flex;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   background: var(--color-bg-secondary);
   border-bottom: 1px solid var(--color-border);
 }
@@ -119,6 +120,9 @@
   color: var(--color-text-secondary);
   padding: var(--space-4) var(--space-5);
   white-space: nowrap;
+  /* Same fault as the primary nav (#27): without this the tabs compress and
+     their nowrap text spills into each other -- "OvervieWeople(2)imeline". */
+  flex-shrink: 0;
 }
 
 .tabActive {
@@ -240,6 +244,16 @@
   .identity {
     padding: var(--space-4);
     gap: var(--space-3);
+    /* Stack rather than sitting beside the title. A union name such as
+       "Kenneth J Boyce + Eunice Louise Lagor" wraps to three lines at this
+       width and collided with the avatar (#27). */
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+  }
+
+  .identityText h1 {
+    font-size: clamp(1.5rem, 7vw, 2rem);
+    line-height: 1.15;
   }
 
   .avatar {

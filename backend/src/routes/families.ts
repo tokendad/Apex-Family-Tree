@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { EventRepository } from '../repositories/EventRepository.js';
+import { runWithFlags } from '../services/requestContext.js';
 import { FamilyRepository } from '../repositories/FamilyRepository.js';
 import { PersonRepository } from '../repositories/PersonRepository.js';
 
@@ -35,15 +36,26 @@ function syncFamilyLifecycleEvents(
     divorce_description?: string | null;
   },
 ) {
-  eventRepo.syncFamilyEvent(familyId, 'marriage', {
-    event_date: payload.marriage_date,
-    event_place: payload.marriage_place,
-    description: payload.marriage_description,
-  });
-  eventRepo.syncFamilyEvent(familyId, 'divorce', {
-    event_date: payload.divorce_date,
-    event_place: payload.divorce_place,
-    description: payload.divorce_description,
+  /* These events mirror the family row; nobody edited them directly. Without
+     the flag, one PUT /families/:id would log a family change and then two
+     more for the marriage and divorce events it regenerated, and the log would
+     read as three separate edits by three separate decisions.
+
+     The consequence is deliberate: changing a marriage place through the
+     family shows as `family: marriage_place old -> new`, and the matching
+     event row moves silently. That is the right record of what the person
+     did. Do not "fix" this by removing the flag. */
+  runWithFlags({ inSync: true }, () => {
+    eventRepo.syncFamilyEvent(familyId, 'marriage', {
+      event_date: payload.marriage_date,
+      event_place: payload.marriage_place,
+      description: payload.marriage_description,
+    });
+    eventRepo.syncFamilyEvent(familyId, 'divorce', {
+      event_date: payload.divorce_date,
+      event_place: payload.divorce_place,
+      description: payload.divorce_description,
+    });
   });
 }
 

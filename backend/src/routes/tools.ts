@@ -1,5 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { requireRole } from '../middleware/auth.js';
+import { recordBulk } from '../services/audit.js';
+import { runWithFlags } from '../services/requestContext.js';
 import {
   applyPeopleMerge,
   previewPeopleMerge,
@@ -17,13 +19,18 @@ import {
 
 export const toolsRouter = Router();
 
-const editorOnly = requireRole('admin', 'editor');
+/* Admin only, router-wide. These are the bulk operations: the dedup tool
+   rewrites and merges person records, and a scan rebuilds the issue set. The
+   read-only summary is guarded with them rather than left open, so the
+   boundary is the whole section and not a list of endpoints to keep in step --
+   TreePage degrades to hiding its issue badge when it cannot read the count. */
+toolsRouter.use(requireRole('admin'));
 
 function paramStr(val: string | string[]): string {
   return Array.isArray(val) ? val[0] : val;
 }
 
-toolsRouter.get('/people-dedup/scan', editorOnly, (_req: Request, res: Response) => {
+toolsRouter.get('/people-dedup/scan', (_req: Request, res: Response) => {
   try {
     res.json(scanPeopleDuplicates());
   } catch (error) {
@@ -31,7 +38,7 @@ toolsRouter.get('/people-dedup/scan', editorOnly, (_req: Request, res: Response)
   }
 });
 
-toolsRouter.post('/people-dedup/preview', editorOnly, (req: Request, res: Response) => {
+toolsRouter.post('/people-dedup/preview', (req: Request, res: Response) => {
   try {
     const input = req.body as PeopleMergeInput;
     if (!input?.canonicalPersonId) {
@@ -48,7 +55,7 @@ toolsRouter.post('/people-dedup/preview', editorOnly, (req: Request, res: Respon
   }
 });
 
-toolsRouter.post('/people-dedup/apply', editorOnly, (req: Request, res: Response) => {
+toolsRouter.post('/people-dedup/apply', (req: Request, res: Response) => {
   try {
     const input = req.body as PeopleMergeInput;
     if (!input?.canonicalPersonId) {
@@ -59,7 +66,19 @@ toolsRouter.post('/people-dedup/apply', editorOnly, (req: Request, res: Response
       res.status(400).json({ error: 'duplicatePersonIds must include at least one person' });
       return;
     }
-    res.json(applyPeopleMerge(input));
+    /* A merge rewrites person_media, family_members, names and relationship
+       rows across the archive. Diffing that would produce dozens of entries
+       describing one decision, so it is recorded as the decision: which
+       person survived, which were folded into it. */
+    const result = runWithFlags({ bulkSource: 'merge' }, () => applyPeopleMerge(input));
+
+    recordBulk('merge', 'person', input.canonicalPersonId, {
+      canonical_person_id: input.canonicalPersonId,
+      merged_person_ids: input.duplicatePersonIds,
+      result,
+    });
+
+    res.json(result);
   } catch (error) {
     res.status(400).json({ error: String(error instanceof Error ? error.message : error) });
   }
@@ -87,7 +106,7 @@ toolsRouter.get('/tree-issues', (req: Request, res: Response) => {
   }
 });
 
-toolsRouter.post('/tree-issues/scan', editorOnly, (_req: Request, res: Response) => {
+toolsRouter.post('/tree-issues/scan', (_req: Request, res: Response) => {
   try {
     res.json(scanTreeIssues());
   } catch (error) {
@@ -95,7 +114,7 @@ toolsRouter.post('/tree-issues/scan', editorOnly, (_req: Request, res: Response)
   }
 });
 
-toolsRouter.patch('/tree-issues/:id', editorOnly, (req: Request, res: Response) => {
+toolsRouter.patch('/tree-issues/:id', (req: Request, res: Response) => {
   try {
     const input = req.body as { status?: TreeIssueStatus; note?: string | null };
     if (input.status === 'dismissed' && !input.note?.trim()) {

@@ -395,6 +395,20 @@ const ArtifactsPage: React.FC = () => {
                   />
                 )}
                 <Link to={`/artifacts/${artifact.id}`} className={styles.card}>
+                  {/* Picking a document scan out of a Photo bucket by eye is
+                      far easier with the image than with the title alone (#13).
+                      /thumbnail, not /file: it serves the generated card-sized
+                      copy where there is one and falls back to the original
+                      where there is not, so the grid needs no idea which rows
+                      the backfill has reached. Still lazy -- a long grid should
+                      not fetch every tile at once either way. */}
+                  <img
+                    className={styles.cardThumb}
+                    src={`/api/v1/artifacts/${artifact.id}/thumbnail`}
+                    alt=""
+                    loading="lazy"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  />
                   <div className={styles.cardType}>{artifact.artifact_type_name}</div>
                   <h2>{artifact.title}</h2>
                   {artifact.summary && <p>{artifact.summary}</p>}

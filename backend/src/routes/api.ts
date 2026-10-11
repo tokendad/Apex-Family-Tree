@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
+import { requestContextMiddleware } from '../services/requestContext.js';
 import { peopleRouter } from './people.js';
 import { eventsRouter } from './events.js';
 import { familiesRouter } from './families.js';
@@ -18,11 +19,15 @@ import { adminRouter } from './admin.js';
 import { settingsRouter } from './settings.js';
 import { gedcomRouter } from './gedcom.js';
 import { toolsRouter } from './tools.js';
+import { usersRouter } from './users.js';
 
 const apiRouter = Router();
 
 // All v1 routes require authentication
 apiRouter.use('/v1', requireAuth);
+// Then carry who is acting, for the audit layer. Must follow requireAuth: it
+// reads req.user, which requireAuth populates.
+apiRouter.use('/v1', requestContextMiddleware);
 apiRouter.use('/v1/people', peopleRouter);
 apiRouter.use('/v1/events', eventsRouter);
 apiRouter.use('/v1/families', familiesRouter);
@@ -37,6 +42,7 @@ apiRouter.use('/v1/sources', sourcesRouter);
 apiRouter.use('/v1/stories', storiesRouter);
 apiRouter.use('/v1/search', searchRouter);
 apiRouter.use('/v1/home-person', homePersonRouter);
+apiRouter.use('/v1/users', usersRouter);
 apiRouter.use('/v1/admin', adminRouter);
 apiRouter.use('/v1/admin', settingsRouter);
 apiRouter.use('/v1/gedcom', gedcomRouter);

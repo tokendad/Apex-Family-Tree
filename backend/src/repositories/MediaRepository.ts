@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { THUMBNAIL_DIR_NAME } from '../services/init.js';
 import { BaseRepository } from './base.js';
 import type { MediaItem, PersonMedia, FamilyMedia, EventMedia, SourceMedia, MediaPersonRegion } from '../types/db.js';
 
@@ -239,6 +240,89 @@ export class MediaRepository extends BaseRepository {
     return this.db.prepare('DELETE FROM media_person_regions WHERE id = ?').run(regionId).changes > 0;
   }
 
+
+  /**
+   * Mirror a media item into the archive model as an artifact.
+   *
+   * media_items and archive_objects are two views of the same thing: the
+   * Media gallery lists the files, the Artifacts page catalogues them. They
+   * are kept in step by id -- an artifact created from media reuses the media
+   * row's id, which is what migration 045 established and what lets
+   * /api/v1/media/:id serve an artifact's image.
+   *
+   * Without this, media added after 045 ran never became artifacts and the two
+   * pages showed different things (#13). Guarded on NOT EXISTS so it is safe
+   * to call for a row that already has its artifact.
+   */
+  private syncArtifact(id: string): void {
+    const media = this.db.prepare('SELECT * FROM media_items WHERE id = ?').get(id) as
+      | { id: string; filename: string; original_filename: string | null; mime_type: string | null;
+          file_size: number | null; file_path: string; thumbnail_path: string | null;
+          title: string | null; description: string | null; date_taken: string | null;
+          uploaded_by: string | null; created_at: string; updated_at: string }
+      | undefined;
+    if (!media) return;
+
+    const title =
+      media.title?.trim() || media.original_filename?.trim() || media.filename?.trim() || 'Untitled Artifact';
+    const summary = media.description?.trim() || null;
+
+    const existing = this.db.prepare('SELECT 1 FROM archive_objects WHERE id = ?').get(id);
+    if (existing) {
+      // Keep the catalogue entry in step with the file's own title/description.
+      this.db.prepare(
+        `UPDATE archive_objects SET title = ?, summary = ?, updated_at = ?
+          WHERE id = ? AND object_type = 'artifact'`,
+      ).run(title, summary, media.updated_at, id);
+      return;
+    }
+
+    this.db.prepare(
+      `INSERT INTO archive_objects (id, object_type, title, summary, privacy_level, is_deleted,
+                                    created_at, updated_at, created_by, updated_by)
+       VALUES (?, 'artifact', ?, ?, 'family', 0, ?, ?, ?, ?)`,
+    ).run(id, title, summary, media.created_at, media.updated_at, media.uploaded_by, media.uploaded_by);
+
+    // Same MIME mapping as 045, so bridged and newly uploaded media are typed
+    // alike. Everything that is not image/video/audio becomes a Document; the
+    // Artifacts page's bulk re-type is how a scan becomes a Certificate.
+    const mime = media.mime_type ?? '';
+    const typeId = mime.startsWith('image/')
+      ? 'artifact_type_photo'
+      : mime.startsWith('video/')
+        ? 'artifact_type_video'
+        : mime.startsWith('audio/')
+          ? 'artifact_type_audio_recording'
+          : 'artifact_type_document';
+
+    this.db.prepare(
+      `INSERT INTO artifacts (id, artifact_type_id, original_date_text, original_format)
+       VALUES (?, ?, ?, ?)`,
+    ).run(id, typeId, media.date_taken?.trim() || null, media.mime_type);
+
+    this.db.prepare(
+      `INSERT OR IGNORE INTO artifact_files
+         (id, artifact_id, file_role, storage_provider, storage_path, original_filename,
+          mime_type, size_bytes, created_at)
+       VALUES (?, ?, 'primary', 'local', ?, ?, ?, ?, ?)`,
+    ).run(
+      `artifact_file_media_${id}`, id, media.file_path, media.original_filename,
+      media.mime_type, media.file_size, media.created_at,
+    );
+
+    if (media.thumbnail_path?.trim()) {
+      this.db.prepare(
+        `INSERT OR IGNORE INTO artifact_files
+           (id, artifact_id, file_role, storage_provider, storage_path, original_filename,
+            mime_type, created_at)
+         VALUES (?, ?, 'thumbnail', 'local', ?, ?, ?, ?)`,
+      ).run(
+        `artifact_file_thumb_${id}`, id, media.thumbnail_path, media.original_filename,
+        media.mime_type, media.created_at,
+      );
+    }
+  }
+
   create(data: {
     filename: string;
     original_filename: string;
@@ -262,6 +346,7 @@ export class MediaRepository extends BaseRepository {
       data.thumbnail_path || null, data.title || null, data.description || null,
       data.date_taken || null, data.uploaded_by || null, data.is_external ?? 0, now, now,
     );
+    this.syncArtifact(id);
     return this.findById(id)!;
   }
 
@@ -283,7 +368,82 @@ export class MediaRepository extends BaseRepository {
     values.push(id);
 
     this.db.prepare(`UPDATE media_items SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+    this.syncArtifact(id);
     return this.findById(id);
+  }
+
+  /**
+   * Media items that still need a thumbnail generated, oldest first.
+   *
+   * A row whose thumbnail_path points at a file that has since gone missing is
+   * included too, so a lost or half-written thumbnail is regenerated rather
+   * than leaving the card to fall back to the full-size original forever.
+   */
+  findWithoutThumbnail(): MediaItem[] {
+    return this.db
+      .prepare(
+        `SELECT * FROM media_items
+          WHERE NULLIF(TRIM(COALESCE(thumbnail_path, '')), '') IS NULL
+          ORDER BY created_at ASC`,
+      )
+      .all() as MediaItem[];
+  }
+
+  /**
+   * Record a generated thumbnail in both places that describe the same file.
+   *
+   * update() can set media_items.thumbnail_path, but only the create-time
+   * artifact sync ever wrote the 'thumbnail' artifact_files row -- so updating
+   * the media row alone would leave GET /artifacts/:id/thumbnail reading
+   * artifact_files and finding nothing. Both are written in one transaction.
+   *
+   * The mime passed here is the thumbnail's own (WebP), not the original's:
+   * the bridge migrations copied the source type into this row, which was
+   * already wrong for any item whose thumbnail differs in format.
+   */
+  setThumbnail(id: string, thumbnailPath: string, mimeType: string): void {
+    const now = this.now();
+    this.db.transaction(() => {
+      this.db
+        .prepare('UPDATE media_items SET thumbnail_path = ?, updated_at = ? WHERE id = ?')
+        .run(thumbnailPath, now, id);
+
+      if (!this.hasArtifactFilesTable()) return;
+      const size = (() => {
+        try {
+          return fs.statSync(thumbnailPath).size;
+        } catch {
+          return null;
+        }
+      })();
+
+      const original = this.db
+        .prepare('SELECT original_filename FROM media_items WHERE id = ?')
+        .get(id) as { original_filename: string | null } | undefined;
+
+      this.db
+        .prepare(
+          `INSERT INTO artifact_files
+             (id, artifact_id, file_role, storage_provider, storage_path, original_filename,
+              mime_type, size_bytes, created_at)
+           VALUES (?, ?, 'thumbnail', 'local', ?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+             storage_path = excluded.storage_path,
+             mime_type = excluded.mime_type,
+             size_bytes = excluded.size_bytes`,
+        )
+        .run(
+          `artifact_file_thumb_${id}`, id, thumbnailPath,
+          original?.original_filename ?? null, mimeType, size, now,
+        );
+    })();
+  }
+
+  private hasArtifactFilesTable(): boolean {
+    const row = this.db
+      .prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'artifact_files'")
+      .get() as { n: number };
+    return row.n === 1;
   }
 
   delete(id: string): { deleted: boolean; fileDeleted: boolean } {
@@ -291,6 +451,10 @@ export class MediaRepository extends BaseRepository {
     if (!item) return { deleted: false, fileDeleted: false };
 
     this.db.prepare('DELETE FROM media_items WHERE id = ?').run(id);
+    // The artifact mirrors the media row, so it goes too. archive_objects
+    // cascades to artifacts and on to artifact_files; a soft delete would
+    // leave the Artifacts page listing a file that no longer exists.
+    this.db.prepare("DELETE FROM archive_objects WHERE id = ? AND object_type = 'artifact'").run(id);
 
     // Only delete files from disk for app-managed uploads, not external/scanned files
     let fileDeleted = false;
@@ -300,12 +464,21 @@ export class MediaRepository extends BaseRepository {
           fs.unlinkSync(item.file_path);
           fileDeleted = true;
         }
-        if (item.thumbnail_path && fs.existsSync(item.thumbnail_path)) {
-          fs.unlinkSync(item.thumbnail_path);
-        }
       } catch {
         // Ignore file deletion errors
       }
+    }
+
+    // The thumbnail goes regardless of is_external. That flag protects the
+    // user's own originals -- a scanned or externally managed file AFT must not
+    // touch -- but the thumbnail beside it was generated by AFT, so leaving it
+    // behind just orphans a file in the volume.
+    try {
+      if (item.thumbnail_path && fs.existsSync(item.thumbnail_path)) {
+        fs.unlinkSync(item.thumbnail_path);
+      }
+    } catch {
+      // Ignore file deletion errors
     }
 
     return { deleted: true, fileDeleted };
@@ -410,7 +583,18 @@ export class MediaRepository extends BaseRepository {
     return removed;
   }
 
-  private walkDir(dir: string): string[] {
+  /**
+   * Walk a directory for scannable files, skipping a "thumbnails" folder in
+   * the scan root.
+   *
+   * Generated thumbnails live under DATA_DIR precisely so they are out of
+   * reach here, but DATA_DIR and MEDIA_PATH are separate settings and nothing
+   * stops them overlapping. Without this guard such a setup would re-import
+   * every generated thumbnail as a new external media item on the next scan --
+   * .webp is scannable and the walk recurses -- and each would appear on the
+   * Artifacts page as its own artifact.
+   */
+  private walkDir(dir: string, root = dir): string[] {
     const results: string[] = [];
     let entries: fs.Dirent[];
     try {
@@ -422,7 +606,8 @@ export class MediaRepository extends BaseRepository {
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name);
       if (entry.isDirectory()) {
-        results.push(...this.walkDir(fullPath));
+        if (dir === root && entry.name === THUMBNAIL_DIR_NAME) continue;
+        results.push(...this.walkDir(fullPath, root));
       } else if (entry.isFile()) {
         const ext = path.extname(entry.name).toLowerCase();
         if (SCANNABLE_EXTENSIONS.has(ext)) {
@@ -436,27 +621,135 @@ export class MediaRepository extends BaseRepository {
   // ─── Person links ─────────────────────────────────────────────────────────
 
   linkToPerson(mediaId: string, personId: string, isPrimary = false): PersonMedia {
-    if (isPrimary) {
-      this.db.prepare('UPDATE person_media SET is_primary = 0 WHERE person_id = ?').run(personId);
-    }
+    const link = this.db.transaction(() => {
+      if (isPrimary) {
+        this.db.prepare('UPDATE person_media SET is_primary = 0 WHERE person_id = ?').run(personId);
+      }
 
-    const maxOrder = this.db.prepare(
-      'SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM person_media WHERE person_id = ?'
-    ).get(personId) as { next: number };
+      const maxOrder = this.db.prepare(
+        'SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM person_media WHERE person_id = ?'
+      ).get(personId) as { next: number };
 
-    this.db.prepare(
-      'INSERT OR IGNORE INTO person_media (person_id, media_id, is_primary, sort_order, created_at) VALUES (?, ?, ?, ?, ?)'
-    ).run(personId, mediaId, isPrimary ? 1 : 0, maxOrder.next, this.now());
+      this.db.prepare(
+        'INSERT OR IGNORE INTO person_media (person_id, media_id, is_primary, sort_order, created_at) VALUES (?, ?, ?, ?, ?)'
+      ).run(personId, mediaId, isPrimary ? 1 : 0, maxOrder.next, this.now());
 
-    return this.db.prepare(
-      'SELECT * FROM person_media WHERE person_id = ? AND media_id = ?'
-    ).get(personId, mediaId) as PersonMedia;
+      this.syncAppearsIn(mediaId, personId, maxOrder.next);
+
+      return this.db.prepare(
+        'SELECT * FROM person_media WHERE person_id = ? AND media_id = ?'
+      ).get(personId, mediaId) as PersonMedia;
+    });
+
+    return link();
   }
 
   unlinkFromPerson(mediaId: string, personId: string): boolean {
-    return this.db.prepare(
-      'DELETE FROM person_media WHERE person_id = ? AND media_id = ?'
-    ).run(personId, mediaId).changes > 0;
+    const unlink = this.db.transaction(() => {
+      const removed = this.db.prepare(
+        'DELETE FROM person_media WHERE person_id = ? AND media_id = ?'
+      ).run(personId, mediaId).changes > 0;
+
+      if (removed) this.removeAppearsIn(mediaId, personId);
+      return removed;
+    });
+
+    return unlink();
+  }
+
+  /** Whether this database has the archive-model tables the mirror needs. */
+  private hasArchiveTables(): boolean {
+    const row = this.db.prepare(
+      `SELECT COUNT(*) AS n FROM sqlite_master
+        WHERE type = 'table' AND name IN ('archive_objects', 'artifacts', 'relationships', 'relationship_members')`,
+    ).get() as { n: number };
+    return row.n === 4;
+  }
+
+  /**
+   * Mirror a person_media link into the archive model as an "appears in"
+   * relationship, so the person page's summary card and its Artifacts tab
+   * agree.
+   *
+   * Two link tables describe the same fact. person_media is the legacy one;
+   * relationships is what PersonDetailPage counts for "Artifacts" and lists
+   * under "Recent Artifacts". 063 backfilled the 125 existing links, but
+   * without this a newly tagged photo would drift straight back apart -- which
+   * is exactly how media and artifacts came to disagree before 061.
+   *
+   * One relationship per media item, carrying every depicted person as a
+   * subject: the appears_in contract allows a single artifact and any number
+   * of subjects, so a class photograph is one relationship with many subjects.
+   * The id is derived from the media id, matching 063, so a backfilled
+   * relationship and a freshly created one are indistinguishable.
+   */
+  private syncAppearsIn(mediaId: string, personId: string, sortOrder: number): void {
+    // Older schemas -- and the narrower fixtures some repository tests build --
+    // predate the archive model entirely. Mirroring is a no-op there rather
+    // than an error, which is how EventRepository guards its own archive sync.
+    if (!this.hasArchiveTables()) return;
+
+    // Without an artifact identity for the media or an archive identity for
+    // the person there is nothing to relate, and writing the member anyway
+    // would leave a row pointing at a missing archive object.
+    const hasArtifact = this.db.prepare('SELECT 1 FROM artifacts WHERE id = ?').get(mediaId);
+    const hasPerson = this.db
+      .prepare("SELECT 1 FROM archive_objects WHERE id = ? AND object_type = 'person'")
+      .get(personId);
+    if (!hasArtifact || !hasPerson) return;
+
+    const relationshipId = `rel_appears_in_media_${mediaId}`;
+    const now = this.now();
+
+    const exists = this.db.prepare('SELECT 1 FROM relationships WHERE id = ?').get(relationshipId);
+    if (!exists) {
+      this.db.prepare(
+        `INSERT OR IGNORE INTO archive_objects (id, object_type, title, summary, privacy_level,
+                                                is_deleted, created_at, updated_at, created_by, updated_by)
+         VALUES (?, 'relationship', 'Appears In', NULL, 'family', 0, ?, ?, NULL, NULL)`,
+      ).run(relationshipId, now, now);
+
+      this.db.prepare(
+        `INSERT OR IGNORE INTO relationships (id, relationship_type_id, label, description, notes)
+         VALUES (?, 'rel_type_appears_in', NULL, NULL, NULL)`,
+      ).run(relationshipId);
+
+      this.db.prepare(
+        `INSERT OR IGNORE INTO relationship_members (id, relationship_id, object_id, role, sort_order)
+         VALUES (?, ?, ?, 'artifact', 0)`,
+      ).run(`relm_artifact_${mediaId}`, relationshipId, mediaId);
+    }
+
+    this.db.prepare(
+      `INSERT OR IGNORE INTO relationship_members (id, relationship_id, object_id, role, sort_order)
+       VALUES (?, ?, ?, 'subject', ?)`,
+    ).run(`relm_subject_${mediaId}_${personId}`, relationshipId, personId, sortOrder);
+  }
+
+  /**
+   * Drop a person from a media item's "appears in" relationship, and drop the
+   * relationship itself once the last subject has gone -- an appears_in with
+   * an artifact and nobody in it is the half-emptied state that 063 had to
+   * clean up elsewhere.
+   */
+  private removeAppearsIn(mediaId: string, personId: string): void {
+    if (!this.hasArchiveTables()) return;
+    const relationshipId = `rel_appears_in_media_${mediaId}`;
+
+    this.db.prepare(
+      "DELETE FROM relationship_members WHERE relationship_id = ? AND object_id = ? AND role = 'subject'",
+    ).run(relationshipId, personId);
+
+    const remaining = this.db.prepare(
+      "SELECT COUNT(*) AS n FROM relationship_members WHERE relationship_id = ? AND role = 'subject'",
+    ).get(relationshipId) as { n: number };
+    if (remaining.n > 0) return;
+
+    // Child-first, not by cascade: the application runs with foreign keys on,
+    // but deleting in order keeps this correct either way.
+    this.db.prepare('DELETE FROM relationship_members WHERE relationship_id = ?').run(relationshipId);
+    this.db.prepare('DELETE FROM relationships WHERE id = ?').run(relationshipId);
+    this.db.prepare('DELETE FROM archive_objects WHERE id = ?').run(relationshipId);
   }
 
   // ─── Family links ─────────────────────────────────────────────────────────

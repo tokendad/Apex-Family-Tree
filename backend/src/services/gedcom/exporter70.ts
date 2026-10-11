@@ -41,6 +41,10 @@ function getEventTag70(eventType: string): string | null {
     will: 'WILL',
     retirement: 'RETI',
     other: 'EVEN',
+    // Neither GEDCOM 5.5.1 nor 7.0 has an anniversary tag. EVEN is the
+    // generic event tag, and is what 'other' already maps to, so an
+    // anniversary exports exactly as it did before it had its own type.
+    anniversary: 'EVEN',
     occupation: 'OCCU',
     residence: 'RESI',
     education: 'EDUC',

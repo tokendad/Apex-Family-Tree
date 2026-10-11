@@ -37,6 +37,25 @@ export interface EvidenceClassification {
   sort_order: number;
 }
 
+/**
+ * A file belonging to an artifact. An artifact may have several -- the scan
+ * itself, a thumbnail, a transcription -- distinguished by file_role; 'primary'
+ * is the one the artifact page shows.
+ */
+export interface ArtifactFile {
+  id: string;
+  artifact_id: string;
+  file_role: string;
+  storage_provider: string;
+  storage_path: string;
+  original_filename: string | null;
+  mime_type: string | null;
+  size_bytes: number | null;
+  width: number | null;
+  height: number | null;
+  created_at: string;
+}
+
 export interface ArtifactRecord extends Artifact {
   object_type: ArchiveObject['object_type'];
   title: string;
@@ -49,6 +68,12 @@ export interface ArtifactRecord extends Artifact {
   updated_by: string | null;
   artifact_type_name: string;
   evidence_classification_name: string | null;
+  /**
+   * Present on findById, which the detail page uses. Omitted from list results,
+   * where one query per artifact would be wasteful and the cards only need the
+   * primary file's URL, which is derivable from the id.
+   */
+  files?: ArtifactFile[];
 }
 
 export interface CreateArtifactInput {

@@ -18,6 +18,7 @@ import PersonalInfoStep from '@/components/WizardSteps/PersonalInfoStep';
 import VitalEventsStep from '@/components/WizardSteps/VitalEventsStep';
 import RelationshipsStep from '@/components/WizardSteps/RelationshipsStep';
 import MediaNotesStep from '@/components/WizardSteps/MediaNotesStep';
+import { useAuth } from '@/contexts/AuthContext.js';
 import { useCanvasStore } from '@/stores/canvasStore';
 import { useTreeData } from '@/hooks/useTreeData';
 import { usePersonWizard } from '@/hooks/usePersonWizard';
@@ -50,8 +51,10 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
     setSelectedPerson,
     setContextMenu,
     homePersonId,
+    setHomePersonId,
   } = useCanvasStore();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [orientation, setOrientation] = useState<FamilyChartOrientation>('vertical');
   const [chartDepth, setChartDepth] = useState(3);
   const { nodes, families, isLoading, setNodes, setFamilies, setConnectors, setLoading, fitToScreen } = useCanvasStore();
@@ -61,7 +64,16 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
   const highlightDebounce = useRef<ReturnType<typeof setTimeout>>();
   const prevFilterRef = useRef<TreeFilter>('all');
 
+  // The issue count links through to Tools, which is admin only, so only an
+  // admin has anywhere to go with it -- and only an admin may read the count.
+  const canSeeTreeIssues = user?.role === 'admin';
+
   useEffect(() => {
+    if (!canSeeTreeIssues) {
+      setTreeIssueCount(null);
+      return;
+    }
+
     let cancelled = false;
     void (async () => {
       try {
@@ -77,7 +89,7 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [canSeeTreeIssues]);
 
   // Highlight matching tree nodes when search is active
   useEffect(() => {
@@ -338,6 +350,28 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
         ? homePersonId
         : (chartPersons[0]?.id ?? null);
 
+  const setHomePerson = useCallback(
+    async (personId: string) => {
+      // Optimistic: the tree re-centres immediately, and reverts if the save
+      // fails rather than leaving the view and the server disagreeing.
+      const previous = homePersonId;
+      setHomePersonId(personId);
+      try {
+        const res = await fetch('/api/v1/home-person', {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ person_id: personId }),
+        });
+        if (!res.ok) throw new Error(`Failed to set home person (${res.status})`);
+      } catch (err) {
+        console.error('Set home person error:', err);
+        setHomePersonId(previous);
+      }
+    },
+    [homePersonId, setHomePersonId],
+  );
+
   const wizardTitle = editPersonId ? 'Edit Person' : 'Add Person';
 
   return (
@@ -421,6 +455,7 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
         onAddParent={(id) => openPreLinkedWizard(id, 'parent')}
         onAddSpouse={(id) => openPreLinkedWizard(id, 'spouse')}
         onAddChild={(id) => openPreLinkedWizard(id, 'child')}
+        onSetHomePerson={setHomePerson}
       />
       <PersonEditModal
         open={editModalPersonId !== null}

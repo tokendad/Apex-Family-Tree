@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireRole } from '../middleware/auth.js';
+import { recordChange } from '../services/audit.js';
 import { RelationshipRepository } from '../repositories/RelationshipRepository.js';
 import { RelationshipService, RelationshipValidationError } from '../services/relationship.js';
 import type { RelationshipMemberInput } from '../types/relationship.js';
@@ -93,6 +94,14 @@ relationshipsRouter.post('/', requireRole('admin', 'editor', 'limited_editor'), 
       members,
     });
 
+    /* The kind of link matters as much as the fact of one: "linked Cheryle to
+       the LeFort union" reads very differently from "tagged her in a photo". */
+    recordChange('create', 'relationship', relationship.id, null, relationship, {
+      label: relationship.label ?? cleanOptional(body.relationship_type_code) ?? 'relationship',
+      type_code: cleanOptional(body.relationship_type_code),
+      member_ids: members.map((m) => m.object_id),
+    });
+
     res.status(201).json(relationship);
   } catch (error) {
     if (error instanceof RelationshipValidationError) {
@@ -120,11 +129,14 @@ relationshipsRouter.get('/:id', (req, res) => {
 relationshipsRouter.delete('/:id', requireRole('admin', 'editor'), (req, res) => {
   try {
     const repo = new RelationshipRepository();
+    const before = repo.findById(paramStr(req.params.id));
     const deleted = repo.softDelete(paramStr(req.params.id), req.user?.userId ?? null);
     if (!deleted) {
       res.status(404).json({ error: 'Relationship not found' });
       return;
     }
+
+    recordChange('delete', 'relationship', paramStr(req.params.id), before, null, { label: before?.label ?? 'relationship' });
     res.status(204).send();
   } catch {
     res.status(500).json({ error: 'Failed to delete relationship' });

@@ -3,6 +3,7 @@ import {
   ATTRIBUTE_TYPES,
   EVENT_TYPE_LABELS,
   formatEventType,
+  groupedTypeOptions,
   isAttributeType,
   partitionByKind,
   payloadLabel,
@@ -65,7 +66,7 @@ describe('eventTypes — database agreement', () => {
     'census', 'residence', 'occupation', 'retirement',
     'military_service', 'medical', 'custom',
     'probate', 'will', 'other', 'education', 'religion', 'ssn', 'title',
-    'marriage', 'divorce', 'annulment', 'engagement',
+    'marriage', 'divorce', 'annulment', 'engagement', 'anniversary',
     'marriage_bann', 'marriage_contract', 'marriage_license',
     'marriage_settlement',
   ]);
@@ -82,5 +83,23 @@ describe('eventTypes — database agreement', () => {
 
   it('classifies military service as an event, not an attribute', () => {
     expect(isAttributeType('military_service')).toBe(false);
+  });
+
+  // Before 062 the only way to record a golden wedding was 'other', which
+  // renders as the bare word "Event" and leaves the meaning to the description.
+  it('names an anniversary rather than falling back to "Event"', () => {
+    expect(formatEventType('anniversary')).toBe('Anniversary');
+    expect(formatEventType('anniversary')).not.toBe('Event');
+  });
+
+  it('treats an anniversary as a dated occurrence, not an attribute', () => {
+    expect(isAttributeType('anniversary')).toBe(false);
+    expect(payloadLabel('anniversary')).toBe('Description');
+  });
+
+  it('offers an anniversary in the type picker', () => {
+    const { events, attributes } = groupedTypeOptions();
+    expect(events.map(([type]) => type)).toContain('anniversary');
+    expect(attributes.map(([type]) => type)).not.toContain('anniversary');
   });
 });

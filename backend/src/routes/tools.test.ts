@@ -119,13 +119,24 @@ afterEach(async () => {
 });
 
 describe('tools routes', () => {
-  it('allows editors to scan for people duplicates', async () => {
+  /* Admin only, router-wide: the dedup tool merges person records and a scan
+     rebuilds the issue set, and an editor has no business doing either. */
+  it('allows admins to scan for people duplicates', async () => {
     const response = await fetch(`${baseUrl}/api/v1/tools/people-dedup/scan`, {
-      headers: { 'x-test-role': 'editor' },
+      headers: { 'x-test-role': 'admin' },
     });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ groups: [] });
+  });
+
+  it('rejects editors from people de-duplication routes', async () => {
+    const response = await fetch(`${baseUrl}/api/v1/tools/people-dedup/scan`, {
+      headers: { 'x-test-role': 'editor' },
+    });
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({ error: 'Insufficient permissions' });
   });
 
   it('rejects viewers from people de-duplication routes', async () => {
@@ -135,6 +146,19 @@ describe('tools routes', () => {
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({ error: 'Insufficient permissions' });
+  });
+
+  it('rejects editors from applying a people merge', async () => {
+    const response = await fetch(`${baseUrl}/api/v1/tools/people-dedup/apply`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-role': 'editor',
+      },
+      body: JSON.stringify({ groupId: 'g1', canonicalPersonId: 'p1', duplicatePersonIds: ['p2'] }),
+    });
+
+    expect(response.status).toBe(403);
   });
 
   it('returns a structured 400 for invalid merge input', async () => {
@@ -152,18 +176,29 @@ describe('tools routes', () => {
     expect(body.error).toContain('canonicalPersonId');
   });
 
-  it('allows viewers to read tree issue summaries', async () => {
+  it('allows admins to read tree issue summaries', async () => {
     const response = await fetch(`${baseUrl}/api/v1/tools/tree-issues/summary`, {
-      headers: { 'x-test-role': 'viewer' },
+      headers: { 'x-test-role': 'admin' },
     });
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ open: 1 });
   });
 
-  it('allows viewers to list tree issues', async () => {
+  /* The summary moved behind the same guard as the rest of the section. The
+     tree canvas reads it for its issue badge and hides the badge when the read
+     fails, so a non-admin loses the badge rather than seeing a broken page. */
+  it('rejects editors from reading tree issue summaries', async () => {
+    const response = await fetch(`${baseUrl}/api/v1/tools/tree-issues/summary`, {
+      headers: { 'x-test-role': 'editor' },
+    });
+
+    expect(response.status).toBe(403);
+  });
+
+  it('allows admins to list tree issues', async () => {
     const response = await fetch(`${baseUrl}/api/v1/tools/tree-issues`, {
-      headers: { 'x-test-role': 'viewer' },
+      headers: { 'x-test-role': 'admin' },
     });
 
     expect(response.status).toBe(200);
@@ -171,6 +206,14 @@ describe('tools routes', () => {
       data: [{ id: 'issue-1', type: 'multiple_active_marriages' }],
       next_cursor: null,
     });
+  });
+
+  it('rejects viewers from listing tree issues', async () => {
+    const response = await fetch(`${baseUrl}/api/v1/tools/tree-issues`, {
+      headers: { 'x-test-role': 'viewer' },
+    });
+
+    expect(response.status).toBe(403);
   });
 
   it('rejects viewers from scanning tree issues', async () => {
@@ -183,14 +226,36 @@ describe('tools routes', () => {
     await expect(response.json()).resolves.toEqual({ error: 'Insufficient permissions' });
   });
 
-  it('allows editors to scan tree issues', async () => {
+  it('rejects editors from scanning tree issues', async () => {
     const response = await fetch(`${baseUrl}/api/v1/tools/tree-issues/scan`, {
       method: 'POST',
       headers: { 'x-test-role': 'editor' },
     });
 
+    expect(response.status).toBe(403);
+  });
+
+  it('allows admins to scan tree issues', async () => {
+    const response = await fetch(`${baseUrl}/api/v1/tools/tree-issues/scan`, {
+      method: 'POST',
+      headers: { 'x-test-role': 'admin' },
+    });
+
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ detected: 1, open: 1 });
+  });
+
+  it('rejects editors from changing a tree issue status', async () => {
+    const response = await fetch(`${baseUrl}/api/v1/tools/tree-issues/issue-1`, {
+      method: 'PATCH',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-role': 'editor',
+      },
+      body: JSON.stringify({ status: 'dismissed', note: 'not a real conflict' }),
+    });
+
+    expect(response.status).toBe(403);
   });
 
   it('requires a note when dismissing a tree issue', async () => {
@@ -198,7 +263,7 @@ describe('tools routes', () => {
       method: 'PATCH',
       headers: {
         'content-type': 'application/json',
-        'x-test-role': 'editor',
+        'x-test-role': 'admin',
       },
       body: JSON.stringify({ status: 'dismissed' }),
     });
