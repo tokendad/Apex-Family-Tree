@@ -11,6 +11,7 @@ import Navbar from '@/components/Navbar/Navbar';
 import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
+import PersonPicker from '@/components/entity-pickers/PersonPicker';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useSearchStore } from '@/stores/searchStore';
 import { useModal } from '@/components/modals/useModal';
@@ -230,7 +231,6 @@ const MediaPage: React.FC = () => {
   const [uploadPersonId, setUploadPersonId] = useState('');
   const [uploadFamilyId, setUploadFamilyId] = useState('');
   const [uploadEventId, setUploadEventId] = useState('');
-  const [personOptions, setPersonOptions] = useState<LinkOption[]>([]);
   const [familyOptions, setFamilyOptions] = useState<LinkOption[]>([]);
   const [eventOptions, setEventOptions] = useState<LinkOption[]>([]);
 
@@ -314,31 +314,24 @@ const MediaPage: React.FC = () => {
 
   const fetchLinkOptions = async () => {
     try {
-      const [peopleRes, familiesRes, eventsRes] = await Promise.all([
-        fetch('/api/v1/people?limit=500', { credentials: 'include' }),
+      /* People are not prefetched: PersonPicker searches the server as you
+         type. The old ?limit=500 both capped the list and offered it in
+         whatever order the API returned, which is insertion order. */
+      const [familiesRes, eventsRes] = await Promise.all([
         fetch('/api/v1/families?limit=500', { credentials: 'include' }),
         fetch('/api/v1/events?limit=500', { credentials: 'include' }),
       ]);
-
-      if (peopleRes.ok) {
-        const data = await peopleRes.json();
-        const items = data.data ?? data.people ?? [];
-        setPersonOptions(
-          items.map((p: Record<string, unknown>) => ({
-            id: p.id as string,
-            label: ((p.displayName as string | undefined) ?? `${p.given_name ?? ''} ${p.surname ?? ''}`.trim()) || (p.id as string),
-          })),
-        );
-      }
 
       if (familiesRes.ok) {
         const data = await familiesRes.json();
         const items = data.data ?? data.families ?? [];
         setFamilyOptions(
-          items.map((f: Record<string, unknown>) => ({
-            id: f.id as string,
-            label: (f as Record<string, unknown>).display_name as string ?? (f.id as string),
-          })),
+          items
+            .map((f: Record<string, unknown>) => ({
+              id: f.id as string,
+              label: (f as Record<string, unknown>).display_name as string ?? (f.id as string),
+            }))
+            .sort((a: LinkOption, b: LinkOption) => a.label.localeCompare(b.label)),
         );
       }
 
@@ -346,10 +339,12 @@ const MediaPage: React.FC = () => {
         const data = await eventsRes.json();
         const items = data.data ?? data.events ?? [];
         setEventOptions(
-          items.map((e: Record<string, unknown>) => ({
-            id: e.id as string,
-            label: `${(e as Record<string, unknown>).event_type ?? 'Event'} - ${(e as Record<string, unknown>).event_date ?? ''}`.trim(),
-          })),
+          items
+            .map((e: Record<string, unknown>) => ({
+              id: e.id as string,
+              label: `${(e as Record<string, unknown>).event_type ?? 'Event'} - ${(e as Record<string, unknown>).event_date ?? ''}`.trim(),
+            }))
+            .sort((a: LinkOption, b: LinkOption) => a.label.localeCompare(b.label)),
         );
       }
     } catch {
@@ -705,29 +700,23 @@ const MediaPage: React.FC = () => {
                 />
               </div>
 
-              {/* Link to Person */}
-              {personOptions.length > 0 && (
-                <div className={styles.formField}>
-                  <label className={styles.formLabel} htmlFor="upload-person">
-                    Link to Person{' '}
-                    <span className={styles.formLabelOptional}>(optional)</span>
-                  </label>
-                  <select
-                    id="upload-person"
-                    className={styles.formSelect}
-                    value={uploadPersonId}
-                    onChange={(e) => setUploadPersonId(e.target.value)}
-                    disabled={isUploading}
-                  >
-                    <option value="">— None —</option>
-                    {personOptions.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
+              {/* Link to Person — a type-to-search box rather than a list.
+                  A dropdown of every person in the tree has no order anyone
+                  can predict and no way to jump to a name, which on a phone
+                  is a long scroll past strangers. */}
+              <div className={styles.formField}>
+                <label className={styles.formLabel} id="upload-person-label">
+                  Link to Person{' '}
+                  <span className={styles.formLabelOptional}>(optional)</span>
+                </label>
+                <div aria-labelledby="upload-person-label">
+                  <PersonPicker
+                    value={uploadPersonId || null}
+                    onSelect={(person) => setUploadPersonId(person.id)}
+                    onClear={() => setUploadPersonId('')}
+                  />
                 </div>
-              )}
+              </div>
 
               {/* Link to Family */}
               {familyOptions.length > 0 && (
