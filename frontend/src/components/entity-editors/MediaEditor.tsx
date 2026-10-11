@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import MediaPersonTagger from '@/components/MediaPersonTagger/MediaPersonTagger';
+import PersonPicker from '@/components/entity-pickers/PersonPicker';
 import { usePermissions } from '@/hooks/usePermissions';
 import type { ModalEditorProps, ModalResult } from '@/components/modals/modalTypes';
 import styles from './MediaEditor.module.css';
@@ -228,7 +229,6 @@ const MediaEditor: React.FC<MediaEditorProps> = ({
   const [addLinkType, setAddLinkType] = useState<'person' | 'family' | 'event' | 'source'>('person');
   const [addLinkId, setAddLinkId] = useState('');
 
-  const [personOptions, setPersonOptions] = useState<LinkOption[]>([]);
   const [familyOptions, setFamilyOptions] = useState<LinkOption[]>([]);
   const [eventOptions, setEventOptions] = useState<LinkOption[]>([]);
   const [sourceOptions, setSourceOptions] = useState<LinkOption[]>([]);
@@ -258,50 +258,48 @@ const MediaEditor: React.FC<MediaEditorProps> = ({
   useEffect(() => {
     const load = async () => {
       try {
-        const [peopleRes, familiesRes, eventsRes, sourcesRes] = await Promise.all([
-          fetch('/api/v1/people?limit=500', { credentials: 'include' }),
+        /* People are not prefetched: PersonPicker searches the server as you
+           type. ?limit=500 both capped the list and offered it in whatever
+           order the API returned, which is insertion order. */
+        const [familiesRes, eventsRes, sourcesRes] = await Promise.all([
           fetch('/api/v1/families?limit=500', { credentials: 'include' }),
           fetch('/api/v1/events?limit=500', { credentials: 'include' }),
           fetch('/api/v1/sources?limit=500', { credentials: 'include' }),
         ]);
-        if (peopleRes.ok) {
-          const data = await peopleRes.json();
-          const items = data.data ?? data.people ?? [];
-          setPersonOptions(
-            items.map((p: Record<string, unknown>) => ({
-              id: p.id as string,
-              label: ((p.displayName as string | undefined) ?? `${p.given_name ?? ''} ${p.surname ?? ''}`.trim()) || (p.id as string),
-            })),
-          );
-        }
         if (familiesRes.ok) {
           const data = await familiesRes.json();
           const items = data.data ?? data.families ?? [];
           setFamilyOptions(
-            items.map((f: Record<string, unknown>) => ({
-              id: f.id as string,
-              label: (f.display_name as string | undefined) ?? (f.id as string),
-            })),
+            items
+              .map((f: Record<string, unknown>) => ({
+                id: f.id as string,
+                label: (f.display_name as string | undefined) ?? (f.id as string),
+              }))
+              .sort((a: LinkOption, b: LinkOption) => a.label.localeCompare(b.label)),
           );
         }
         if (eventsRes.ok) {
           const data = await eventsRes.json();
           const items = data.data ?? data.events ?? [];
           setEventOptions(
-            items.map((e: Record<string, unknown>) => ({
-              id: e.id as string,
-              label: `${(e.event_type as string | undefined) ?? 'Event'} - ${(e.event_date as string | undefined) ?? ''}`.trim(),
-            })),
+            items
+              .map((e: Record<string, unknown>) => ({
+                id: e.id as string,
+                label: `${(e.event_type as string | undefined) ?? 'Event'} - ${(e.event_date as string | undefined) ?? ''}`.trim(),
+              }))
+              .sort((a: LinkOption, b: LinkOption) => a.label.localeCompare(b.label)),
           );
         }
         if (sourcesRes.ok) {
           const data = await sourcesRes.json();
           const items = data.data ?? data.sources ?? [];
           setSourceOptions(
-            items.map((src: Record<string, unknown>) => ({
-              id: src.id as string,
-              label: (src.title as string | undefined) ?? (src.id as string),
-            })),
+            items
+              .map((src: Record<string, unknown>) => ({
+                id: src.id as string,
+                label: (src.title as string | undefined) ?? (src.id as string),
+              }))
+              .sort((a: LinkOption, b: LinkOption) => a.label.localeCompare(b.label)),
           );
         }
       } catch {
@@ -612,26 +610,36 @@ const MediaEditor: React.FC<MediaEditorProps> = ({
                 <option value="event">Event</option>
                 <option value="source">Source</option>
               </select>
-              <select
-                className={styles.select}
-                value={addLinkId}
-                onChange={(e) => setAddLinkId(e.target.value)}
-                aria-label="Select entity to link"
-              >
-                <option value="">Select…</option>
-                {addLinkType === 'person' && personOptions.map((o) => (
-                  <option key={o.id} value={o.id}>{o.label}</option>
-                ))}
-                {addLinkType === 'family' && familyOptions.map((o) => (
-                  <option key={o.id} value={o.id}>{o.label}</option>
-                ))}
-                {addLinkType === 'event' && eventOptions.map((o) => (
-                  <option key={o.id} value={o.id}>{o.label}</option>
-                ))}
-                {addLinkType === 'source' && sourceOptions.map((o) => (
-                  <option key={o.id} value={o.id}>{o.label}</option>
-                ))}
-              </select>
+              {/* A person is found by typing, the way the upload dialog
+                  does it. The other three are still lists, because there is
+                  no picker for them yet -- they are at least sorted. */}
+              {addLinkType === 'person' ? (
+                <div className={styles.personPickerCell}>
+                  <PersonPicker
+                    value={addLinkId || null}
+                    onSelect={(person) => setAddLinkId(person.id)}
+                    onClear={() => setAddLinkId('')}
+                  />
+                </div>
+              ) : (
+                <select
+                  className={styles.select}
+                  value={addLinkId}
+                  onChange={(e) => setAddLinkId(e.target.value)}
+                  aria-label="Select entity to link"
+                >
+                  <option value="">Select…</option>
+                  {addLinkType === 'family' && familyOptions.map((o) => (
+                    <option key={o.id} value={o.id}>{o.label}</option>
+                  ))}
+                  {addLinkType === 'event' && eventOptions.map((o) => (
+                    <option key={o.id} value={o.id}>{o.label}</option>
+                  ))}
+                  {addLinkType === 'source' && sourceOptions.map((o) => (
+                    <option key={o.id} value={o.id}>{o.label}</option>
+                  ))}
+                </select>
+              )}
               <Button
                 variant="primary"
                 size="sm"
