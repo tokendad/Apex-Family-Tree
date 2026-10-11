@@ -5,6 +5,7 @@ import Badge from '@/components/Badge/Badge';
 import Avatar from '@/components/Avatar/Avatar';
 import InviteUserModal from '@/components/InviteUserModal/InviteUserModal';
 import CreateUserModal from '@/components/CreateUserModal/CreateUserModal';
+import InviteCodePanel from '@/components/InviteCodePanel/InviteCodePanel';
 import styles from './AdminUsersPage.module.css';
 
 interface SafeUser {
@@ -164,6 +165,8 @@ function AdminUsersPage() {
       </div>
 
       {error && <div className={styles.errorMsg}>{error}</div>}
+
+      <InviteCodePanel />
 
       <div className={styles.roleSummary}>
         {roleCards.map(role => (

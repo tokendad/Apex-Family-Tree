@@ -1,0 +1,150 @@
+.panel {
+  border: 1px solid var(--color-border-warm);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-primary);
+  padding: var(--space-5);
+  margin-bottom: var(--space-6);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+}
+
+.subtitle {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  max-width: 54ch;
+}
+
+.error {
+  color: var(--color-danger, #b3261e);
+  margin: var(--space-3) 0 0;
+  font-size: var(--font-size-sm);
+}
+
+.form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-warm);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  flex: 1 1 160px;
+}
+
+.field input,
+.field select {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-warm);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-base);
+}
+
+/* The code is the whole point of the interaction, so it is shown large enough
+   to read off the screen while typing it into a phone. */
+.fresh {
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--color-primary-800, #1d5134);
+  border-radius: var(--radius-md);
+  background: #f0f7f2;
+}
+
+.freshLabel {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.freshRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.freshCode {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.08em;
+}
+
+.empty {
+  color: var(--color-text-secondary);
+  margin: var(--space-4) 0 0;
+  font-size: var(--font-size-sm);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: var(--space-4);
+  font-size: var(--font-size-sm);
+}
+
+.table th {
+  text-align: left;
+  padding: var(--space-2);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+  border-bottom: 1px solid var(--color-border-warm);
+}
+
+.table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-border-warm);
+}
+
+.code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  letter-spacing: 0.05em;
+}
+
+/* Marks the row the admin just made, so it is obvious which code belongs to
+   the person they are talking to right now. */
+.isFresh {
+  background: #f0f7f2;
+}
+
+.expiry {
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .table thead { display: none; }
+
+  .table tr {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-1) var(--space-2);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--color-border-warm);
+  }
+
+  .table td { border: none; padding: 0; }
+  .table td:first-child { grid-column: 1 / -1; font-size: var(--font-size-base); }
+}

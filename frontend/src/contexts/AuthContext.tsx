@@ -13,6 +13,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   needsSetup: boolean;
   login: (email: string, password: string) => Promise<void>;
+  register: (input: { code?: string; token?: string; email: string; display_name: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
   setup: (data: { email: string; display_name: string; password: string }) => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -185,6 +186,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setNeedsSetup(false);
   }, []);
 
+  /* Registration signs the new account in: the endpoint sets the same cookies
+     login does, so sending them to a login screen afterwards would ask them to
+     type a password they chose ten seconds ago. */
+  const register = useCallback(async (input: {
+    code?: string; token?: string; email: string; display_name: string; password: string;
+  }) => {
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(input),
+    });
+
+    const data = await res.json() as { user?: User; error?: string };
+    if (!res.ok) throw new Error(data.error || 'Registration failed');
+
+    writeLastRefresh(Date.now());
+    setUser(data.user!);
+    setNeedsSetup(false);
+  }, []);
+
   const logout = useCallback(async () => {
     await fetch('/api/auth/logout', {
       method: 'POST',
@@ -221,6 +243,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated,
         needsSetup,
         login,
+        register,
         logout,
         setup,
         refreshUser,

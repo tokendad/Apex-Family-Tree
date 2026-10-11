@@ -84,6 +84,9 @@ export default function LoginPage() {
 
         <div className={styles.footer}>
           <Link to="/forgot-password">Forgot password?</Link>
+          {/* Without a code this goes nowhere, but someone holding one needs a
+              way in that is not a link an admin has to send them. */}
+          <Link to="/signup">Have an invite code?</Link>
         </div>
       </div>
     </div>

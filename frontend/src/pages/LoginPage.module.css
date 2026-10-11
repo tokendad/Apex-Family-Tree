@@ -94,6 +94,10 @@
 }
 
 .footer {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
   text-align: center;
   margin-top: var(--space-6);
   font-size: var(--font-size-sm);

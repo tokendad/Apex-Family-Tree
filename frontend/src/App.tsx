@@ -89,6 +89,8 @@ function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/setup" element={<SetupPage />} />
               <Route path="/register/:token" element={<RegisterPage />} />
+              {/* Same page without a token: the code is typed in instead. */}
+              <Route path="/signup" element={<RegisterPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
 
