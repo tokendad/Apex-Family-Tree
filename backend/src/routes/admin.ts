@@ -4,7 +4,7 @@ import { recordChange } from '../services/audit.js';
 import { AuditRepository } from '../repositories/AuditRepository.js';
 import { InviteCodeRepository, formatCode, type InviteCode } from '../repositories/InviteCodeRepository.js';
 import { UserRepository } from '../repositories/UserRepository.js';
-import { generateRefreshToken, hashToken, hashPassword, validatePassword } from '../services/auth.js';
+import { generateRefreshToken, hashToken, hashPassword, validatePassword, generateTemporaryPassword } from '../services/auth.js';
 import { createEmailService } from '../services/email.js';
 import { createLogger } from '../services/logger.js';
 import { getDatabase } from '../db/connection.js';
@@ -366,5 +366,50 @@ adminRouter.delete('/invite-codes/:id', (req, res) => {
   } catch (error) {
     logger.error('Failed to revoke invite code', error);
     res.status(500).json({ error: 'Failed to revoke invite code' });
+  }
+});
+
+// ─── Password Reset ─────────────────────────────────────────────────────────
+
+/**
+ * POST /api/v1/admin/users/:id/reset-password
+ *
+ * For when somebody forgets theirs. Returns a temporary password once, for the
+ * admin to pass on; it is never stored in readable form and cannot be fetched
+ * again. Every session that account had is ended, because a forgotten password
+ * and a borrowed one look identical from here.
+ */
+adminRouter.post('/users/:id/reset-password', async (req, res) => {
+  try {
+    const user = userRepo.findById(req.params.id as string);
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const temporaryPassword = generateTemporaryPassword();
+    const passwordHash = await hashPassword(temporaryPassword);
+    const db = getDatabase();
+    const now = new Date().toISOString().replace('T', ' ').replace('Z', '');
+
+    db.transaction(() => {
+      db.prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?')
+        .run(passwordHash, now, user.id);
+      db.prepare('DELETE FROM refresh_tokens WHERE user_id = ?').run(user.id);
+    })();
+
+    // The password itself never goes near the log, only the fact of the reset.
+    recordChange('update', 'user', user.id, { password_reset: false }, { password_reset: true }, {
+      label: user.email,
+      reset_by: req.user!.email,
+    });
+
+    res.json({
+      temporary_password: temporaryPassword,
+      message: 'Password reset. Give them this password and ask them to change it.',
+    });
+  } catch (error) {
+    logger.error('Failed to reset password', error);
+    res.status(500).json({ error: 'Failed to reset password' });
   }
 });

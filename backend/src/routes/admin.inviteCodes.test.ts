@@ -148,3 +148,70 @@ describe('access', () => {
     expect((await request(buildApp('editor')).post('/api/v1/admin/invite-codes').send({})).status).toBe(403);
   });
 });
+
+describe('POST /admin/users/:id/reset-password', () => {
+  beforeEach(() => {
+    db.prepare("INSERT INTO users (id, email, display_name, password_hash, role, status, created_at, updated_at) VALUES ('u2', 'rachel@example.test', 'Rachel', 'old-hash', 'editor', 'active', '2026-01-01', '2026-01-01')").run();
+    for (const id of ['t-phone', 't-laptop']) {
+      db.prepare("INSERT INTO refresh_tokens (id, user_id, token_hash, expires_at, created_at) VALUES (?, 'u2', 'h', '2099-01-01', '2026-01-01')").run(id);
+    }
+  });
+
+  it('returns a password that can be read down a phone', async () => {
+    const res = await request(buildApp()).post('/api/v1/admin/users/u2/reset-password').send({});
+
+    expect(res.status).toBe(200);
+    // Two words and three digits: cedar-harbor-482
+    expect(res.body.temporary_password).toMatch(/^[a-z]+-[a-z]+-\d{3}$/);
+  });
+
+  it('produces a password the rules would accept', async () => {
+    const res = await request(buildApp()).post('/api/v1/admin/users/u2/reset-password').send({});
+
+    const password = res.body.temporary_password as string;
+    expect(password.length).toBeGreaterThanOrEqual(8);
+    expect(password).toMatch(/\d/);
+  });
+
+  it('actually changes the stored password', async () => {
+    await request(buildApp()).post('/api/v1/admin/users/u2/reset-password').send({});
+
+    const user = db.prepare("SELECT password_hash FROM users WHERE id = 'u2'").get() as { password_hash: string };
+    expect(user.password_hash).not.toBe('old-hash');
+    expect(user.password_hash).toMatch(/^\$argon2/);
+  });
+
+  /* A forgotten password and a stolen one look the same from here. */
+  it('ends every session that account had', async () => {
+    await request(buildApp()).post('/api/v1/admin/users/u2/reset-password').send({});
+
+    expect(db.prepare("SELECT COUNT(*) c FROM refresh_tokens WHERE user_id = 'u2'").get()).toEqual({ c: 0 });
+  });
+
+  it('records the reset without recording the password', async () => {
+    const res = await request(buildApp()).post('/api/v1/admin/users/u2/reset-password').send({});
+
+    const rows = db.prepare('SELECT * FROM audit_log').all() as { new_values: string }[];
+    expect(rows).toHaveLength(1);
+    expect(JSON.parse(rows[0].new_values)).toMatchObject({ password_reset: true });
+    expect(JSON.stringify(rows[0])).not.toContain(res.body.temporary_password);
+  });
+
+  it('says who did the resetting', async () => {
+    await request(buildApp()).post('/api/v1/admin/users/u2/reset-password').send({});
+
+    const row = db.prepare('SELECT new_values FROM audit_log').get() as { new_values: string };
+    expect(JSON.parse(row.new_values)._meta).toMatchObject({
+      label: 'rachel@example.test',
+      reset_by: 'wes@example.test',
+    });
+  });
+
+  it('404s for an account that does not exist', async () => {
+    expect((await request(buildApp()).post('/api/v1/admin/users/nope/reset-password').send({})).status).toBe(404);
+  });
+
+  it('is refused to an editor', async () => {
+    expect((await request(buildApp('editor')).post('/api/v1/admin/users/u2/reset-password').send({})).status).toBe(403);
+  });
+});

@@ -53,6 +53,10 @@ function AdminUsersPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
+  /* Held in state rather than shown in an alert: the password has to stay on
+     screen while the admin passes it on, and it can never be fetched again. */
+  const [resetResult, setResetResult] = useState<{ displayName: string; password: string } | null>(null);
+  const [resetCopied, setResetCopied] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const fetchUsers = useCallback(async () => {
@@ -127,6 +131,32 @@ function AdminUsersPage() {
     }
   };
 
+  /* The password is shown once, here, and nowhere else: it is hashed on the
+     way in and cannot be fetched again. A banner rather than an alert so it
+     can be read and copied while the admin writes a message. */
+  const handleResetPassword = async (userId: string, displayName: string) => {
+    setOpenMenu(null);
+    if (!window.confirm(
+      `Reset the password for "${displayName}"? They will be signed out everywhere and will need the new password to get back in.`,
+    )) return;
+
+    try {
+      const res = await fetch(`/api/v1/admin/users/${userId}/reset-password`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const data = await res.json() as { temporary_password?: string; error?: string };
+      if (!res.ok) {
+        setError(data.error || 'Failed to reset password');
+        return;
+      }
+      setResetResult({ displayName, password: data.temporary_password! });
+      setResetCopied(false);
+    } catch {
+      setError('Failed to reset password');
+    }
+  };
+
   const handleDelete = async (userId: string, displayName: string) => {
     setOpenMenu(null);
     if (!window.confirm(`Are you sure you want to delete "${displayName}"? This cannot be undone.`)) return;
@@ -165,6 +195,34 @@ function AdminUsersPage() {
       </div>
 
       {error && <div className={styles.errorMsg}>{error}</div>}
+
+      {resetResult && (
+        <div className={styles.resetBanner}>
+          <div>
+            <p className={styles.resetTitle}>
+              New password for {resetResult.displayName}
+            </p>
+            <p className={styles.resetNote}>
+              Shown once. Pass it on and ask them to change it on their profile page.
+            </p>
+          </div>
+          <div className={styles.resetRow}>
+            <code className={styles.resetCode}>{resetResult.password}</code>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                navigator.clipboard.writeText(resetResult.password)
+                  .then(() => setResetCopied(true))
+                  .catch(() => setError('Could not copy — the password is shown above.'));
+              }}
+            >
+              {resetCopied ? 'Copied' : 'Copy'}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setResetResult(null)}>Dismiss</Button>
+          </div>
+        </div>
+      )}
 
       <InviteCodePanel />
 
@@ -241,6 +299,12 @@ function AdminUsersPage() {
                             onClick={() => handleStatusToggle(u.id, u.status)}
                           >
                             {u.status === 'active' ? 'Suspend' : 'Activate'}
+                          </button>
+                          <button
+                            className={styles.dropdownItem}
+                            onClick={() => void handleResetPassword(u.id, u.display_name)}
+                          >
+                            Reset password
                           </button>
                           {u.id !== currentUser?.id && (
                             <button

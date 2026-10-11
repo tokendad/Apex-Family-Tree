@@ -187,3 +187,43 @@
   font-size: var(--font-size-sm);
   margin-bottom: var(--space-4);
 }
+
+/* A reset password is shown exactly once, so it has to be hard to miss and
+   large enough to read aloud while typing it somewhere else. */
+.resetBanner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  margin-bottom: var(--space-5);
+  border: 1px solid var(--color-primary-800, #1d5134);
+  border-radius: var(--radius-md);
+  background: #f0f7f2;
+}
+
+.resetTitle {
+  margin: 0;
+  font-weight: var(--font-weight-bold);
+}
+
+.resetNote {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.resetRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.resetCode {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.04em;
+}

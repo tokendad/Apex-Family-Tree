@@ -115,7 +115,13 @@ export default function InviteCodePanel() {
             Give someone a code and they can create their own account. One use, 24 hours, unless you say otherwise.
           </p>
         </div>
-        <Button variant="primary" size="sm" onClick={() => setIsOpen((open) => !open)}>
+        {/* Dismissing the form is not the main action, and styling it like one
+            puts the heaviest button on the screen next to the thing it undoes. */}
+        <Button
+          variant={isOpen ? 'secondary' : 'primary'}
+          size="sm"
+          onClick={() => setIsOpen((open) => !open)}
+        >
           {isOpen ? 'Cancel' : 'Generate code'}
         </Button>
       </header>

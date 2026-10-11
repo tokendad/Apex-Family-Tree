@@ -1,4 +1,10 @@
+/* AppShell's .main is overflow: hidden, so a page inside it has to be its own
+   scrolling container. Without this the page simply ends at the fold: it fit a
+   desktop viewport and so looked fine, while on a phone the password and home
+   person sections were unreachable. */
 .page {
+  height: 100%;
+  overflow-y: auto;
   padding: var(--space-8);
   max-width: 680px;
   margin: 0 auto;

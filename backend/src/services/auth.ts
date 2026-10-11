@@ -36,6 +36,41 @@ export function validatePassword(password: unknown): string | null {
   return null;
 }
 
+/**
+ * Words for a temporary password an admin reads down the phone.
+ *
+ * Short, unambiguous when spoken, and nothing that sounds like anything else.
+ * No proper nouns, no homophones (no "bear"/"bare"), nothing embarrassing to
+ * say to a relative.
+ */
+const RESET_WORDS = [
+  'river', 'maple', 'stone', 'amber', 'cedar', 'harbor', 'meadow', 'willow',
+  'copper', 'quartz', 'lantern', 'anchor', 'orchard', 'thistle', 'marble', 'cobalt',
+  'juniper', 'pebble', 'harvest', 'beacon', 'birch', 'clover', 'granite', 'hollow',
+  'ivory', 'lagoon', 'summit', 'timber', 'violet', 'walnut', 'canyon', 'ember',
+];
+
+/**
+ * A temporary password that can be dictated and typed on a phone.
+ *
+ * Two words and three digits, e.g. `cedar-harbor-482`. Deliberately far weaker
+ * than a password someone chooses for themselves: it exists to be read aloud
+ * once and replaced. Login is rate limited, which is what makes a password this
+ * guessable tolerable for the short time it should live.
+ */
+export function generateTemporaryPassword(): string {
+  const bytes = new Uint8Array(3);
+  crypto.getRandomValues(bytes);
+
+  const first = RESET_WORDS[bytes[0] % RESET_WORDS.length];
+  let second = RESET_WORDS[bytes[1] % RESET_WORDS.length];
+  // Two of the same word reads like a mistake and halves the choice.
+  if (second === first) second = RESET_WORDS[(bytes[1] + 1) % RESET_WORDS.length];
+
+  const digits = String(100 + (bytes[2] % 900));
+  return `${first}-${second}-${digits}`;
+}
+
 export async function hashPassword(password: string): Promise<string> {
   return argon2.hash(password, {
     type: argon2.argon2id,
