@@ -928,7 +928,13 @@ export class PersonRepository extends BaseRepository {
        child; `step` says the opposite -- the child came into the family with
        one of the spouses. So a `step` row in a parent's later family is not a
        half-sibling of the subject, it is one of that later spouse's children,
-       which makes it a step-sibling. */
+       which makes it a step-sibling.
+
+       The line is drawn on the parent, not on biology: a child the parent
+       adopted or fostered is the parent's own child and so a half-sibling,
+       the same way an adopted child of the subject's own parents is listed as
+       a sibling and not as something lesser. The role rides along on the row
+       so the page can say which kind it is. */
     const isOwnChild = (role: string) => role !== 'step';
 
     /**

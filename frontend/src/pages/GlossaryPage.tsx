@@ -140,8 +140,9 @@ export default function GlossaryPage() {
           <p>
             Because a person can belong to more than one family, siblings come in three kinds.{' '}
             <strong>Siblings</strong> share both parents. <strong>Half-siblings</strong> share one —
-            they are a parent's children by someone else. <strong>Step-siblings</strong> share none:
-            they are the children of a parent's spouse by someone else. A person's page lists the
+            they are a parent's own children by someone else, whether by birth or by adoption.{' '}
+            <strong>Step-siblings</strong> share no parent at all: they are the children of a
+            parent's spouse by someone else. A person's page lists the
             three separately and says which parent each connection runs through, since with both
             parents remarried an unlabelled list of half-siblings cannot be read.
           </p>
