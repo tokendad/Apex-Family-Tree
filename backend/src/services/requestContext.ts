@@ -51,8 +51,12 @@ export function runWithFlags<T>(flags: Partial<RequestContext>, fn: () => T): T 
  * traffic that came that way -- but the health-check port is reachable on the
  * LAN, where the header could be set by hand. Treat a recorded address as a
  * hint, never as proof of who did something.
+ *
+ * Exported because the rate limiter buckets by the same value. If the two
+ * disagreed about who a caller is, a limit could be charged to one party and
+ * recorded against another.
  */
-function clientIp(req: Request): string | null {
+export function clientIp(req: Request): string | null {
   const forwarded = req.headers['cf-connecting-ip'] ?? req.headers['x-forwarded-for'];
   const header = Array.isArray(forwarded) ? forwarded[0] : forwarded;
   const first = header?.split(',')[0]?.trim();

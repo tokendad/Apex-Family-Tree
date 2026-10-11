@@ -22,6 +22,20 @@ export function getRefreshExpiryMs(): number {
   return num * (multipliers[unit] ?? 86_400_000);
 }
 
+/**
+ * The one place the password rules live (#39: eight characters, one number).
+ *
+ * Returns the message to show, or null when the password is acceptable. The
+ * rule was previously written out at each call site, which is how setup and
+ * admin-create came to check length and nothing else.
+ */
+export function validatePassword(password: unknown): string | null {
+  if (typeof password !== 'string' || password.length === 0) return 'Password is required';
+  if (password.length < 8) return 'Password must be at least 8 characters';
+  if (!/\d/.test(password)) return 'Password must contain at least one number';
+  return null;
+}
+
 export async function hashPassword(password: string): Promise<string> {
   return argon2.hash(password, {
     type: argon2.argon2id,

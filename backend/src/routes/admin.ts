@@ -2,8 +2,9 @@ import { Router } from 'express';
 import { requireRole } from '../middleware/auth.js';
 import { recordChange } from '../services/audit.js';
 import { AuditRepository } from '../repositories/AuditRepository.js';
+import { InviteCodeRepository, formatCode, type InviteCode } from '../repositories/InviteCodeRepository.js';
 import { UserRepository } from '../repositories/UserRepository.js';
-import { generateRefreshToken, hashToken, hashPassword } from '../services/auth.js';
+import { generateRefreshToken, hashToken, hashPassword, validatePassword } from '../services/auth.js';
 import { createEmailService } from '../services/email.js';
 import { createLogger } from '../services/logger.js';
 import { getDatabase } from '../db/connection.js';
@@ -97,8 +98,9 @@ adminRouter.post('/users/create', async (req, res) => {
       return;
     }
 
-    if (!password || typeof password !== 'string' || password.length < 8) {
-      res.status(400).json({ error: 'Password must be at least 8 characters' });
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      res.status(400).json({ error: passwordError });
       return;
     }
 
@@ -266,5 +268,103 @@ adminRouter.get('/audit/facets', (_req, res) => {
   } catch (error) {
     logger.error('Failed to load audit facets', error);
     res.status(500).json({ error: 'Failed to load audit facets' });
+  }
+});
+
+// ─── Invite Codes ───────────────────────────────────────────────────────────
+
+const VALID_INVITE_ROLES = ['admin', 'editor', 'limited_editor', 'viewer'] as const;
+
+/** The stored code is normalised; everything leaving the API is formatted. */
+function presentCode(row: InviteCode) {
+  return {
+    id: row.id,
+    code: formatCode(row.code),
+    role: row.role,
+    note: row.note,
+    max_uses: row.max_uses,
+    use_count: row.use_count,
+    uses_left: row.max_uses - row.use_count,
+    expires_at: row.expires_at,
+    created_at: row.created_at,
+  };
+}
+
+// POST /api/v1/admin/invite-codes — Generate a code for someone to sign up with
+adminRouter.post('/invite-codes', (req, res) => {
+  try {
+    const { role, note, expires_in_hours, max_uses } = req.body ?? {};
+
+    const chosenRole = role ?? 'editor';
+    if (!VALID_INVITE_ROLES.includes(chosenRole)) {
+      res.status(400).json({ error: `Role must be one of: ${VALID_INVITE_ROLES.join(', ')}` });
+      return;
+    }
+
+    const hours = Number(expires_in_hours ?? 24);
+    if (!Number.isFinite(hours) || hours < 1 || hours > 720) {
+      res.status(400).json({ error: 'Expiry must be between 1 and 720 hours' });
+      return;
+    }
+
+    const uses = Number(max_uses ?? 1);
+    if (!Number.isInteger(uses) || uses < 1 || uses > 50) {
+      res.status(400).json({ error: 'Uses must be a whole number between 1 and 50' });
+      return;
+    }
+
+    const created = new InviteCodeRepository().create({
+      role: chosenRole,
+      note: typeof note === 'string' ? note : null,
+      expiresInHours: hours,
+      maxUses: uses,
+      createdBy: req.user!.userId,
+    });
+
+    recordChange('create', 'invite_code', created.id, null, presentCode(created), {
+      label: created.note || formatCode(created.code),
+      role: created.role,
+    });
+
+    res.status(201).json({ invite_code: presentCode(created) });
+  } catch (error) {
+    logger.error('Failed to create invite code', error);
+    res.status(500).json({ error: 'Failed to create invite code' });
+  }
+});
+
+// GET /api/v1/admin/invite-codes — Codes that can still be used
+adminRouter.get('/invite-codes', (_req, res) => {
+  try {
+    res.json({ invite_codes: new InviteCodeRepository().findActive().map(presentCode) });
+  } catch (error) {
+    logger.error('Failed to list invite codes', error);
+    res.status(500).json({ error: 'Failed to list invite codes' });
+  }
+});
+
+// DELETE /api/v1/admin/invite-codes/:id — Revoke a code before it is used
+adminRouter.delete('/invite-codes/:id', (req, res) => {
+  try {
+    const repo = new InviteCodeRepository();
+    const before = repo.findById(req.params.id as string);
+    if (!before) {
+      res.status(404).json({ error: 'Invite code not found' });
+      return;
+    }
+
+    if (!repo.revoke(before.id)) {
+      res.status(404).json({ error: 'Invite code has already been revoked' });
+      return;
+    }
+
+    recordChange('delete', 'invite_code', before.id, presentCode(before), null, {
+      label: before.note || formatCode(before.code),
+    });
+
+    res.json({ message: 'Invite code revoked' });
+  } catch (error) {
+    logger.error('Failed to revoke invite code', error);
+    res.status(500).json({ error: 'Failed to revoke invite code' });
   }
 });
