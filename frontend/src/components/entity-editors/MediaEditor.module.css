@@ -296,6 +296,13 @@
   align-items: center;
 }
 
+/* The person cell is a search box rather than a select, so it needs room to
+   grow while the row stays on one line on a phone. */
+.personPickerCell {
+  flex: 1 1 14rem;
+  min-width: 12rem;
+}
+
 .select {
   padding: var(--space-1) var(--space-2);
   border: 1px solid var(--color-border);
