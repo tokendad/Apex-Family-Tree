@@ -11,6 +11,30 @@ interface MigrationRecord {
   applied_at: string;
 }
 
+/**
+ * Whether any migration file has yet to be applied.
+ *
+ * Kept separate from runMigrations so a caller can take a backup first without
+ * this module needing to know backups exist. Returns false when
+ * schema_migrations is absent: that is a database being created now, which has
+ * nothing in it worth preserving.
+ */
+export function hasPendingMigrations(db: Database.Database, migrationsDir: string): boolean {
+  const tableExists = db.prepare(
+    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'",
+  ).get();
+  if (!tableExists) return false;
+
+  const applied = new Set(
+    (db.prepare('SELECT version FROM schema_migrations').all() as { version: string }[])
+      .map((row) => row.version),
+  );
+
+  return fs.readdirSync(migrationsDir)
+    .filter((f) => f.endsWith('.sql') && !f.endsWith('-down.sql'))
+    .some((f) => !applied.has(f.replace('.sql', '')));
+}
+
 export function runMigrations(db: Database.Database, migrationsDir: string, logger: Logger): void {
   // Ensure schema_migrations table exists
   db.exec(`

@@ -76,20 +76,35 @@ export function applyRetentionPolicy(logger: Logger, maxBackups = 10): void {
 
   if (!fs.existsSync(backupDir)) return;
 
-  const files = fs.readdirSync(backupDir)
-    .filter(f => f.endsWith('.bak'))
-    .map(f => ({ name: f, path: path.join(backupDir, f), mtime: fs.statSync(path.join(backupDir, f)).mtimeMs }))
-    .sort((a, b) => b.mtime - a.mtime);
+  /* Retention is per backup type, not across the whole directory. A shared cap
+     would let a run of restarts evict the snapshot taken before an import or a
+     migration -- precisely the one worth keeping -- because startup backups are
+     by far the most frequent. Each type keeps its own last `maxBackups`. */
+  const byType = new Map<string, { name: string; path: string; mtime: number }[]>();
 
-  if (files.length <= maxBackups) return;
+  for (const name of fs.readdirSync(backupDir)) {
+    const match = /^treeroots\.db\.([a-z_]+)\..*\.bak$/.exec(name);
+    // Anything this policy did not create is left alone, including the
+    // hand-made snapshots someone took before a risky operation.
+    if (!match) continue;
 
-  const toDelete = files.slice(maxBackups);
-  for (const file of toDelete) {
-    try {
-      fs.unlinkSync(file.path);
-      logger.info(`Deleted old backup: ${file.name}`);
-    } catch (error) {
-      logger.warn(`Failed to delete backup ${file.name}: ${error instanceof Error ? error.message : String(error)}`);
+    const full = path.join(backupDir, name);
+    const bucket = byType.get(match[1]) ?? [];
+    bucket.push({ name, path: full, mtime: fs.statSync(full).mtimeMs });
+    byType.set(match[1], bucket);
+  }
+
+  for (const [type, files] of byType) {
+    if (files.length <= maxBackups) continue;
+
+    files.sort((a, b) => b.mtime - a.mtime);
+    for (const file of files.slice(maxBackups)) {
+      try {
+        fs.unlinkSync(file.path);
+        logger.info(`Deleted old ${type} backup: ${file.name}`);
+      } catch (error) {
+        logger.warn(`Failed to delete backup ${file.name}: ${error instanceof Error ? error.message : String(error)}`);
+      }
     }
   }
 }

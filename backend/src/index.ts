@@ -12,7 +12,8 @@ import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
 import { apiRouter } from './routes/api.js';
 import { initializeDatabase, closeDatabase } from './db/connection.js';
-import { runMigrations } from './db/migrator.js';
+import { runMigrations, hasPendingMigrations } from './db/migrator.js';
+import { applyRetentionPolicy, createPreMigrationBackup, createStartupBackup } from './services/backup.js';
 import { pruneExpiredTokens } from './services/tokenPruning.js';
 import { firstRunCheck } from './middleware/firstRun.js';
 
@@ -60,7 +61,21 @@ async function start() {
     initializeDataDirectories(logger);
 
     const db = initializeDatabase(logger);
+
+    // A restore point for this boot, taken before anything here can write.
+    createStartupBackup(logger);
+
     const migrationsDir = path.join(__dirname, 'migrations');
+
+    /* A second copy when the schema is about to change. It duplicates the
+       startup backup taken moments ago, deliberately: retention is per type,
+       so this one keeps its place through the next ten restarts, while the
+       startup copy of the old schema would be pushed out long before anyone
+       noticed a migration had gone wrong. */
+    if (hasPendingMigrations(db, migrationsDir)) {
+      createPreMigrationBackup(logger);
+    }
+
     runMigrations(db, migrationsDir, logger);
 
     // Data backfills (idempotent — only process rows missing computed values)
@@ -68,6 +83,9 @@ async function start() {
     backfillMarriageSortKeys(db, logger);
 
     pruneExpiredTokens(logger);
+
+    // After this boot's backups exist, so they count towards their own caps.
+    applyRetentionPolicy(logger);
 
     logger.info(`Starting AFT server on port ${PORT}`);
     app.listen(PORT, '0.0.0.0', () => {
