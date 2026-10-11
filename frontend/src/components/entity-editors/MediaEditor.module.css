@@ -296,11 +296,18 @@
   align-items: center;
 }
 
-/* The person cell is a search box rather than a select, so it needs room to
-   grow while the row stays on one line on a phone. */
+/* The person cell is a search box rather than a select. It takes the spare
+   width but may shrink, so it cannot squeeze the type select beside it down
+   to an unreadable sliver -- which a 12rem floor on this did. */
 .personPickerCell {
-  flex: 1 1 14rem;
-  min-width: 12rem;
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+/* The Add button keeps its own size rather than being compressed by whichever
+   control sits before it. */
+.addLinkRow > button {
+  flex: 0 0 auto;
 }
 
 .select {
@@ -311,8 +318,11 @@
   color: var(--color-text-primary);
   font-size: var(--font-size-sm);
   cursor: pointer;
-  flex: 1;
-  min-width: 0;
+  /* Wide enough to read the chosen type. flex: 1 with min-width: 0 dates from
+     when two selects shared this row and split it between them; left alone it
+     lets the select collapse to its arrow. */
+  flex: 0 1 auto;
+  min-width: 7rem;
 }
 
 .select:focus {
