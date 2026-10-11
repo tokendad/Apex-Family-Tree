@@ -109,7 +109,7 @@ const Navbar: React.FC = () => {
   const userButtonRef = useRef<HTMLButtonElement>(null);
   const visibleNavItems = [
     ...NAV_ITEMS,
-    ...(hasMinimumRole(user?.role, 'editor') ? [{ label: 'Tools', path: '/tools' }] : []),
+    ...(hasMinimumRole(user?.role, 'admin') ? [{ label: 'Tools', path: '/tools' }] : []),
     ...(user?.role === 'admin' ? [{ label: 'Admin', path: '/admin' }] : []),
   ];
 

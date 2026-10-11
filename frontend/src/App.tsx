@@ -132,9 +132,9 @@ function App() {
               <Route path="/export" element={<ProtectedRoute><ExportPage /></ProtectedRoute>} />
 
               {/* Tools routes */}
-              <Route path="/tools" element={<ProtectedRoute minimumRole="editor"><ToolsPage /></ProtectedRoute>} />
-              <Route path="/tools/people-dedup" element={<ProtectedRoute minimumRole="editor"><PeopleDedupPage /></ProtectedRoute>} />
-              <Route path="/tools/tree-issues" element={<ProtectedRoute><TreeIssuesPage /></ProtectedRoute>} />
+              <Route path="/tools" element={<ProtectedRoute minimumRole="admin"><ToolsPage /></ProtectedRoute>} />
+              <Route path="/tools/people-dedup" element={<ProtectedRoute minimumRole="admin"><PeopleDedupPage /></ProtectedRoute>} />
+              <Route path="/tools/tree-issues" element={<ProtectedRoute minimumRole="admin"><TreeIssuesPage /></ProtectedRoute>} />
 
               {/* Admin routes (protected, admin only) */}
               <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />

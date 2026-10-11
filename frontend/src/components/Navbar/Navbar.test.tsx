@@ -47,11 +47,14 @@ describe('Navbar role-aware tools navigation', () => {
     expect(screen.getByRole('link', { name: 'Admin' })).toHaveAttribute('href', '/admin');
   });
 
-  it('shows Tools but not Admin for editors', () => {
+  /* Tools is admin only: the section holds the de-duplication tool, which
+     merges person records, and the tree-issue scan. An editor edits the
+     archive; it does not get to rewrite it in bulk. */
+  it('hides Tools and Admin for editors', () => {
     currentRole = 'editor';
     render(<Navbar />, { wrapper: MemoryRouter });
 
-    expect(screen.getByRole('link', { name: 'Tools' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Tools' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Admin' })).not.toBeInTheDocument();
   });
 

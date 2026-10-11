@@ -17,13 +17,18 @@ import {
 
 export const toolsRouter = Router();
 
-const editorOnly = requireRole('admin', 'editor');
+/* Admin only, router-wide. These are the bulk operations: the dedup tool
+   rewrites and merges person records, and a scan rebuilds the issue set. The
+   read-only summary is guarded with them rather than left open, so the
+   boundary is the whole section and not a list of endpoints to keep in step --
+   TreePage degrades to hiding its issue badge when it cannot read the count. */
+toolsRouter.use(requireRole('admin'));
 
 function paramStr(val: string | string[]): string {
   return Array.isArray(val) ? val[0] : val;
 }
 
-toolsRouter.get('/people-dedup/scan', editorOnly, (_req: Request, res: Response) => {
+toolsRouter.get('/people-dedup/scan', (_req: Request, res: Response) => {
   try {
     res.json(scanPeopleDuplicates());
   } catch (error) {
@@ -31,7 +36,7 @@ toolsRouter.get('/people-dedup/scan', editorOnly, (_req: Request, res: Response)
   }
 });
 
-toolsRouter.post('/people-dedup/preview', editorOnly, (req: Request, res: Response) => {
+toolsRouter.post('/people-dedup/preview', (req: Request, res: Response) => {
   try {
     const input = req.body as PeopleMergeInput;
     if (!input?.canonicalPersonId) {
@@ -48,7 +53,7 @@ toolsRouter.post('/people-dedup/preview', editorOnly, (req: Request, res: Respon
   }
 });
 
-toolsRouter.post('/people-dedup/apply', editorOnly, (req: Request, res: Response) => {
+toolsRouter.post('/people-dedup/apply', (req: Request, res: Response) => {
   try {
     const input = req.body as PeopleMergeInput;
     if (!input?.canonicalPersonId) {
@@ -87,7 +92,7 @@ toolsRouter.get('/tree-issues', (req: Request, res: Response) => {
   }
 });
 
-toolsRouter.post('/tree-issues/scan', editorOnly, (_req: Request, res: Response) => {
+toolsRouter.post('/tree-issues/scan', (_req: Request, res: Response) => {
   try {
     res.json(scanTreeIssues());
   } catch (error) {
@@ -95,7 +100,7 @@ toolsRouter.post('/tree-issues/scan', editorOnly, (_req: Request, res: Response)
   }
 });
 
-toolsRouter.patch('/tree-issues/:id', editorOnly, (req: Request, res: Response) => {
+toolsRouter.patch('/tree-issues/:id', (req: Request, res: Response) => {
   try {
     const input = req.body as { status?: TreeIssueStatus; note?: string | null };
     if (input.status === 'dismissed' && !input.note?.trim()) {

@@ -18,6 +18,7 @@ import PersonalInfoStep from '@/components/WizardSteps/PersonalInfoStep';
 import VitalEventsStep from '@/components/WizardSteps/VitalEventsStep';
 import RelationshipsStep from '@/components/WizardSteps/RelationshipsStep';
 import MediaNotesStep from '@/components/WizardSteps/MediaNotesStep';
+import { useAuth } from '@/contexts/AuthContext';
 import { useCanvasStore } from '@/stores/canvasStore';
 import { useTreeData } from '@/hooks/useTreeData';
 import { usePersonWizard } from '@/hooks/usePersonWizard';
@@ -53,6 +54,7 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
     setHomePersonId,
   } = useCanvasStore();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [orientation, setOrientation] = useState<FamilyChartOrientation>('vertical');
   const [chartDepth, setChartDepth] = useState(3);
   const { nodes, families, isLoading, setNodes, setFamilies, setConnectors, setLoading, fitToScreen } = useCanvasStore();
@@ -62,7 +64,16 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
   const highlightDebounce = useRef<ReturnType<typeof setTimeout>>();
   const prevFilterRef = useRef<TreeFilter>('all');
 
+  // The issue count links through to Tools, which is admin only, so only an
+  // admin has anywhere to go with it -- and only an admin may read the count.
+  const canSeeTreeIssues = user?.role === 'admin';
+
   useEffect(() => {
+    if (!canSeeTreeIssues) {
+      setTreeIssueCount(null);
+      return;
+    }
+
     let cancelled = false;
     void (async () => {
       try {
@@ -78,7 +89,7 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [canSeeTreeIssues]);
 
   // Highlight matching tree nodes when search is active
   useEffect(() => {
