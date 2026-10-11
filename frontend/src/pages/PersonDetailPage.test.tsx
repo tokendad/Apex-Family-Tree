@@ -369,3 +369,120 @@ describe('PersonDetailPage — artifacts and attribute dates', () => {
     expect(screen.queryByText(/BET 1985 AND 1992/)).toBeNull();
   });
 });
+
+describe('PersonDetailPage — half- and step-siblings', () => {
+  /* The reported case: Raymond Jr's panel showed only his parents' three
+     children, and nothing said his father's two by another wife existed. */
+  const relationships = [
+    {
+      family_id: 'f-1',
+      type: 'child_family',
+      role: 'child',
+      spouse1: { id: 'p-dad', given_name: 'Raymond', surname: 'LeFort' },
+      spouse2: { id: 'p-mum', given_name: 'Eunice', surname: 'LeFort' },
+      children: [
+        { id: 'fm-1', family_id: 'f-1', person_id: 'per-1', given_name: 'Jane', surname: 'Doe', role: 'child' },
+        { id: 'fm-2', family_id: 'f-1', person_id: 'p-rich', given_name: 'Richard', surname: 'LeFort', role: 'child' },
+        { id: 'fm-3', family_id: 'f-1', person_id: 'p-sandy', given_name: 'Sandy', surname: 'LeFort', role: 'adopted' },
+      ],
+      step_parents: [
+        {
+          via: { id: 'p-dad', given_name: 'Raymond', surname: 'LeFort' },
+          people: [{ id: 'p-betty', given_name: 'Betty', surname: 'Mercier' }],
+        },
+      ],
+      half_siblings: [
+        {
+          via: { id: 'p-dad', given_name: 'Raymond', surname: 'LeFort' },
+          children: [
+            { id: 'fm-4', family_id: 'f-2', person_id: 'p-harold', given_name: 'Harold', surname: 'Blake', role: 'child' },
+            { id: 'fm-5', family_id: 'f-2', person_id: 'p-lucinda', given_name: 'Lucinda', surname: 'Hecker', role: 'child' },
+          ],
+        },
+      ],
+      step_siblings: [
+        {
+          via: { id: 'p-dad', given_name: 'Raymond', surname: 'LeFort' },
+          step_parent: { id: 'p-betty', given_name: 'Betty', surname: 'Mercier' },
+          children: [
+            { id: 'fm-6', family_id: 'f-3', person_id: 'p-step', given_name: 'Paul', surname: 'Mercier', role: 'step' },
+          ],
+        },
+      ],
+    },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/connected')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+      }
+      if (url.includes('/relationships')) {
+        return Promise.resolve({ ok: true, json: async () => relationships });
+      }
+      if (url.includes('/media') || url.includes('/sources') || url.includes('/collections/')) {
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }
+      return Promise.resolve({ ok: true, json: async () => stubPerson });
+    });
+  });
+
+  async function openFamilyTab() {
+    renderPage();
+    fireEvent.click(await screen.findByRole('tab', { name: /family/i }));
+  }
+
+  it('lists half-siblings apart from the siblings, named after the shared parent', async () => {
+    await openFamilyTab();
+
+    expect(await screen.findByText(/^Siblings \(2\)$/)).toBeInTheDocument();
+
+    /* The label has to say which parent it runs through -- the step-parent row
+       says "via Raymond LeFort" too, so this is read off the heading itself. */
+    const heading = screen.getByText('Half-siblings (2)').parentElement!;
+    expect(heading.textContent).toContain('via Raymond LeFort');
+    expect(screen.getByRole('link', { name: /harold blake/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /lucinda hecker/i })).toBeInTheDocument();
+  });
+
+  /* A step-sibling shares no parent with the subject, so the label has to say
+     both whose spouse the connection runs through and who that spouse is. */
+  it('lists step-siblings with the parent and the step-parent', async () => {
+    await openFamilyTab();
+
+    expect(await screen.findByText('Step-siblings (1)')).toBeInTheDocument();
+    expect(screen.getByText('via Raymond LeFort, with Betty Mercier')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /paul mercier/i })).toBeInTheDocument();
+  });
+
+  /* role already carried adopted | foster | step and the panel showed none of
+     it, so an adopted child read as a birth child. */
+  it('marks a non-birth role on the name and leaves birth children unmarked', async () => {
+    await openFamilyTab();
+
+    expect(await screen.findByRole('link', { name: /sandy lefort adopted/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Richard LeFort' })).toBeInTheDocument();
+  });
+
+  it('leaves the subject out of their own sibling list', async () => {
+    await openFamilyTab();
+
+    await screen.findByText(/^Siblings \(2\)$/);
+    expect(screen.queryByRole('link', { name: /jane doe/i })).not.toBeInTheDocument();
+  });
+
+
+  /* A parent's later marriage left no trace on the page at all, even when the
+     new spouse brought no children of their own. */
+  it('lists a step-parent below the parents, named after the parent they married', async () => {
+    await openFamilyTab();
+
+    expect(await screen.findByText('Step-parents (1)')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Betty Mercier' })).toBeInTheDocument();
+
+    /* Below the parents, not among them -- Betty is not an ancestor. */
+    const parents = screen.getByText('Parents').parentElement!;
+    expect(parents.textContent).not.toContain('Betty');
+  });
+});

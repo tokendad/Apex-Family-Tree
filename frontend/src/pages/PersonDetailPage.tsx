@@ -86,6 +86,30 @@ interface ChildMember {
   role: ChildRole;
 }
 
+/* The people a parent married apart from the subject's other parent. Shown
+   even when they brought no children, because the panel otherwise gives no
+   sign a parent remarried. */
+interface StepParentGroup {
+  via: PersonSummary;
+  people: PersonSummary[];
+}
+
+/* Children of one of the subject's parents by someone else. `via` names that
+   parent, because with both parents remarried an unqualified "half-siblings"
+   list does not say which side it runs through. */
+interface HalfSiblingGroup {
+  via: PersonSummary;
+  children: ChildMember[];
+}
+
+/* Children of a parent's later spouse by someone else -- no shared ancestry
+   with the subject, so they are listed apart from the half-siblings. */
+interface StepSiblingGroup {
+  via: PersonSummary;
+  step_parent: PersonSummary | null;
+  children: ChildMember[];
+}
+
 interface Relationship {
   family_id: string;
   type: 'parent_family' | 'child_family';
@@ -93,6 +117,9 @@ interface Relationship {
   spouse1: PersonSummary | null;
   spouse2: PersonSummary | null;
   children: ChildMember[];
+  step_parents?: StepParentGroup[];
+  half_siblings?: HalfSiblingGroup[];
+  step_siblings?: StepSiblingGroup[];
 }
 
 interface MediaItem {
@@ -148,6 +175,84 @@ const NAME_TYPE_CSS: Record<NameType, string> = {
 function personName(p: { displayName?: string | null; display_name?: string | null; given_name: string | null; middle_name?: string | null; surname: string | null } | null): string {
   if (!p) return 'Unknown';
   return getPersonDisplayName(p);
+}
+
+/* The role column records child | adopted | foster | step and the panel never
+   showed it, so an adopted or foster child read as a birth child. Only the
+   exceptions are marked; labelling every birth child "child" is noise. */
+const CHILD_ROLE_LABELS: Record<string, string> = {
+  adopted: 'adopted',
+  foster: 'foster',
+  step: 'step',
+};
+
+function childRoleLabel(role: string): string | null {
+  return CHILD_ROLE_LABELS[role] ?? null;
+}
+
+/* One labelled row of people. The count is left to the caller because the
+   Parents row reads better without one. */
+function RelPersonSection({
+  label,
+  aside,
+  people,
+}: {
+  label: string;
+  aside?: string | null;
+  people: PersonSummary[];
+}) {
+  if (people.length === 0) return null;
+
+  return (
+    <div className={styles.relCardSection}>
+      <span className={styles.relRoleLabel}>
+        {label}
+        {aside && <span className={styles.relRoleAside}>{aside}</span>}
+      </span>
+      <div className={styles.relPersonList}>
+        {people.map((p) => (
+          <Link key={p.id} to={`/people/${p.id}`} className={styles.relPersonLink}>
+            {personName(p)}
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* One labelled row of children, with the non-birth roles marked. Every child
+   list in the panel goes through it so siblings, half-siblings, step-siblings
+   and the person's own children all read the same way. */
+function ChildList({
+  label,
+  aside,
+  members,
+}: {
+  label: string;
+  aside?: string | null;
+  members: ChildMember[];
+}) {
+  if (members.length === 0) return null;
+
+  return (
+    <div className={styles.relCardSection}>
+      <span className={styles.relRoleLabel}>
+        {label} ({members.length})
+        {aside && <span className={styles.relRoleAside}>{aside}</span>}
+      </span>
+      <div className={styles.relPersonList}>
+        {members.map((c) => {
+          const role = childRoleLabel(c.role);
+          return (
+            <Link key={c.id} to={`/people/${c.person_id}`} className={styles.relPersonLink}>
+              {personName(c)}
+              {role && <span className={styles.relRoleTag}>{role}</span>}
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function fullName(name: PersonName): string {
@@ -901,24 +1006,43 @@ const PersonDetailPage: React.FC = () => {
                               )}
                             </div>
 
-                            {siblings.length > 0 && (
-                              <div className={styles.relCardSection}>
-                                <span className={styles.relRoleLabel}>
-                                  Siblings ({siblings.length})
-                                </span>
-                                <div className={styles.relPersonList}>
-                                  {siblings.map((c) => (
-                                    <Link
-                                      key={c.id}
-                                      to={`/people/${c.person_id}`}
-                                      className={styles.relPersonLink}
-                                    >
-                                      {personName(c)}
-                                    </Link>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
+                            {/* Not ancestors of this person, so they sit
+                                below the parents rather than among them. */}
+                            {(rel.step_parents ?? []).map((group) => (
+                              <RelPersonSection
+                                key={`step-parent-${group.via.id}`}
+                                label={`Step-parents (${group.people.length})`}
+                                aside={`via ${personName(group.via)}`}
+                                people={group.people}
+                              />
+                            ))}
+
+                            <ChildList label="Siblings" members={siblings} />
+
+                            {/* Children of one parent by someone else, kept
+                                out of the sibling list and named after the
+                                parent they run through. */}
+                            {(rel.half_siblings ?? []).map((group) => (
+                              <ChildList
+                                key={`half-${group.via.id}`}
+                                label="Half-siblings"
+                                aside={`via ${personName(group.via)}`}
+                                members={group.children}
+                              />
+                            ))}
+
+                            {(rel.step_siblings ?? []).map((group) => (
+                              <ChildList
+                                key={`step-${group.via.id}-${group.step_parent?.id ?? 'unknown'}`}
+                                label="Step-siblings"
+                                aside={
+                                  group.step_parent
+                                    ? `via ${personName(group.via)}, with ${personName(group.step_parent)}`
+                                    : `via ${personName(group.via)}`
+                                }
+                                members={group.children}
+                              />
+                            ))}
                           </div>
                         );
                       })}
@@ -951,24 +1075,7 @@ const PersonDetailPage: React.FC = () => {
                               )}
                             </div>
 
-                            {rel.children.length > 0 && (
-                              <div className={styles.relCardSection}>
-                                <span className={styles.relRoleLabel}>
-                                  Children ({rel.children.length})
-                                </span>
-                                <div className={styles.relPersonList}>
-                                  {rel.children.map((c) => (
-                                    <Link
-                                      key={c.id}
-                                      to={`/people/${c.person_id}`}
-                                      className={styles.relPersonLink}
-                                    >
-                                      {personName(c)}
-                                    </Link>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
+                            <ChildList label="Children" members={rel.children} />
                           </div>
                         );
                       })}

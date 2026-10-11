@@ -126,6 +126,26 @@ export default function GlossaryPage() {
             couple and their children, with marriage and divorce details.
           </p>
           <p>
+            A family's children carry a role: a birth <strong>child</strong>, or{' '}
+            <strong>adopted</strong>, <strong>foster</strong> or <strong>step</strong>. The role is
+            about how the child joined the family, not about how much they belong to it, and it is
+            shown on the name wherever it is anything other than a birth child.
+          </p>
+          <p>
+            A <strong>step-parent</strong> is someone a parent married who is not the other parent.
+            They are not an ancestor, so a person's page lists them below the parents rather than
+            among them — and lists them whether or not they brought children of their own, since
+            otherwise nothing on the page would show that a parent remarried.
+          </p>
+          <p>
+            Because a person can belong to more than one family, siblings come in three kinds.{' '}
+            <strong>Siblings</strong> share both parents. <strong>Half-siblings</strong> share one —
+            they are a parent's children by someone else. <strong>Step-siblings</strong> share none:
+            they are the children of a parent's spouse by someone else. A person's page lists the
+            three separately and says which parent each connection runs through, since with both
+            parents remarried an unlabelled list of half-siblings cannot be read.
+          </p>
+          <p>
             <strong>Relationships</strong> are the looser connections: who appears in a photograph,
             who told a story, which people a document is about. They are kept separately from
             family links because they are not about descent, and they can join anything to anything —
