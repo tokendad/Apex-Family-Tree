@@ -12,6 +12,7 @@ import {
   type TokenPayload,
 } from '../services/auth.js';
 import { requireAuth } from '../middleware/auth.js';
+import { setAuthCookies, clearAuthCookies } from '../services/session.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { InviteCodeRepository } from '../repositories/InviteCodeRepository.js';
 import { recordChange } from '../services/audit.js';
@@ -20,37 +21,6 @@ import { getDatabase } from '../db/connection.js';
 
 export const authRouter = Router();
 const userRepo = new UserRepository();
-
-const COOKIE_OPTIONS = {
-  httpOnly: true,
-  // Secure flag must be explicitly enabled via COOKIE_SECURE=true.
-  // Defaults to false so the app works over plain HTTP (typical for self-hosted LAN installs).
-  // Set COOKIE_SECURE=true only when serving over HTTPS.
-  secure: process.env.COOKIE_SECURE === 'true',
-  sameSite: 'strict' as const,
-  path: '/',
-};
-
-function setAuthCookies(
-  res: import('express').Response,
-  accessToken: string,
-  refreshToken: string,
-  refreshExpiryMs: number,
-): void {
-  res.cookie('access_token', accessToken, {
-    ...COOKIE_OPTIONS,
-    maxAge: 15 * 60 * 1000, // 15 minutes
-  });
-  res.cookie('refresh_token', refreshToken, {
-    ...COOKIE_OPTIONS,
-    maxAge: refreshExpiryMs,
-  });
-}
-
-function clearAuthCookies(res: import('express').Response): void {
-  res.clearCookie('access_token', COOKIE_OPTIONS);
-  res.clearCookie('refresh_token', COOKIE_OPTIONS);
-}
 
 // POST /api/auth/setup — Create admin account (first-run only)
 authRouter.post('/setup', async (req, res) => {

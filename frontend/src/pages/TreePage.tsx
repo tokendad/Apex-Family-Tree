@@ -18,7 +18,7 @@ import PersonalInfoStep from '@/components/WizardSteps/PersonalInfoStep';
 import VitalEventsStep from '@/components/WizardSteps/VitalEventsStep';
 import RelationshipsStep from '@/components/WizardSteps/RelationshipsStep';
 import MediaNotesStep from '@/components/WizardSteps/MediaNotesStep';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext.js';
 import { useCanvasStore } from '@/stores/canvasStore';
 import { useTreeData } from '@/hooks/useTreeData';
 import { usePersonWizard } from '@/hooks/usePersonWizard';

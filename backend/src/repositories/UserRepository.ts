@@ -25,7 +25,7 @@ export class UserRepository extends BaseRepository {
     return this.findById(id)!;
   }
 
-  update(id: string, data: Partial<Pick<User, 'display_name' | 'role' | 'status' | 'home_person_id'>>): User | undefined {
+  update(id: string, data: Partial<Pick<User, 'display_name' | 'email' | 'role' | 'status' | 'home_person_id'>>): User | undefined {
     const fields: string[] = [];
     const values: unknown[] = [];
 
