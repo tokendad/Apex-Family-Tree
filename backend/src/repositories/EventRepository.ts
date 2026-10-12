@@ -336,9 +336,10 @@ export class EventRepository extends BaseRepository {
     const tables = this.db.prepare(
       `SELECT name FROM sqlite_master
        WHERE type = 'table'
-         AND name IN ('places', 'place_aliases', 'relationships', 'relationship_members')`,
+         AND name IN ('places', 'place_aliases', 'relationships',
+                      'relationship_members', 'relationship_types')`,
     ).all() as { name: string }[];
-    if (tables.length < 4) return false;
+    if (tables.length < 5) return false;
 
     // The relationship type is seeded by a migration, and the members carry a
     // foreign key to it.

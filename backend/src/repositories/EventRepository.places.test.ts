@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import fs from 'fs';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -179,5 +180,36 @@ describe('PlaceRepository — renaming a place', () => {
     const event = birth('Worcester, MA');
     expect(linkedPlace(event.id)?.id).toBe(place.id);
     expect(placeCount()).toBe(1);
+  });
+});
+
+describe('migration 068 — a place the reviewed list does not name', () => {
+  /* The list was drawn up from a snapshot. An event recorded between that
+     snapshot and the deploy must still get a place, under its own spelling,
+     rather than being passed over. The fixture database migrates with no
+     events at all, so the backfill has nothing to do until one is inserted and
+     the migration is replayed against it. */
+  it('gives it its own place rather than skipping the event', () => {
+    const eventId = 'evt-unmapped';
+    db.prepare(
+      `INSERT INTO events (id, person_id, event_type, event_place, created_at, updated_at)
+       VALUES (?, ?, 'birth', ?, datetime('now'), datetime('now'))`,
+    ).run(eventId, personId, 'Narragansett, Rhode Island');
+    // Every real event has one, and the place edge is a relationship between
+    // archive objects, so the migration's members would have nothing to hold.
+    db.prepare(
+      `INSERT INTO archive_objects (id, object_type, title, privacy_level)
+       VALUES (?, 'event', 'Birth', 'family')`,
+    ).run(eventId);
+
+    db.exec(fs.readFileSync(path.join(migrationsDir, '068-places-from-events.sql'), 'utf8'));
+
+    const place = db.prepare(
+      `SELECT ao.title AS title, p.id AS id
+       FROM places p INNER JOIN archive_objects ao ON ao.id = p.id`,
+    ).get() as { title: string; id: string };
+
+    expect(place.title).toBe('Narragansett, Rhode Island');
+    expect(linkedPlace(eventId)?.id).toBe(place.id);
   });
 });

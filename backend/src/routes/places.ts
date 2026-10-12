@@ -28,8 +28,11 @@ function numericOptional(value: unknown): number | null | undefined {
 }
 
 function parseAliases(value: unknown): string[] | undefined {
-  if (value === undefined) return undefined;
-  if (!Array.isArray(value)) return [];
+  // Anything that is not a list means the caller said nothing about aliases.
+  // Returning [] here would make a rename that happens to send aliases: null
+  // discard the spellings a place was merged from, which is the hole the
+  // repository just closed one layer down.
+  if (!Array.isArray(value)) return undefined;
   return value.filter((alias): alias is string => typeof alias === 'string');
 }
 
