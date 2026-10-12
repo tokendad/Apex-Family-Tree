@@ -15,8 +15,10 @@ export interface PlaceRecord {
   place_type: string | null;
   address_text: string | null;
   locality: string | null;
+  county: string | null;
   region: string | null;
   country: string | null;
+  postal_code: string | null;
   latitude: number | null;
   longitude: number | null;
   notes: string | null;
@@ -39,8 +41,10 @@ export interface CreatePlaceInput {
   place_type?: string | null;
   address_text?: string | null;
   locality?: string | null;
+  county?: string | null;
   region?: string | null;
   country?: string | null;
+  postal_code?: string | null;
   latitude?: number | null;
   longitude?: number | null;
   notes?: string | null;

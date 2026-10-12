@@ -18,8 +18,10 @@ interface PlaceRecord {
   place_type: string | null;
   address_text: string | null;
   locality: string | null;
+  county: string | null;
   region: string | null;
   country: string | null;
+  postal_code: string | null;
   notes: string | null;
 }
 
@@ -38,8 +40,10 @@ function formFromPlace(place: PlaceRecord) {
     place_type: place.place_type ?? '',
     address_text: place.address_text ?? '',
     locality: place.locality ?? '',
+    county: place.county ?? '',
     region: place.region ?? '',
     country: place.country ?? '',
+    postal_code: place.postal_code ?? '',
     notes: place.notes ?? '',
     privacy_level: place.privacy_level,
   };
@@ -156,7 +160,7 @@ const PlaceDetailPage: React.FC = () => {
   usePageActions(place ? `Actions for ${place.title}` : '', place ? contextActions : []);
 
   const locationLine = place
-    ? [place.locality, place.region, place.country].filter(Boolean).join(', ')
+    ? [place.locality, place.county, place.region, place.country].filter(Boolean).join(', ')
     : '';
 
   return (
@@ -193,7 +197,7 @@ const PlaceDetailPage: React.FC = () => {
                         <h2 className={styles.sectionTitle}>Edit Place</h2>
                       </div>
                       <div className={styles.formGrid}>
-                        {(['title', 'place_type', 'address_text', 'locality', 'region', 'country'] as const).map((field) => (
+                        {(['title', 'place_type', 'address_text', 'locality', 'county', 'region', 'country', 'postal_code'] as const).map((field) => (
                           <label key={field} className={styles.field}>
                             <span>{field.replace('_', ' ')}</span>
                             <Input value={form[field]} onChange={(e) => setForm({ ...form, [field]: e.target.value })} required={field === 'title'} />
@@ -217,8 +221,10 @@ const PlaceDetailPage: React.FC = () => {
                       <div className={styles.infoGrid}>
                         <InfoRow label="Address" value={place.address_text} />
                         <InfoRow label="Locality" value={place.locality} />
+                        <InfoRow label="County" value={place.county} />
                         <InfoRow label="Region" value={place.region} />
                         <InfoRow label="Country" value={place.country} />
+                        <InfoRow label="Postal code" value={place.postal_code} />
                         <InfoRow label="Notes" value={place.notes} />
                       </div>
                     </section>

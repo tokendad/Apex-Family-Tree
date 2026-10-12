@@ -17,12 +17,14 @@ interface PlaceRecord {
   place_type: string | null;
   address_text: string | null;
   locality: string | null;
+  county: string | null;
   region: string | null;
   country: string | null;
+  postal_code: string | null;
   notes: string | null;
 }
 
-const EMPTY_FORM = { title: '', summary: '', place_type: '', address_text: '', locality: '', region: '', country: '', notes: '', privacy_level: 'family' as PlaceRecord['privacy_level'] };
+const EMPTY_FORM = { title: '', summary: '', place_type: '', address_text: '', locality: '', county: '', region: '', country: '', postal_code: '', notes: '', privacy_level: 'family' as PlaceRecord['privacy_level'] };
 
 const PlacesPage: React.FC = () => {
   const navigate = useNavigate();
@@ -89,8 +91,10 @@ const PlacesPage: React.FC = () => {
               <label className={styles.field}><span>Type</span><Input value={form.place_type} onChange={(e) => setForm({ ...form, place_type: e.target.value })} placeholder="city, cemetery, church" /></label>
               <label className={styles.field}><span>Address</span><Input value={form.address_text} onChange={(e) => setForm({ ...form, address_text: e.target.value })} /></label>
               <label className={styles.field}><span>Locality</span><Input value={form.locality} onChange={(e) => setForm({ ...form, locality: e.target.value })} /></label>
+              <label className={styles.field}><span>County</span><Input value={form.county} onChange={(e) => setForm({ ...form, county: e.target.value })} /></label>
               <label className={styles.field}><span>Region</span><Input value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} /></label>
               <label className={styles.field}><span>Country</span><Input value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} /></label>
+              <label className={styles.field}><span>Postal code</span><Input value={form.postal_code} onChange={(e) => setForm({ ...form, postal_code: e.target.value })} /></label>
             </div>
             <label className={styles.field}><span>Notes</span><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} /></label>
             <div className={styles.actions}><Button type="submit" loading={isSaving}>Create Place</Button></div>

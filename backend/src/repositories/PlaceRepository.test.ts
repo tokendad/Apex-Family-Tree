@@ -32,8 +32,10 @@ function seedDB(database: Database.Database) {
       place_type TEXT,
       address_text TEXT,
       locality TEXT,
+      county TEXT,
       region TEXT,
       country TEXT,
+      postal_code TEXT,
       latitude REAL,
       longitude REAL,
       notes TEXT

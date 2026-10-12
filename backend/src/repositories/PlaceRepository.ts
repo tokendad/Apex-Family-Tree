@@ -25,8 +25,8 @@ export class PlaceRepository extends BaseRepository {
 
     if (options?.search?.trim()) {
       const term = `%${options.search.trim()}%`;
-      conditions.push('(ao.title LIKE ? OR ao.summary LIKE ? OR p.address_text LIKE ? OR p.locality LIKE ? OR p.region LIKE ? OR p.country LIKE ? OR p.notes LIKE ?)');
-      params.push(term, term, term, term, term, term, term);
+      conditions.push('(ao.title LIKE ? OR ao.summary LIKE ? OR p.address_text LIKE ? OR p.locality LIKE ? OR p.county LIKE ? OR p.region LIKE ? OR p.country LIKE ? OR p.postal_code LIKE ? OR p.notes LIKE ?)');
+      params.push(term, term, term, term, term, term, term, term, term);
     }
 
     const countRow = this.db.prepare(
@@ -73,17 +73,19 @@ export class PlaceRepository extends BaseRepository {
 
       this.db.prepare(
         `INSERT INTO places (
-          id, normalized_name, place_type, address_text, locality, region,
-          country, latitude, longitude, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          id, normalized_name, place_type, address_text, locality, county,
+          region, country, postal_code, latitude, longitude, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         archiveObject.id,
         data.normalized_name?.trim() || normalizePlaceName(data.title),
         data.place_type ?? null,
         data.address_text ?? data.title,
         data.locality ?? null,
+        data.county ?? null,
         data.region ?? null,
         data.country ?? null,
+        data.postal_code ?? null,
         data.latitude ?? null,
         data.longitude ?? null,
         data.notes ?? null,
@@ -150,7 +152,7 @@ export class PlaceRepository extends BaseRepository {
 
       const fields: string[] = [];
       const values: unknown[] = [];
-      for (const key of ['place_type', 'address_text', 'locality', 'region', 'country', 'latitude', 'longitude', 'notes'] as const) {
+      for (const key of ['place_type', 'address_text', 'locality', 'county', 'region', 'country', 'postal_code', 'latitude', 'longitude', 'notes'] as const) {
         if (data[key] !== undefined) {
           fields.push(`${key} = ?`);
           values.push(data[key]);
