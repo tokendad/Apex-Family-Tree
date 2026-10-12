@@ -96,6 +96,47 @@ export class PlaceRepository extends BaseRepository {
     return this.findById(createPlace())!;
   }
 
+  /** The place this free-text name refers to, creating it only if nothing matches.
+
+      Matches on an alias as well as the normalized name, which is the whole
+      point: the archive's 82 legacy spellings were folded into 72 places, and
+      every spelling folded away was kept as an alias. Without the alias leg,
+      an event typed "Worcester, Worcester, Massachusetts" would miss the
+      "Worcester, Massachusetts" row and recreate the duplicate that was just
+      merged out.
+
+      A spelling nobody has recorded before becomes its own place. No attempt is
+      made to guess that it belongs with an existing one -- the legacy grouping
+      was a reviewed list, not a rule, because every rule tried against this
+      data merged something it should not have. */
+  resolveOrCreate(name: string, createdBy?: string | null): PlaceRecord | undefined {
+    const title = name.trim().replace(/\s+/g, ' ');
+    if (!title) return undefined;
+
+    const normalized = normalizePlaceName(title);
+
+    const direct = this.db.prepare(
+      `SELECT p.id AS id
+       FROM places p
+       INNER JOIN archive_objects ao ON ao.id = p.id
+       WHERE p.normalized_name = ? AND ao.is_deleted = 0`,
+    ).get(normalized) as { id: string } | undefined;
+    if (direct) return this.findById(direct.id);
+
+    const viaAlias = this.db.prepare(
+      `SELECT pa.place_id AS id
+       FROM place_aliases pa
+       INNER JOIN archive_objects ao ON ao.id = pa.place_id
+       INNER JOIN places p ON p.id = pa.place_id
+       WHERE LOWER(TRIM(pa.alias)) = ? AND ao.is_deleted = 0
+       ORDER BY pa.sort_order ASC, pa.alias ASC
+       LIMIT 1`,
+    ).get(normalized) as { id: string } | undefined;
+    if (viaAlias) return this.findById(viaAlias.id);
+
+    return this.create({ title, created_by: createdBy ?? null });
+  }
+
   update(id: string, data: UpdatePlaceInput): PlaceRecord | undefined {
     if (!this.findById(id)) return undefined;
 
@@ -128,7 +169,12 @@ export class PlaceRepository extends BaseRepository {
 
       if (data.aliases !== undefined || data.title !== undefined) {
         const currentTitle = data.title ?? this.findById(id)!.title;
-        this.replaceAliases(id, [currentTitle, ...(data.aliases ?? [])]);
+        // A rename with no alias list is not a request to forget the old
+        // spellings. The legacy backfill folded up to four of them into one
+        // place; replacing the list with just the new title would make every
+        // one of them unresolvable and let the duplicates come back.
+        const kept = data.aliases ?? this.findAliases(id).map(alias => alias.alias);
+        this.replaceAliases(id, [currentTitle, ...kept]);
       }
     });
 

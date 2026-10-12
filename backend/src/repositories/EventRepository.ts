@@ -1,11 +1,13 @@
 import { BaseRepository } from './base.js';
 import { recordChange } from '../services/audit.js';
 import { ArchiveObjectRepository } from './ArchiveObjectRepository.js';
+import { PlaceRepository } from './PlaceRepository.js';
 import type { Event } from '../types/db.js';
 import { parseGedcomDate } from '../utils/gedcom-date.js';
 
 export class EventRepository extends BaseRepository {
   private archiveObjects = new ArchiveObjectRepository();
+  private places = new PlaceRepository();
 
   findById(id: string): Event | undefined {
     return this.db.prepare('SELECT * FROM events WHERE id = ?').get(id) as Event | undefined;
@@ -131,6 +133,9 @@ export class EventRepository extends BaseRepository {
           summary: data.description ?? null,
           privacy_level: 'family',
         });
+        // After the archive object: the link is a relationship between two of
+        // them, so the event has to exist as one first.
+        this.syncEventPlace(id, data.event_place ?? null);
       }
     });
 
@@ -208,6 +213,9 @@ export class EventRepository extends BaseRepository {
           title: this.eventTitle(event.event_type, event.event_date),
           summary: event.description,
         });
+        // Only when the caller actually passed event_place. An update of just
+        // the date must not touch the link.
+        if (data.event_place !== undefined) this.syncEventPlace(id, event.event_place);
       }
     });
 
@@ -223,6 +231,10 @@ export class EventRepository extends BaseRepository {
 
     const deleteEvent = this.db.transaction(() => {
       if (this.hasArchiveObjectsTable()) {
+        // Before the archive object. Deleting that cascades the event's own
+        // membership row away but leaves the relationship behind holding a
+        // single member, which is an edge from nothing to the place.
+        this.unlinkEventPlace(id);
         this.db.prepare('DELETE FROM archive_objects WHERE id = ?').run(id);
       }
       return this.db.prepare('DELETE FROM events WHERE id = ?').run(id).changes > 0;
@@ -246,6 +258,93 @@ export class EventRepository extends BaseRepository {
       .map(part => part.charAt(0).toUpperCase() + part.slice(1))
       .join(' ');
     return eventDate ? `${label} - ${eventDate}` : label;
+  }
+
+  /** The id of an event's place edge. Deterministic, and the same form migration
+      046 chose, so one event never accumulates two of them. */
+  private placeRelationshipId(eventId: string): string {
+    return `rel_event_place_${eventId}`;
+  }
+
+  /** Point this event's "occurred at" edge at the named place, or remove it.
+
+      The event keeps event_place as the text that was typed; this is the
+      reusable place record behind it, which is what the places pages, and any
+      future map or merge, actually read. */
+  private syncEventPlace(eventId: string, place: string | null): void {
+    if (!this.hasPlaceTables()) return;
+
+    if (!place || !place.trim()) {
+      this.unlinkEventPlace(eventId);
+      return;
+    }
+
+    const resolved = this.places.resolveOrCreate(place);
+    if (!resolved) {
+      this.unlinkEventPlace(eventId);
+      return;
+    }
+
+    const relationshipId = this.placeRelationshipId(eventId);
+    const now = this.now();
+
+    this.db.prepare(
+      `INSERT OR IGNORE INTO archive_objects (id, object_type, title, privacy_level, created_at, updated_at)
+       VALUES (?, 'relationship', 'Occurred At', 'family', ?, ?)`,
+    ).run(relationshipId, now, now);
+
+    // No date is copied onto the edge. The event owns its date, and a second
+    // copy here would be one more thing to keep in step on every edit.
+    this.db.prepare(
+      `INSERT OR IGNORE INTO relationships (id, relationship_type_id, label, notes)
+       VALUES (?, 'rel_type_occurred_at', 'Occurred At', ?)`,
+    ).run(relationshipId, 'Linked from events.event_place');
+
+    this.db.prepare(
+      `INSERT OR IGNORE INTO relationship_members (relationship_id, object_id, role, sort_order)
+       VALUES (?, ?, 'event', 0)`,
+    ).run(relationshipId, eventId);
+
+    // Re-point rather than insert: an edited place must not leave the event
+    // attached to both the old place and the new one.
+    this.db.prepare(
+      "DELETE FROM relationship_members WHERE relationship_id = ? AND role = 'place'",
+    ).run(relationshipId);
+    this.db.prepare(
+      `INSERT INTO relationship_members (relationship_id, object_id, role, sort_order)
+       VALUES (?, ?, 'place', 1)`,
+    ).run(relationshipId, resolved.id);
+  }
+
+  /** The place record itself stays: other events may still point at it, and a
+      place that has lost its last event is still a place. */
+  private unlinkEventPlace(eventId: string): void {
+    if (!this.hasPlaceTables()) return;
+
+    const relationshipId = this.placeRelationshipId(eventId);
+    // Explicit and in order. These cascades only fire when the connection has
+    // foreign_keys on, which the migrator deliberately turns off and an
+    // in-memory test database never turns on.
+    this.db.prepare('DELETE FROM relationship_members WHERE relationship_id = ?').run(relationshipId);
+    this.db.prepare('DELETE FROM relationships WHERE id = ?').run(relationshipId);
+    this.db.prepare('DELETE FROM archive_objects WHERE id = ?').run(relationshipId);
+  }
+
+  /** Older fixtures build an events table by hand and have none of this. The
+      link is an enrichment, so its absence must not fail a write. */
+  private hasPlaceTables(): boolean {
+    const tables = this.db.prepare(
+      `SELECT name FROM sqlite_master
+       WHERE type = 'table'
+         AND name IN ('places', 'place_aliases', 'relationships', 'relationship_members')`,
+    ).all() as { name: string }[];
+    if (tables.length < 4) return false;
+
+    // The relationship type is seeded by a migration, and the members carry a
+    // foreign key to it.
+    return Boolean(
+      this.db.prepare("SELECT id FROM relationship_types WHERE id = 'rel_type_occurred_at'").get(),
+    );
   }
 
   private hasArchiveObjectsTable(): boolean {
