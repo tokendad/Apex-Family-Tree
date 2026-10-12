@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
 import Button from '@/components/Button/Button';
+import { EventSourceFields, EventSourceLink, EMPTY_EVENT_SOURCE } from '@/components/EventSource';
 import Input from '@/components/Form/Input';
 import ArchiveObjectLayout from '@/components/archive-object/ArchiveObjectLayout';
 import ActionDrawer from '@/components/archive-object/ActionDrawer';
@@ -47,6 +48,8 @@ interface FamilyEvent {
   event_date: string | null;
   event_place: string | null;
   description: string | null;
+  source_url: string | null;
+  source_url_checked_at: string | null;
 }
 
 interface FamilyDetail {
@@ -201,7 +204,7 @@ const FamilyDetailPage: React.FC = () => {
   const [isAddingChild, setIsAddingChild] = useState(false);
   const [childError, setChildError] = useState<string | null>(null);
 
-  const [eventForm, setEventForm] = useState({ event_type: 'residence', event_date: '', event_place: '', description: '' });
+  const [eventForm, setEventForm] = useState({ event_type: 'residence', event_date: '', event_place: '', description: '', ...EMPTY_EVENT_SOURCE });
   const [isAddingEvent, setIsAddingEvent] = useState(false);
   const [eventError, setEventError] = useState<string | null>(null);
 
@@ -362,10 +365,12 @@ const FamilyDetailPage: React.FC = () => {
           event_date: eventForm.event_date.trim() || null,
           event_place: eventForm.event_place.trim() || null,
           description: eventForm.description.trim() || null,
+          source_url: eventForm.source_url.trim() || null,
+          source_url_checked_at: eventForm.source_url_checked_at || null,
         }),
       });
       if (!res.ok) throw new Error('Failed to add event');
-      setEventForm({ event_type: 'residence', event_date: '', event_place: '', description: '' });
+      setEventForm({ event_type: 'residence', event_date: '', event_place: '', description: '', ...EMPTY_EVENT_SOURCE });
       setDrawerMode(null);
       await fetchFamily();
     } catch (err) {
@@ -772,6 +777,11 @@ const FamilyDetailPage: React.FC = () => {
                         </div>
                         {event.event_place && <p className={archiveStyles.muted}>📍 {event.event_place}</p>}
                         {event.description && <p className={archiveStyles.muted}>{event.description}</p>}
+                        {event.source_url && (
+                          <p className={archiveStyles.muted}>
+                            <EventSourceLink url={event.source_url} checkedAt={event.source_url_checked_at} />
+                          </p>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -855,6 +865,7 @@ const FamilyDetailPage: React.FC = () => {
           <span>Description</span>
           <textarea value={eventForm.description} onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })} rows={3} />
         </label>
+        <EventSourceFields idPrefix="family-event" value={eventForm} onChange={(next) => setEventForm({ ...eventForm, ...next })} />
         {eventError && <div className={archiveStyles.errorBanner} role="alert">{eventError}</div>}
         <div className={archiveStyles.formActions}>
           <Button onClick={handleAddEvent} loading={isAddingEvent}>Save Event</Button>

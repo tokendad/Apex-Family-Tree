@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
+import { EventSourceLink } from '@/components/EventSource';
 import Navbar from '@/components/Navbar/Navbar';
 import Button from '@/components/Button/Button';
 import PersonEditModal from '@/components/PersonEditModal/PersonEditModal';
@@ -51,6 +52,8 @@ interface PersonEvent {
   event_date_sort_key?: number | null;
   event_place: string | null;
   description: string | null;
+  source_url: string | null;
+  source_url_checked_at: string | null;
 }
 
 interface PersonDetail {
@@ -910,6 +913,14 @@ const PersonDetailPage: React.FC = () => {
                         )}
                         {event.description && (
                           <div className={styles.eventDesc}>{event.description}</div>
+                        )}
+                        {event.source_url && (
+                          <div className={styles.eventDesc}>
+                            <EventSourceLink
+                              url={event.source_url}
+                              checkedAt={event.source_url_checked_at}
+                            />
+                          </div>
                         )}
                       </div>
                     </li>

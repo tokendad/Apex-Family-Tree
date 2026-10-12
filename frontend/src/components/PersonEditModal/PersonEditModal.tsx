@@ -12,6 +12,11 @@ import {
   payloadLabel,
 } from '@/utils/eventTypes';
 import { useModal } from '@/components/modals/useModal';
+import {
+  EventSourceFields,
+  EventSourceLink,
+  EMPTY_EVENT_SOURCE,
+} from '@/components/EventSource';
 import styles from './PersonEditModal.module.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -39,6 +44,8 @@ interface PersonEvent {
   event_date: string | null;
   event_place: string | null;
   description: string | null;
+  source_url: string | null;
+  source_url_checked_at: string | null;
 }
 
 interface PersonDetail {
@@ -220,6 +227,7 @@ const DEFAULT_EVENT_FORM = {
   event_date: '',
   event_place: '',
   description: '',
+  ...EMPTY_EVENT_SOURCE,
 };
 
 // ─── Main component ───────────────────────────────────────────────────────────
@@ -680,6 +688,8 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
       event_date: event.event_date ?? '',
       event_place: event.event_place ?? '',
       description: event.description ?? '',
+      source_url: event.source_url ?? '',
+      source_url_checked_at: event.source_url_checked_at ?? '',
     });
     setEventEditError(null);
   };
@@ -693,6 +703,8 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
         event_date: eventEditForm.event_date || null,
         event_place: eventEditForm.event_place || null,
         description: eventEditForm.description || null,
+        source_url: eventEditForm.source_url.trim() || null,
+        source_url_checked_at: eventEditForm.source_url_checked_at || null,
       };
       const res = await fetch(`/api/v1/events/${eventId}`, {
         method: 'PUT',
@@ -745,6 +757,8 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
         event_date: addEventForm.event_date || null,
         event_place: addEventForm.event_place || null,
         description: addEventForm.description || null,
+        source_url: addEventForm.source_url.trim() || null,
+        source_url_checked_at: addEventForm.source_url_checked_at || null,
       };
       const res = await fetch(`/api/v1/events/people/${personId}/events`, {
         method: 'POST',
@@ -1348,6 +1362,13 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
                         rows={2}
                       />
                     </label>
+                    <div className={styles.fullWidth}>
+                      <EventSourceFields
+                        idPrefix={`event-edit-${event.id}`}
+                        value={eventEditForm}
+                        onChange={(next) => setEventEditForm((f) => ({ ...f, ...next }))}
+                      />
+                    </div>
                   </div>
                   {eventEditError && (
                     <span className={styles.saveError} role="alert">
@@ -1409,6 +1430,14 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
                   )}
                   {event.description && (
                     <div className={styles.eventDesc}>{event.description}</div>
+                  )}
+                  {event.source_url && (
+                    <div className={styles.eventSource}>
+                      <EventSourceLink
+                        url={event.source_url}
+                        checkedAt={event.source_url_checked_at}
+                      />
+                    </div>
                   )}
                 </div>
               )}
@@ -1511,6 +1540,13 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
                     rows={2}
                   />
                 </label>
+                <div className={styles.fullWidth}>
+                  <EventSourceFields
+                    idPrefix="event-add"
+                    value={addEventForm}
+                    onChange={(next) => setAddEventForm((f) => ({ ...f, ...next }))}
+                  />
+                </div>
               </>
             )}
           </div>

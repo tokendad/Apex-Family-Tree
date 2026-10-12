@@ -73,6 +73,9 @@ export class EventRepository extends BaseRepository {
     const combined = [...baseEvents, ...familyEvents];
     const deduped = new Map<string, Event>();
     for (const event of combined) {
+      // source_url is deliberately absent from the key. Two records of the
+      // same event that differ only in where they were read are still one
+      // event, and keying on the URL would show both.
       const key = [
         event.event_type,
         event.event_date ?? '',
@@ -98,6 +101,8 @@ export class EventRepository extends BaseRepository {
     event_date?: string | null;
     event_place?: string | null;
     description?: string | null;
+    source_url?: string | null;
+    source_url_checked_at?: string | null;
   }): Event {
     if ((data.person_id ? 1 : 0) + (data.family_id ? 1 : 0) !== 1) {
       throw new Error('Event must belong to exactly one subject');
@@ -109,11 +114,12 @@ export class EventRepository extends BaseRepository {
 
     const createEvent = this.db.transaction(() => {
       this.db.prepare(
-        'INSERT INTO events (id, person_id, family_id, event_type, event_date, event_date_qualifier, event_date_sort_key, event_place, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO events (id, person_id, family_id, event_type, event_date, event_date_qualifier, event_date_sort_key, event_place, description, source_url, source_url_checked_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
       ).run(
         id, data.person_id || null, data.family_id || null, data.event_type,
         data.event_date || null, dateInfo?.qualifier || 'exact', dateInfo?.sortKey || null,
         data.event_place || null, data.description || null,
+        data.source_url || null, data.source_url_checked_at || null,
         now, now,
       );
 
@@ -169,7 +175,7 @@ export class EventRepository extends BaseRepository {
     });
   }
 
-  update(id: string, data: Partial<Pick<Event, 'event_type' | 'event_date' | 'event_place' | 'description'>>): Event | undefined {
+  update(id: string, data: Partial<Pick<Event, 'event_type' | 'event_date' | 'event_place' | 'description' | 'source_url' | 'source_url_checked_at'>>): Event | undefined {
     const fields: string[] = [];
     const values: unknown[] = [];
 

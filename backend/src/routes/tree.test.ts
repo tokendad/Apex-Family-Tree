@@ -44,6 +44,8 @@ function seedMinimal(database: Database.Database) {
       id TEXT PRIMARY KEY, person_id TEXT NOT NULL REFERENCES persons(id) ON DELETE CASCADE,
       event_type TEXT NOT NULL, event_date TEXT, event_date_qualifier TEXT,
       event_date_sort_key INTEGER, event_place TEXT, description TEXT,
+      source_url TEXT,
+      source_url_checked_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );

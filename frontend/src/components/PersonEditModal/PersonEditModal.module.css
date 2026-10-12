@@ -426,6 +426,11 @@
   line-height: var(--line-height-relaxed);
 }
 
+.eventSource {
+  font-size: var(--font-size-xs);
+  margin-top: var(--space-1);
+}
+
 /* ── Relationships ─────────────────────────────────────────────────────────── */
 
 .relGroup {

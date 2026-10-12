@@ -426,9 +426,24 @@ Create a life event for a person.
   "event_type": "birth",
   "event_date": "15 MAR 1950",
   "event_place": "Chicago, IL",
-  "description": ""
+  "description": "",
+  "source_url": "https://example.com/obituary",
+  "source_url_checked_at": "2026-10-11"
 }
 ```
+
+`source_url` and `source_url_checked_at` are optional and record where the event
+was read, in place of putting a link in the description.
+
+`source_url` must be a complete `http` or `https` address, at most 2048
+characters; it is rendered as a link, so any other scheme is rejected with
+`400`. `source_url_checked_at` is the day the link was last confirmed to
+resolve and must be a plain `YYYY-MM-DD` date — it is not a GEDCOM date and
+accepts no qualifier. Sending either as `""` clears it.
+
+Both are accepted by `POST /api/v1/events` and `PUT /api/v1/events/:id` on the
+same terms. `source_url` is exported as the event's `WWW` tag in GEDCOM;
+`source_url_checked_at` is internal housekeeping and is not exported.
 
 Supported event types: `birth`, `death`, `marriage`, `burial`, `baptism`, `christening`, `adoption`, `bar_mitzvah`, `bat_mitzvah`, `census`, `divorce`, `emigration`, `immigration`, `military`, `naturalization`, `occupation`, `probate`, `retirement`, `will`, `custom`.
 
