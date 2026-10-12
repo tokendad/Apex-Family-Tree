@@ -4,6 +4,14 @@
 -- carries a REFERENCES clause, so the table is recreated without it. The
 -- column list is written out in full rather than SELECT *, because the order
 -- here has to be the order the surviving columns are in.
+--
+-- Foreign keys off for the rebuild, which is SQLite's own recipe and not a
+-- formality here: place_aliases references places(id) ON DELETE CASCADE, and
+-- with enforcement on, dropping the old table takes every alias with it. The
+-- migrator runs forward migrations with them off already, but a rollback file
+-- is run by hand, so it says so itself.
+
+PRAGMA foreign_keys = OFF;
 
 CREATE TABLE _places_no_parent (
   id TEXT PRIMARY KEY REFERENCES archive_objects(id) ON DELETE CASCADE,
@@ -34,3 +42,5 @@ ALTER TABLE _places_no_parent RENAME TO places;
 
 CREATE INDEX IF NOT EXISTS idx_places_normalized_name ON places(normalized_name);
 CREATE INDEX IF NOT EXISTS idx_places_locality ON places(locality);
+
+PRAGMA foreign_keys = ON;

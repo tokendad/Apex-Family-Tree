@@ -26,6 +26,10 @@ const revertSql = fs.readFileSync(
   path.join(migrationsDir, '074-places-structured-components-down.sql'),
   'utf-8',
 );
+const dropColumnSql = fs.readFileSync(
+  path.join(migrationsDir, '073-places-parent-down.sql'),
+  'utf-8',
+);
 
 /* The migrator turns FK enforcement off for a migration run; match it, so the
    hand-ordered deletes in the down file behave here as they do in production. */
@@ -268,6 +272,58 @@ describe('migration 074 — components and the chain above a place', () => {
       expect(place('cambridge cemetery, cambridge, massachusetts')?.parent_place_id)
         .toBe(place('cambridge, massachusetts')!.id);
     });
+  });
+});
+
+describe('migration 073 rolled back', () => {
+  beforeEach(() => {
+    seedLegacyPlaces(['Worcester, Massachusetts', 'Massachusetts']);
+    runSql(componentsSql);
+  });
+
+  /* The rollback rebuilds the table, because SQLite will not drop a column
+     that carries a REFERENCES clause. place_aliases cascades from places, so
+     the rebuild has to happen with foreign keys off -- with them on, dropping
+     the old table takes every alias with it, and the aliases are what keep
+     the folded spellings resolvable. */
+  it('keeps the aliases the rebuild could have cascaded away', () => {
+    // Counted after 074's own rollback, which removes the places it created
+    // and their aliases with them. What is left is what 073 must not touch.
+    runSql(revertSql);
+    const before = (db.prepare('SELECT COUNT(*) AS n FROM place_aliases').get() as { n: number }).n;
+    expect(before).toBeGreaterThan(0);
+
+    // Run with enforcement on, which is the hazard: the file turns it off
+    // itself, and that is what is being tested.
+    db.pragma('foreign_keys = ON');
+    db.exec(dropColumnSql);
+
+    expect((db.prepare('SELECT COUNT(*) AS n FROM place_aliases').get() as { n: number }).n).toBe(before);
+    expect(new PlaceRepository().findAliases(place('worcester, massachusetts')!.id).map(a => a.alias))
+      .toContain('Worcester, Massachusetts');
+  });
+
+  it('takes the column away and leaves the places readable', () => {
+    const worcester = place('worcester, massachusetts')!.id;
+
+    runSql(revertSql);
+    runSql(dropColumnSql);
+
+    const columns = (db.prepare('PRAGMA table_info(places)').all() as { name: string }[])
+      .map(column => column.name);
+    expect(columns).not.toContain('parent_place_id');
+    expect(columns).toContain('postal_code');
+    expect(new PlaceRepository().findById(worcester)?.title).toBe('Worcester, Massachusetts');
+  });
+
+  it('keeps the indexes the table had', () => {
+    runSql(revertSql);
+    runSql(dropColumnSql);
+
+    const indexes = (db.prepare('PRAGMA index_list(places)').all() as { name: string }[])
+      .map(index => index.name);
+    expect(indexes).toContain('idx_places_normalized_name');
+    expect(indexes).toContain('idx_places_locality');
   });
 });
 
