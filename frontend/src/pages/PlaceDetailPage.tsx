@@ -23,6 +23,13 @@ interface PlaceRecord {
   country: string | null;
   postal_code: string | null;
   notes: string | null;
+  parent_place_id: string | null;
+}
+
+/** The places this one sits inside, nearest first (#35). */
+interface ChainStep {
+  id: string;
+  title: string;
 }
 
 interface ConnectedObject {
@@ -62,6 +69,7 @@ const PlaceDetailPage: React.FC = () => {
   const { canEdit, canDelete } = usePermissions();
   const [place, setPlace] = useState<PlaceRecord | null>(null);
   const [form, setForm] = useState<ReturnType<typeof formFromPlace> | null>(null);
+  const [chain, setChain] = useState<ChainStep[]>([]);
   const [connectedEvents, setConnectedEvents] = useState<ConnectedObject[]>([]);
   const [eventId, setEventId] = useState('');
   const [editMode, setEditMode] = useState(false);
@@ -75,9 +83,10 @@ const PlaceDetailPage: React.FC = () => {
     try {
       const res = await fetch(`/api/v1/places/${id}`);
       if (!res.ok) throw new Error('Place not found');
-      const json = await res.json() as PlaceRecord;
+      const json = await res.json() as PlaceRecord & { chain?: ChainStep[] };
       setPlace(json);
       setForm(formFromPlace(json));
+      setChain(json.chain ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load place');
     } finally {
@@ -225,6 +234,17 @@ const PlaceDetailPage: React.FC = () => {
                         <InfoRow label="Region" value={place.region} />
                         <InfoRow label="Country" value={place.country} />
                         <InfoRow label="Postal code" value={place.postal_code} />
+                        <div className={styles.infoRow}>
+                          <span>Inside</span>
+                          <strong>
+                            {chain.length === 0 ? '\u2014' : chain.map((step, index) => (
+                              <React.Fragment key={step.id}>
+                                {index > 0 && ', '}
+                                <Link to={`/places/${step.id}`}>{step.title}</Link>
+                              </React.Fragment>
+                            ))}
+                          </strong>
+                        </div>
                         <InfoRow label="Notes" value={place.notes} />
                       </div>
                     </section>

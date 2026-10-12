@@ -22,6 +22,8 @@ export interface PlaceRecord {
   latitude: number | null;
   longitude: number | null;
   notes: string | null;
+  /** The place this one is inside: a town's state, a cemetery's town (#35). */
+  parent_place_id: string | null;
 }
 
 export interface PlaceAliasRecord {
@@ -48,6 +50,7 @@ export interface CreatePlaceInput {
   latitude?: number | null;
   longitude?: number | null;
   notes?: string | null;
+  parent_place_id?: string | null;
   aliases?: string[];
   created_by?: string | null;
 }

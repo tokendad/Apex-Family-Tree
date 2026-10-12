@@ -1,0 +1,22 @@
+-- Give a place the place that contains it (#35).
+--
+-- Until now a place was a flat string and the only hierarchy was the comma in
+-- its name, which is why "Worcester, Massachusetts" and "Massachusetts" stood
+-- side by side as unrelated rows. The components added in 069 say what a place
+-- is; this says what it is inside, so a map or a place page can walk up from a
+-- cemetery to its town, its state and its country, and so an address entered
+-- below locality level attaches to the locality instead of replacing it.
+--
+-- One parent, not a relationship: containment is a tree -- a place sits in
+-- exactly one enclosing place -- and that is a column rather than an edge.
+-- The "occurred at" relationship exists because an event and a place are two
+-- independent objects that meet; a locality and its state do not meet, one is
+-- part of the other.
+--
+-- ON DELETE SET NULL rather than CASCADE: deleting Massachusetts must not take
+-- Worcester with it. The chain goes slack and the towns remain.
+--
+-- No index. The whole table is under a hundred rows and a scan of it costs
+-- less than the index would; add one when there is something to index.
+
+ALTER TABLE places ADD COLUMN parent_place_id TEXT REFERENCES places(id) ON DELETE SET NULL;
