@@ -10,6 +10,7 @@ import { usePageActions } from '@/contexts/PageActionsContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
 import { formatEventType, isAttributeType, payloadLabel } from '@/utils/eventTypes';
+import { EventSourceFields, EventSourceLink, EMPTY_EVENT_SOURCE } from '@/components/EventSource';
 import styles from '@/components/archive-object/ArchiveDetailPage.module.css';
 
 interface PersonSummary {
@@ -29,6 +30,8 @@ interface EventRecord {
   event_date: string | null;
   event_place: string | null;
   description: string | null;
+  source_url: string | null;
+  source_url_checked_at: string | null;
   /** The person this event belongs to, when it is a person event. */
   person?: PersonSummary | null;
   /** The family this event belongs to, when it is a family event. */
@@ -95,7 +98,7 @@ const EventDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const { canEdit, canDelete } = usePermissions();
   const [event, setEvent] = useState<EventRecord | null>(null);
-  const [form, setForm] = useState({ event_type: '', event_date: '', event_place: '', description: '' });
+  const [form, setForm] = useState({ event_type: '', event_date: '', event_place: '', description: '', ...EMPTY_EVENT_SOURCE });
   const [connected, setConnected] = useState<ConnectedObject[]>([]);
   const [placeId, setPlaceId] = useState('');
   const [artifactId, setArtifactId] = useState('');
@@ -113,7 +116,7 @@ const EventDetailPage: React.FC = () => {
       if (!res.ok) throw new Error('Event not found');
       const json = await res.json() as EventRecord;
       setEvent(json);
-      setForm({ event_type: json.event_type, event_date: json.event_date ?? '', event_place: json.event_place ?? '', description: json.description ?? '' });
+      setForm({ event_type: json.event_type, event_date: json.event_date ?? '', event_place: json.event_place ?? '', description: json.description ?? '', source_url: json.source_url ?? '', source_url_checked_at: json.source_url_checked_at ?? '' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load event');
     } finally {
@@ -135,7 +138,7 @@ const EventDetailPage: React.FC = () => {
   const handleSave = async (eventArg: FormEvent) => {
     eventArg.preventDefault();
     if (!id) return;
-    const res = await fetch(`/api/v1/events/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_type: form.event_type, event_date: form.event_date.trim() || null, event_place: form.event_place.trim() || null, description: form.description.trim() || null }) });
+    const res = await fetch(`/api/v1/events/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_type: form.event_type, event_date: form.event_date.trim() || null, event_place: form.event_place.trim() || null, description: form.description.trim() || null, source_url: form.source_url.trim() || null, source_url_checked_at: form.source_url_checked_at || null }) });
     if (res.ok) {
       const updated = await res.json() as EventRecord;
       setEvent(updated);
@@ -238,6 +241,7 @@ const EventDetailPage: React.FC = () => {
                         <span>{payloadLabel(form.event_type)}</span>
                         <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} />
                       </label>
+                      <EventSourceFields idPrefix="event-detail" value={form} onChange={(next) => setForm({ ...form, ...next })} />
                       <div className={styles.formActions}>
                         <Button variant="ghost" type="button" onClick={() => setEditMode(false)}>Cancel</Button>
                         <Button type="submit">Save Event</Button>
@@ -260,6 +264,11 @@ const EventDetailPage: React.FC = () => {
                           label={payloadLabel(event.event_type)}
                           value={event.description}
                         />
+                        {event.source_url && (
+                          <LinkRow label="Source URL">
+                            <EventSourceLink url={event.source_url} checkedAt={event.source_url_checked_at} />
+                          </LinkRow>
+                        )}
                       </div>
                     </section>
                   )}

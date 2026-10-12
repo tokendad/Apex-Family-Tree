@@ -1,0 +1,71 @@
+.fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+/* The URL takes the room it needs; the date stays at its natural width. */
+.urlField {
+  flex: 1 1 14rem;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.checkedField {
+  flex: 0 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.labelText {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.checkedRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.todayBtn {
+  flex: 0 0 auto;
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-primary-700);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.todayBtn:hover:not(:disabled) {
+  background: var(--color-primary-50);
+}
+
+.todayBtn:disabled {
+  color: var(--color-text-tertiary);
+  cursor: not-allowed;
+}
+
+.link {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.link a {
+  color: var(--color-primary-700);
+  overflow-wrap: anywhere;
+}
+
+.checkedAt {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+}

@@ -47,6 +47,8 @@ function seedSchema(database: Database.Database) {
       event_date_sort_key INTEGER,
       event_place TEXT,
       description TEXT,
+      source_url TEXT,
+      source_url_checked_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );

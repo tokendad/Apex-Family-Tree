@@ -82,6 +82,8 @@ beforeEach(() => {
       event_date_sort_key INTEGER,
       event_place TEXT,
       description TEXT,
+      source_url TEXT,
+      source_url_checked_at TEXT,
       created_at TEXT,
       updated_at TEXT
     );

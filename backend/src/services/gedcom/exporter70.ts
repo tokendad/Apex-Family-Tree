@@ -110,6 +110,12 @@ export function generateGedcom70(data: ExportData): string {
       lines.push(`1 ${tag}` + (event.description ? ` ${event.description}` : ''));
       if (event.event_date) lines.push(`2 DATE ${event.event_date}`);
       if (event.event_place) lines.push(`2 PLAC ${event.event_place}`);
+      // WWW is the tag this exporter already uses for a source's URL, so an
+      // event's source URL (#41) travels under the same one rather than being
+      // folded into the description it was added to replace. The last-checked
+      // date stays behind deliberately: it records our own housekeeping, not
+      // anything about the event, and has no counterpart in either grammar.
+      if (event.source_url) lines.push(`2 WWW ${event.source_url}`);
     }
 
     // Family links

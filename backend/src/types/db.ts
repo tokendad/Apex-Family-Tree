@@ -98,6 +98,8 @@ export interface Event {
   event_date_sort_key: number | null;
   event_place: string | null;
   description: string | null;
+  source_url: string | null;
+  source_url_checked_at: string | null;
   created_at: string;
   updated_at: string;
 }

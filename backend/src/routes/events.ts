@@ -12,6 +12,56 @@ function paramStr(val: string | string[]): string {
   return Array.isArray(val) ? val[0] : val;
 }
 
+/** Thrown for a source URL the client should fix rather than retry. */
+class InvalidSourceUrl extends Error {}
+
+/**
+ * Normalise an event's source URL, or reject it (#41).
+ *
+ * The value is rendered as a link, so the scheme is restricted to http and
+ * https: a `javascript:` or `data:` URL in an href would run in the viewer's
+ * session. Anything unparseable is refused rather than quietly blanked, so a
+ * mistyped address is reported instead of silently discarded.
+ */
+function cleanSourceUrl(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== 'string') throw new InvalidSourceUrl('source_url must be a string');
+
+  const trimmed = value.trim();
+  if (trimmed === '') return null;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new InvalidSourceUrl('source_url must be a complete http or https address');
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new InvalidSourceUrl('source_url must use http or https');
+  }
+
+  return parsed.toString();
+}
+
+/**
+ * The day the link was last confirmed to resolve: a plain calendar date the
+ * user asserts, not an event date, so it is never parsed as a GEDCOM date.
+ */
+function cleanCheckedAt(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  if (typeof value !== 'string') throw new InvalidSourceUrl('source_url_checked_at must be a string');
+
+  const trimmed = value.trim();
+  if (trimmed === '') return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    throw new InvalidSourceUrl('source_url_checked_at must be a YYYY-MM-DD date');
+  }
+  return trimmed;
+}
+
 function toPersonSummary(person: ReturnType<PersonRepository['findById']> | null | undefined) {
   if (!person) return null;
   return {
@@ -83,6 +133,7 @@ eventsRouter.post(
   requireRole('admin', 'editor', 'limited_editor'),
   validate([
     { field: 'event_type', required: true, type: 'string', maxLength: 100 },
+    { field: 'source_url', type: 'string', maxLength: 2048 },
   ]),
   (req, res) => {
     try {
@@ -100,10 +151,16 @@ eventsRouter.post(
         event_date,
         event_place,
         description,
+        source_url: cleanSourceUrl(req.body.source_url),
+        source_url_checked_at: cleanCheckedAt(req.body.source_url_checked_at),
       });
 
       res.status(201).json(event);
-    } catch {
+    } catch (error) {
+      if (error instanceof InvalidSourceUrl) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
       res.status(500).json({ error: 'Failed to create event' });
     }
   },
@@ -115,6 +172,7 @@ eventsRouter.post(
   requireRole('admin', 'editor', 'limited_editor'),
   validate([
     { field: 'event_type', required: true, type: 'string', maxLength: 100 },
+    { field: 'source_url', type: 'string', maxLength: 2048 },
   ]),
   (req, res) => {
     try {
@@ -135,10 +193,16 @@ eventsRouter.post(
         event_date,
         event_place,
         description,
+        source_url: cleanSourceUrl(req.body.source_url),
+        source_url_checked_at: cleanCheckedAt(req.body.source_url_checked_at),
       });
 
       res.status(201).json(event);
-    } catch {
+    } catch (error) {
+      if (error instanceof InvalidSourceUrl) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
       res.status(500).json({ error: 'Failed to create event' });
     }
   },
@@ -148,19 +212,33 @@ eventsRouter.post(
 eventsRouter.put(
   '/:id',
   requireRole('admin', 'editor'),
+  validate([
+    { field: 'source_url', type: 'string', maxLength: 2048 },
+  ]),
   (req, res) => {
     try {
       const repo = new EventRepository();
       const { event_type, event_date, event_place, description } = req.body;
 
-      const event = repo.update(paramStr(req.params.id), { event_type, event_date, event_place, description });
+      const event = repo.update(paramStr(req.params.id), {
+        event_type,
+        event_date,
+        event_place,
+        description,
+        source_url: cleanSourceUrl(req.body.source_url),
+        source_url_checked_at: cleanCheckedAt(req.body.source_url_checked_at),
+      });
       if (!event) {
         res.status(404).json({ error: 'Event not found' });
         return;
       }
 
       res.json(withSubject(event));
-    } catch {
+    } catch (error) {
+      if (error instanceof InvalidSourceUrl) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
       res.status(500).json({ error: 'Failed to update event' });
     }
   },

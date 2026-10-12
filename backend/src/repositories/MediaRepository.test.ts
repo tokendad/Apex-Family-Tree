@@ -42,6 +42,8 @@ function seedDB(database: Database.Database) {
       person_id TEXT NOT NULL REFERENCES persons(id) ON DELETE CASCADE,
       event_type TEXT NOT NULL,
       event_date TEXT,
+      source_url TEXT,
+      source_url_checked_at TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
