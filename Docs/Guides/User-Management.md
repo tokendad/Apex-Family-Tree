@@ -76,7 +76,43 @@ The screen contains:
 
 AFT uses an **invite-only** registration system. There is no public sign-up page. Only Admins can invite new users.
 
-### How to Send an Invite
+There are two ways to invite someone, and they suit different situations:
+
+| Method | Needs SMTP | Tied to an address | Best for |
+|---|---|---|---|
+| **Email invitation** | Yes | Yes, one named address | Someone whose email you have, who will register from it |
+| **Invite code** | No | No | Reading a code out over the phone, texting it, or writing it down |
+
+If you have not configured SMTP, use an invite code — it is the path that works
+without an email server.
+
+### Inviting With a Code
+
+1. Navigate to **Settings → User Management**
+2. Use the **Invite codes** panel
+3. Choose the **role** the code will grant, an optional **note** saying who it is
+   for, how long it should last, and how many people may use it
+4. Click to generate, then pass the code on
+
+The code looks like `K7M2-R9TX`: eight characters, upper case, grouped in fours
+for reading aloud. The dashes and letter case do not matter when it is typed
+back, and the alphabet deliberately contains no `O`, `0`, `I`, `l` or `1`,
+because these codes get dictated over the phone.
+
+Defaults are **one use** and **24 hours**. Both can be changed when you generate
+the code — up to 50 uses and up to 720 hours (30 days) — so a single code can
+onboard a whole branch of the family at a reunion, or expire tomorrow if it is
+for one person.
+
+The recipient goes to the registration page and enters the code along with their
+name, email and password. A code can be **revoked** from the same panel at any
+time before it is used.
+
+> **Note:** Codes are stored in readable form, not hashed, so that an admin can
+> re-read an active code and pass it on again. Anyone who can read the database
+> can already read the archive it protects.
+
+### How to Send an Email Invite
 
 1. Navigate to **Settings > User Management**
 2. Click the **+ Invite user** button
@@ -86,7 +122,7 @@ AFT uses an **invite-only** registration system. There is no public sign-up page
    - **Personal message** *(optional)* — Add a friendly note to the invitation email
 4. Click **Send invitation**
 
-> **Note:** SMTP email must be configured for invitations to be sent. See the [Configuration Guide](Configuration.md) for SMTP setup. If SMTP is not configured, you'll need to share the invite link manually.
+> **Note:** SMTP email must be configured for invitations to be sent. See the [Configuration Guide](Configuration.md) for SMTP setup. Without SMTP, use an [invite code](#inviting-with-a-code) instead — it needs no email server.
 
 ### What the Invited User Receives
 
