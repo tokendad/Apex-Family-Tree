@@ -48,6 +48,7 @@ export interface MappedEvent {
   eventType: string;
   date: string | null;
   place: string | null;
+  plot: string | null;
   description: string | null;
   citations: MappedCitation[];
 }
@@ -167,9 +168,27 @@ function extractEvent(record: GedcomRecord, eventType: string): MappedEvent {
     eventType,
     date: dateRec?.value || null,
     place: placeRec?.value || null,
+    plot: extractPlot(record),
     description: descRec || null,
     citations: extractCitations(record),
   };
+}
+
+/**
+ * The cemetery plot, if a note carries one.
+ *
+ * Neither grammar has a tag for it, so the exporters write it as
+ * "2 NOTE Plot: Lot 482 (...)" and this reads that back -- the inverse of one
+ * specific line, not an attempt to interpret notes in general. The prefix is
+ * what makes it safe: a note that does not announce itself as a plot is left
+ * alone rather than guessed at.
+ */
+function extractPlot(record: GedcomRecord): string | null {
+  for (const note of findChildrenByTag(record, 'NOTE')) {
+    const match = /^plot:\s*(.+)$/i.exec(note.value?.trim() || '');
+    if (match) return match[1].trim() || null;
+  }
+  return null;
 }
 
 /**

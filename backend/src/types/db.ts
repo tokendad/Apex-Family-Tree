@@ -97,6 +97,9 @@ export interface Event {
   event_date_qualifier: string | null;
   event_date_sort_key: number | null;
   event_place: string | null;
+  /** Where inside the place, for a burial: "Lot 482 (Shrine of the Holy
+      Family)". Not part of the address -- a plot does not receive mail. */
+  plot: string | null;
   description: string | null;
   source_url: string | null;
   source_url_checked_at: string | null;

@@ -25,8 +25,8 @@ export class PlaceRepository extends BaseRepository {
 
     if (options?.search?.trim()) {
       const term = `%${options.search.trim()}%`;
-      conditions.push('(ao.title LIKE ? OR ao.summary LIKE ? OR p.address_text LIKE ? OR p.locality LIKE ? OR p.region LIKE ? OR p.country LIKE ? OR p.notes LIKE ?)');
-      params.push(term, term, term, term, term, term, term);
+      conditions.push('(ao.title LIKE ? OR ao.summary LIKE ? OR p.address_text LIKE ? OR p.locality LIKE ? OR p.county LIKE ? OR p.region LIKE ? OR p.country LIKE ? OR p.postal_code LIKE ? OR p.notes LIKE ?)');
+      params.push(term, term, term, term, term, term, term, term, term);
     }
 
     const countRow = this.db.prepare(
@@ -73,20 +73,26 @@ export class PlaceRepository extends BaseRepository {
 
       this.db.prepare(
         `INSERT INTO places (
-          id, normalized_name, place_type, address_text, locality, region,
-          country, latitude, longitude, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          id, normalized_name, place_type, address_text, locality, county,
+          region, country, postal_code, latitude, longitude, notes, parent_place_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         archiveObject.id,
         data.normalized_name?.trim() || normalizePlaceName(data.title),
         data.place_type ?? null,
-        data.address_text ?? data.title,
+        // Not the title: a place's name is not a street address, and
+        // filling this in from it is what migration 074 had to undo for
+        // all 72 places 068 created (#35).
+        data.address_text ?? null,
         data.locality ?? null,
+        data.county ?? null,
         data.region ?? null,
         data.country ?? null,
+        data.postal_code ?? null,
         data.latitude ?? null,
         data.longitude ?? null,
         data.notes ?? null,
+        data.parent_place_id ?? null,
       );
 
       this.replaceAliases(archiveObject.id, [data.title, ...(data.aliases ?? [])]);
@@ -150,7 +156,7 @@ export class PlaceRepository extends BaseRepository {
 
       const fields: string[] = [];
       const values: unknown[] = [];
-      for (const key of ['place_type', 'address_text', 'locality', 'region', 'country', 'latitude', 'longitude', 'notes'] as const) {
+      for (const key of ['place_type', 'address_text', 'locality', 'county', 'region', 'country', 'postal_code', 'latitude', 'longitude', 'notes', 'parent_place_id'] as const) {
         if (data[key] !== undefined) {
           fields.push(`${key} = ?`);
           values.push(data[key]);
@@ -184,6 +190,32 @@ export class PlaceRepository extends BaseRepository {
 
   delete(id: string, updatedBy?: string | null): boolean {
     return this.archiveObjects.softDelete(id, updatedBy);
+  }
+
+  /** The places this one sits inside, nearest first: a cemetery's town, then
+      its state, then its country (#35).
+
+      Walks parent_place_id upwards. The chain is a tree and short -- four
+      levels at most in this archive -- but the walk is depth-limited anyway,
+      because a parent edited into a cycle would otherwise loop forever here
+      rather than being merely wrong. */
+  findChain(placeId: string): PlaceRecord[] {
+    return this.db.prepare(
+      `WITH RECURSIVE chain(id, depth) AS (
+         SELECT parent_place_id, 1 FROM places WHERE id = ? AND parent_place_id IS NOT NULL
+         UNION ALL
+         SELECT p.parent_place_id, c.depth + 1
+         FROM chain c
+         INNER JOIN places p ON p.id = c.id
+         WHERE p.parent_place_id IS NOT NULL AND c.depth < 10
+       )
+       SELECT ao.*, p.*
+       FROM chain c
+       INNER JOIN places p ON p.id = c.id
+       INNER JOIN archive_objects ao ON ao.id = p.id
+       WHERE ao.is_deleted = 0
+       ORDER BY c.depth ASC`,
+    ).all(placeId) as PlaceRecord[];
   }
 
   findAliases(placeId: string): PlaceAliasRecord[] {

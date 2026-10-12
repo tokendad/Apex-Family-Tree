@@ -138,7 +138,7 @@ eventsRouter.post(
   (req, res) => {
     try {
       const repo = new EventRepository();
-      const { person_id, family_id, event_type, event_date, event_place, description } = req.body;
+      const { person_id, family_id, event_type, event_date, event_place, plot, description } = req.body;
       if ((person_id ? 1 : 0) + (family_id ? 1 : 0) !== 1) {
         res.status(400).json({ error: 'Event must belong to exactly one person or family' });
         return;
@@ -150,6 +150,7 @@ eventsRouter.post(
         event_type,
         event_date,
         event_place,
+        plot,
         description,
         source_url: cleanSourceUrl(req.body.source_url),
         source_url_checked_at: cleanCheckedAt(req.body.source_url_checked_at),
@@ -186,12 +187,13 @@ eventsRouter.post(
         return;
       }
 
-      const { event_type, event_date, event_place, description } = req.body;
+      const { event_type, event_date, event_place, plot, description } = req.body;
       const event = eventRepo.create({
         person_id: personId,
         event_type,
         event_date,
         event_place,
+        plot,
         description,
         source_url: cleanSourceUrl(req.body.source_url),
         source_url_checked_at: cleanCheckedAt(req.body.source_url_checked_at),
@@ -218,12 +220,13 @@ eventsRouter.put(
   (req, res) => {
     try {
       const repo = new EventRepository();
-      const { event_type, event_date, event_place, description } = req.body;
+      const { event_type, event_date, event_place, plot, description } = req.body;
 
       const event = repo.update(paramStr(req.params.id), {
         event_type,
         event_date,
         event_place,
+        plot,
         description,
         source_url: cleanSourceUrl(req.body.source_url),
         source_url_checked_at: cleanCheckedAt(req.body.source_url_checked_at),

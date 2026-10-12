@@ -18,9 +18,18 @@ interface PlaceRecord {
   place_type: string | null;
   address_text: string | null;
   locality: string | null;
+  county: string | null;
   region: string | null;
   country: string | null;
+  postal_code: string | null;
   notes: string | null;
+  parent_place_id: string | null;
+}
+
+/** The places this one sits inside, nearest first (#35). */
+interface ChainStep {
+  id: string;
+  title: string;
 }
 
 interface ConnectedObject {
@@ -38,8 +47,10 @@ function formFromPlace(place: PlaceRecord) {
     place_type: place.place_type ?? '',
     address_text: place.address_text ?? '',
     locality: place.locality ?? '',
+    county: place.county ?? '',
     region: place.region ?? '',
     country: place.country ?? '',
+    postal_code: place.postal_code ?? '',
     notes: place.notes ?? '',
     privacy_level: place.privacy_level,
   };
@@ -58,6 +69,7 @@ const PlaceDetailPage: React.FC = () => {
   const { canEdit, canDelete } = usePermissions();
   const [place, setPlace] = useState<PlaceRecord | null>(null);
   const [form, setForm] = useState<ReturnType<typeof formFromPlace> | null>(null);
+  const [chain, setChain] = useState<ChainStep[]>([]);
   const [connectedEvents, setConnectedEvents] = useState<ConnectedObject[]>([]);
   const [eventId, setEventId] = useState('');
   const [editMode, setEditMode] = useState(false);
@@ -71,9 +83,10 @@ const PlaceDetailPage: React.FC = () => {
     try {
       const res = await fetch(`/api/v1/places/${id}`);
       if (!res.ok) throw new Error('Place not found');
-      const json = await res.json() as PlaceRecord;
+      const json = await res.json() as PlaceRecord & { chain?: ChainStep[] };
       setPlace(json);
       setForm(formFromPlace(json));
+      setChain(json.chain ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load place');
     } finally {
@@ -156,7 +169,7 @@ const PlaceDetailPage: React.FC = () => {
   usePageActions(place ? `Actions for ${place.title}` : '', place ? contextActions : []);
 
   const locationLine = place
-    ? [place.locality, place.region, place.country].filter(Boolean).join(', ')
+    ? [place.locality, place.county, place.region, place.country].filter(Boolean).join(', ')
     : '';
 
   return (
@@ -193,7 +206,7 @@ const PlaceDetailPage: React.FC = () => {
                         <h2 className={styles.sectionTitle}>Edit Place</h2>
                       </div>
                       <div className={styles.formGrid}>
-                        {(['title', 'place_type', 'address_text', 'locality', 'region', 'country'] as const).map((field) => (
+                        {(['title', 'place_type', 'address_text', 'locality', 'county', 'region', 'country', 'postal_code'] as const).map((field) => (
                           <label key={field} className={styles.field}>
                             <span>{field.replace('_', ' ')}</span>
                             <Input value={form[field]} onChange={(e) => setForm({ ...form, [field]: e.target.value })} required={field === 'title'} />
@@ -217,8 +230,21 @@ const PlaceDetailPage: React.FC = () => {
                       <div className={styles.infoGrid}>
                         <InfoRow label="Address" value={place.address_text} />
                         <InfoRow label="Locality" value={place.locality} />
+                        <InfoRow label="County" value={place.county} />
                         <InfoRow label="Region" value={place.region} />
                         <InfoRow label="Country" value={place.country} />
+                        <InfoRow label="Postal code" value={place.postal_code} />
+                        <div className={styles.infoRow}>
+                          <span>Inside</span>
+                          <strong>
+                            {chain.length === 0 ? '\u2014' : chain.map((step, index) => (
+                              <React.Fragment key={step.id}>
+                                {index > 0 && ', '}
+                                <Link to={`/places/${step.id}`}>{step.title}</Link>
+                              </React.Fragment>
+                            ))}
+                          </strong>
+                        </div>
                         <InfoRow label="Notes" value={place.notes} />
                       </div>
                     </section>

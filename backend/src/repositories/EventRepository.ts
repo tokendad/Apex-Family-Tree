@@ -102,6 +102,7 @@ export class EventRepository extends BaseRepository {
     event_type: string;
     event_date?: string | null;
     event_place?: string | null;
+    plot?: string | null;
     description?: string | null;
     source_url?: string | null;
     source_url_checked_at?: string | null;
@@ -116,11 +117,11 @@ export class EventRepository extends BaseRepository {
 
     const createEvent = this.db.transaction(() => {
       this.db.prepare(
-        'INSERT INTO events (id, person_id, family_id, event_type, event_date, event_date_qualifier, event_date_sort_key, event_place, description, source_url, source_url_checked_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO events (id, person_id, family_id, event_type, event_date, event_date_qualifier, event_date_sort_key, event_place, plot, description, source_url, source_url_checked_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
       ).run(
         id, data.person_id || null, data.family_id || null, data.event_type,
         data.event_date || null, dateInfo?.qualifier || 'exact', dateInfo?.sortKey || null,
-        data.event_place || null, data.description || null,
+        data.event_place || null, data.plot || null, data.description || null,
         data.source_url || null, data.source_url_checked_at || null,
         now, now,
       );
@@ -180,7 +181,7 @@ export class EventRepository extends BaseRepository {
     });
   }
 
-  update(id: string, data: Partial<Pick<Event, 'event_type' | 'event_date' | 'event_place' | 'description' | 'source_url' | 'source_url_checked_at'>>): Event | undefined {
+  update(id: string, data: Partial<Pick<Event, 'event_type' | 'event_date' | 'event_place' | 'plot' | 'description' | 'source_url' | 'source_url_checked_at'>>): Event | undefined {
     const fields: string[] = [];
     const values: unknown[] = [];
 

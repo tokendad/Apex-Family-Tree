@@ -1,0 +1,25 @@
+-- A postal code and a county column on places (#35).
+--
+-- places (046) carries locality/region/country but no postal code and no
+-- county, so the two components that the archive actually contains have
+-- nowhere to go: three of the 72 places end their name with a ZIP
+-- ("714 Main St., Worcester, Massachusetts 01610") and one names a county
+-- ("60 Crestwood Estates, Vernon, Windham, Vermont").
+--
+-- County is here for the same reason as the ZIP even though only one row needs
+-- it today. The GEDCOM PLAC convention is "city, county, state, country", so
+-- every imported file will carry counties; without the column the importer has
+-- to either drop them or fold them into the locality, and folding them in is
+-- what made "Worcester, Worcester, Massachusetts" and "Worcester,
+-- Massachusetts" two different places in the first place.
+--
+-- Neither column is populated here. The component backfill for the existing 72
+-- is a separate migration: it has to rewrite address_text at the same time (so
+-- the ZIP is not stored twice, once as a component and once inside the name),
+-- and that is the same pass that assigns the parent chain.
+--
+-- ADD COLUMN rather than the 062 table rebuild, following 067. Neither column
+-- is indexed and neither carries a REFERENCES clause, so the rollback is a
+-- plain DROP COLUMN.
+ALTER TABLE places ADD COLUMN postal_code TEXT;
+ALTER TABLE places ADD COLUMN county TEXT;

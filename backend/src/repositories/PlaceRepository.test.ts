@@ -32,11 +32,14 @@ function seedDB(database: Database.Database) {
       place_type TEXT,
       address_text TEXT,
       locality TEXT,
+      county TEXT,
       region TEXT,
       country TEXT,
+      postal_code TEXT,
       latitude REAL,
       longitude REAL,
-      notes TEXT
+      notes TEXT,
+      parent_place_id TEXT REFERENCES places(id) ON DELETE SET NULL
     );
     CREATE TABLE place_aliases (
       id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),

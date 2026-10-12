@@ -45,11 +45,16 @@ function placeBody(body: Record<string, unknown>) {
     place_type: cleanOptional(body.place_type),
     address_text: cleanOptional(body.address_text),
     locality: cleanOptional(body.locality),
+    county: cleanOptional(body.county),
     region: cleanOptional(body.region),
     country: cleanOptional(body.country),
+    // A string, not a number: leading zeros matter ("01610" is Worcester) and
+    // plenty of the world's postal codes contain letters.
+    postal_code: cleanOptional(body.postal_code),
     latitude: numericOptional(body.latitude),
     longitude: numericOptional(body.longitude),
     notes: cleanOptional(body.notes),
+    parent_place_id: cleanOptional(body.parent_place_id),
     aliases: parseAliases(body.aliases),
   };
 }
@@ -76,7 +81,7 @@ placesRouter.get('/:id', (req, res) => {
       return;
     }
 
-    res.json({ ...place, aliases: repo.findAliases(id) });
+    res.json({ ...place, aliases: repo.findAliases(id), chain: repo.findChain(id) });
   } catch {
     res.status(500).json({ error: 'Failed to get place' });
   }

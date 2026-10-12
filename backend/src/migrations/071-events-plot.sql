@@ -1,0 +1,19 @@
+-- Where in a cemetery a burial lies (#35).
+--
+-- "Lot 482 (Shrine of the Holy Family)" is not an address and not a place. It
+-- is a locator inside one: the burial occurred at St. John's Cemetery, and
+-- this says where in the cemetery the person is. Keeping it on the event
+-- rather than on the place is what makes a reinterment expressible -- a second
+-- burial event, same cemetery, different plot.
+--
+-- Until now it lived inside events.event_place, which made three places out of
+-- what are really two cemeteries and four burials. 072 folds those three rows
+-- into their cemeteries and moves the text here.
+--
+-- Named plot rather than something broader like place_detail because every
+-- value the archive holds is a cemetery plot, and a column that might hold a
+-- hospital ward or a church pew tells neither a reader nor an exporter how to
+-- label what is in it.
+--
+-- ADD COLUMN, as 067 did to this same table.
+ALTER TABLE events ADD COLUMN plot TEXT;

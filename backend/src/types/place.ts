@@ -15,11 +15,15 @@ export interface PlaceRecord {
   place_type: string | null;
   address_text: string | null;
   locality: string | null;
+  county: string | null;
   region: string | null;
   country: string | null;
+  postal_code: string | null;
   latitude: number | null;
   longitude: number | null;
   notes: string | null;
+  /** The place this one is inside: a town's state, a cemetery's town (#35). */
+  parent_place_id: string | null;
 }
 
 export interface PlaceAliasRecord {
@@ -39,11 +43,14 @@ export interface CreatePlaceInput {
   place_type?: string | null;
   address_text?: string | null;
   locality?: string | null;
+  county?: string | null;
   region?: string | null;
   country?: string | null;
+  postal_code?: string | null;
   latitude?: number | null;
   longitude?: number | null;
   notes?: string | null;
+  parent_place_id?: string | null;
   aliases?: string[];
   created_by?: string | null;
 }
