@@ -1,0 +1,147 @@
+/* AppShell's .main is overflow: hidden, so a long page inside it has to be its
+   own scrolling container or it simply ends at the fold. */
+.page {
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--space-8) var(--space-6) var(--space-10);
+  max-width: 760px;
+  margin: 0 auto;
+  /* Prose, so a comfortable reading measure rather than the app's density. */
+  line-height: 1.65;
+  color: var(--color-text-primary);
+}
+
+.header { margin-bottom: var(--space-6); }
+
+.title {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  margin: 0;
+}
+
+.lede {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-lg);
+}
+
+.toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-4);
+  margin-bottom: var(--space-6);
+  border: 1px solid var(--color-border-warm);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-app);
+}
+
+.tocLink {
+  color: var(--color-primary-600);
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+}
+
+.tocLink:hover { text-decoration: underline; }
+
+.section {
+  margin-bottom: var(--space-8);
+  /* Anchored from the contents list; without this the heading lands under the
+     top of the scroll container. */
+  scroll-margin-top: var(--space-4);
+}
+
+.section h2 {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  margin: 0 0 var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border-warm);
+}
+
+.section p { margin: 0 0 var(--space-3); }
+
+.aside {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  border-left: 2px solid var(--color-border-warm);
+  padding-left: var(--space-3);
+}
+
+.quote {
+  margin: var(--space-4) 0;
+  padding: var(--space-4);
+  border-left: 3px solid var(--color-primary-600, #1d5134);
+  background: var(--color-bg-app);
+  font-size: var(--font-size-lg);
+}
+
+.unavailable {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-style: italic;
+}
+
+/* A question and its answer. <details> so a long page can be skimmed by
+   question, and so one answer can be linked to and opened. */
+.qa {
+  border-bottom: 1px solid var(--color-border-warm);
+  scroll-margin-top: var(--space-4);
+}
+
+.question {
+  cursor: pointer;
+  padding: var(--space-3) 0;
+  font-weight: var(--font-weight-medium);
+  /* The default triangle sits oddly against a multi-line question. */
+  list-style: none;
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+}
+
+.question::-webkit-details-marker { display: none; }
+
+.question::before {
+  content: '+';
+  color: var(--color-primary-600);
+  font-weight: var(--font-weight-bold);
+  flex: none;
+}
+
+.qa[open] .question::before { content: '\2212'; }
+
+.question:hover { color: var(--color-primary-600); }
+
+.answer {
+  padding: 0 0 var(--space-4) var(--space-5);
+  color: var(--color-text-secondary);
+}
+
+.answer p { margin: 0 0 var(--space-3); }
+
+.answer p:last-child { margin-bottom: 0; }
+
+.answer code {
+  font-family: var(--font-family-mono, ui-monospace, monospace);
+  font-size: var(--font-size-sm);
+  background: var(--color-bg-app);
+  border: 1px solid var(--color-border-warm);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
+}
+
+.answer a {
+  color: var(--color-primary-600);
+  text-decoration: none;
+}
+
+.answer a:hover { text-decoration: underline; }
+
+.footer {
+  margin-top: var(--space-8);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border-warm);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}

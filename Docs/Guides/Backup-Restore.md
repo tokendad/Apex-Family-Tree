@@ -31,8 +31,7 @@ AFT creates automatic database backups at several key moments. These backups use
 |---|---|---|
 | **Startup backup** | Every time the container starts (if the database already exists) | Full database snapshot |
 | **Pre-migration backup** | Before any database schema migrations run during an update | Full database snapshot |
-| **Post-import backup** | After every successful GEDCOM import | Full database snapshot |
-| **Scheduled backup** | Daily at midnight UTC | Full database snapshot |
+| **Pre-import backup** | Before a GEDCOM import begins, so a bad import can be undone | Full database snapshot |
 
 ### Backup Location and Naming
 
@@ -45,25 +44,44 @@ Automatic backups are stored in:
 Each backup file is named with a timestamp:
 
 ```
-treeroots-YYYYMMDD-HHMMSS.db
+treeroots.db.<type>.<YYYY-MM-DD_HH-MM-SS-mmm>.bak
 ```
 
-For example: `treeroots-20250615-143022.db`
+For example: `treeroots.db.startup.2026-10-12_10-17-50-291.bak`
+
+The type is in the filename, so `ls .data/backups/` groups by itself and you can
+tell at a glance whether a snapshot was taken on a restart, before a migration
+or before an import.
 
 ### Backup Retention Policy
 
 AFT automatically manages backup retention to prevent the backup directory from growing indefinitely:
 
+Each type keeps its own **last 10** snapshots, counted separately:
+
 | Backup Type | Retention |
 |---|---|
-| Startup backups | Last **5** are kept |
-| Post-import backups | Last **10** are kept |
-| Scheduled daily backups | Last **30** are kept |
-| Pre-migration backups | Kept **permanently** (timestamped, never auto-deleted) |
+| Startup backups | Last **10** are kept |
+| Pre-migration backups | Last **10** are kept |
+| Pre-import backups | Last **10** are kept |
 
-When a new backup is created, AFT checks the backup directory and removes the oldest files beyond the retention count for that type.
+The cap is per type rather than across the directory. A shared cap would let a
+run of restarts evict the snapshot taken before a migration or an import —
+precisely the one worth keeping — because startup backups are by far the most
+frequent.
 
-> **Tip:** Pre-migration backups are never automatically deleted because they represent a known-good state before a schema change. If disk space becomes a concern, you can manually remove old pre-migration backups after confirming the corresponding update was successful.
+Retention is applied once per container start, after that boot's own backups
+exist, so they count towards their own caps.
+
+> **Warning:** Pre-migration backups are **not** kept permanently. They are
+> capped at ten like the others, and ten updates will age the oldest one out. If
+> you want to keep a known-good snapshot from before a particular upgrade,
+> copy it somewhere else or rename it.
+
+> **Tip:** Anything in `.data/backups/` that AFT did not create is left alone
+> entirely — a file only enters the retention policy if it matches
+> `treeroots.db.<type>.<timestamp>.bak`. Hand-made snapshots taken before a
+> risky operation are never deleted, and never counted.
 
 ---
 
@@ -98,7 +116,7 @@ If you can't afford downtime, you can still create a reliable backup:
 
    # Copy it along with the media directory
    mkdir -p /path/to/backup/aft-$(date +%Y%m%d)
-   cp .data/backups/treeroots-*.db /path/to/backup/aft-$(date +%Y%m%d)/
+   cp .data/backups/treeroots.db.*.bak /path/to/backup/aft-$(date +%Y%m%d)/
    cp -r .data/media/ /path/to/backup/aft-$(date +%Y%m%d)/media/
    ```
 
@@ -148,7 +166,7 @@ If you need to restore just the database (e.g., after accidental data deletion o
 3. **Replace the current database with the backup:**
 
    ```bash
-   cp .data/backups/treeroots-YYYYMMDD-HHMMSS.db .data/treeroots.db
+   cp .data/backups/treeroots.db.startup.YYYY-MM-DD_HH-MM-SS-mmm.bak .data/treeroots.db
    ```
 
 4. **Remove stale WAL and SHM files:**
@@ -226,7 +244,7 @@ docker compose down
 ls -lt .data/backups/
 
 # 3. Restore the most recent backup
-cp .data/backups/treeroots-YYYYMMDD-HHMMSS.db .data/treeroots.db
+cp .data/backups/treeroots.db.startup.YYYY-MM-DD_HH-MM-SS-mmm.bak .data/treeroots.db
 
 # 4. Clean up WAL/SHM files
 rm -f .data/treeroots.db-wal .data/treeroots.db-shm

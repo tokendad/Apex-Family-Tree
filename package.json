@@ -2,6 +2,11 @@
   "name": "apex-family-tree",
   "version": "2.6.1",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tokendad/Apex-Family-Tree"
+  },
+  "license": "MIT",
   "workspaces": [
     "frontend",
     "backend"
