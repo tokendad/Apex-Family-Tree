@@ -23,10 +23,10 @@ export class SearchRepository extends BaseRepository {
                 ao.summary,
                 TRIM(COALESCE(a.notes, '') || ' ' || COALESCE(a.transcription, '') || ' ' || COALESCE(a.creator_text, '') || ' ' || COALESCE(a.physical_location, '') || ' ' ||
                      COALESCE(s.body_markdown, '') || ' ' || COALESCE(s.notes, '') || ' ' ||
-                     COALESCE(p.address_text, '') || ' ' || COALESCE(p.locality, '') || ' ' || COALESCE(p.region, '') || ' ' || COALESCE(p.country, '') || ' ' || COALESCE(p.notes, '') || ' ' ||
+                     COALESCE(p.address_text, '') || ' ' || COALESCE(p.locality, '') || ' ' || COALESCE(p.county, '') || ' ' || COALESCE(p.region, '') || ' ' || COALESCE(p.country, '') || ' ' || COALESCE(p.postal_code, '') || ' ' || COALESCE(p.notes, '') || ' ' ||
                      COALESCE(c.description, '') || ' ' ||
                      COALESCE(cl.statement, '') || ' ' || COALESCE(cl.notes, '') || ' ' || COALESCE(cl.status, '') || ' ' ||
-                     COALESCE(e.event_type, '') || ' ' || COALESCE(e.event_date, '') || ' ' || COALESCE(e.event_place, '') || ' ' || COALESCE(e.description, '')) AS body,
+                     COALESCE(e.event_type, '') || ' ' || COALESCE(e.event_date, '') || ' ' || COALESCE(e.event_place, '') || ' ' || COALESCE(e.plot, '') || ' ' || COALESCE(e.description, '')) AS body,
                 COALESCE((
                   SELECT group_concat(t.name, ' ')
                   FROM object_tags ot

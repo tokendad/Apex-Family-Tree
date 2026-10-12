@@ -55,7 +55,7 @@ beforeEach(() => {
       role TEXT, sort_order INTEGER, created_at TEXT);
     CREATE TABLE events (id TEXT PRIMARY KEY, person_id TEXT, family_id TEXT, event_type TEXT,
       event_date TEXT, event_date_qualifier TEXT, event_date_sort_key INTEGER,
-      event_place TEXT, description TEXT, source_url TEXT, source_url_checked_at TEXT,
+      event_place TEXT, plot TEXT, description TEXT, source_url TEXT, source_url_checked_at TEXT,
       created_at TEXT, updated_at TEXT);
     CREATE TABLE audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, action TEXT,
       entity_type TEXT, entity_id TEXT, old_values TEXT, new_values TEXT,

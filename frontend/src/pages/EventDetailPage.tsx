@@ -29,6 +29,7 @@ interface EventRecord {
   event_type: string;
   event_date: string | null;
   event_place: string | null;
+  plot: string | null;
   description: string | null;
   source_url: string | null;
   source_url_checked_at: string | null;
@@ -98,7 +99,7 @@ const EventDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const { canEdit, canDelete } = usePermissions();
   const [event, setEvent] = useState<EventRecord | null>(null);
-  const [form, setForm] = useState({ event_type: '', event_date: '', event_place: '', description: '', ...EMPTY_EVENT_SOURCE });
+  const [form, setForm] = useState({ event_type: '', event_date: '', event_place: '', plot: '', description: '', ...EMPTY_EVENT_SOURCE });
   const [connected, setConnected] = useState<ConnectedObject[]>([]);
   const [placeId, setPlaceId] = useState('');
   const [artifactId, setArtifactId] = useState('');
@@ -116,7 +117,7 @@ const EventDetailPage: React.FC = () => {
       if (!res.ok) throw new Error('Event not found');
       const json = await res.json() as EventRecord;
       setEvent(json);
-      setForm({ event_type: json.event_type, event_date: json.event_date ?? '', event_place: json.event_place ?? '', description: json.description ?? '', source_url: json.source_url ?? '', source_url_checked_at: json.source_url_checked_at ?? '' });
+      setForm({ event_type: json.event_type, event_date: json.event_date ?? '', event_place: json.event_place ?? '', plot: json.plot ?? '', description: json.description ?? '', source_url: json.source_url ?? '', source_url_checked_at: json.source_url_checked_at ?? '' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load event');
     } finally {
@@ -138,7 +139,7 @@ const EventDetailPage: React.FC = () => {
   const handleSave = async (eventArg: FormEvent) => {
     eventArg.preventDefault();
     if (!id) return;
-    const res = await fetch(`/api/v1/events/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_type: form.event_type, event_date: form.event_date.trim() || null, event_place: form.event_place.trim() || null, description: form.description.trim() || null, source_url: form.source_url.trim() || null, source_url_checked_at: form.source_url_checked_at || null }) });
+    const res = await fetch(`/api/v1/events/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_type: form.event_type, event_date: form.event_date.trim() || null, event_place: form.event_place.trim() || null, plot: form.plot.trim() || null, description: form.description.trim() || null, source_url: form.source_url.trim() || null, source_url_checked_at: form.source_url_checked_at || null }) });
     if (res.ok) {
       const updated = await res.json() as EventRecord;
       setEvent(updated);
@@ -202,7 +203,7 @@ const EventDetailPage: React.FC = () => {
             <ArchiveObjectLayout
               breadcrumb={<><Link to="/events">Events</Link> / Archive Profile</>}
               title={eventTitle}
-              subtitle={[event.event_date ?? 'Undated', event.event_place].filter(Boolean).join(' • ')}
+              subtitle={[event.event_date ?? 'Undated', event.event_place, event.plot].filter(Boolean).join(' • ')}
               summary={event.description}
               avatar={<span>◆</span>}
               stats={[
@@ -236,6 +237,14 @@ const EventDetailPage: React.FC = () => {
                           <span>Place Text</span>
                           <Input value={form.event_place} onChange={(e) => setForm({ ...form, event_place: e.target.value })} />
                         </label>
+                        <label className={styles.field}>
+                          <span>Plot</span>
+                          <Input
+                            value={form.plot}
+                            onChange={(e) => setForm({ ...form, plot: e.target.value })}
+                            placeholder="Lot 482, Garden of Heritage I"
+                          />
+                        </label>
                       </div>
                       <label className={styles.field}>
                         <span>{payloadLabel(form.event_type)}</span>
@@ -260,6 +269,7 @@ const EventDetailPage: React.FC = () => {
                         />
                         <InfoRow label="Date" value={event.event_date} />
                         <InfoRow label="Place Text" value={event.event_place} />
+                        <InfoRow label="Plot" value={event.plot} />
                         <InfoRow
                           label={payloadLabel(event.event_type)}
                           value={event.description}

@@ -30,11 +30,11 @@ function seedDB(database: Database.Database) {
     CREATE TABLE names (id TEXT PRIMARY KEY, person_id TEXT NOT NULL, prefix TEXT, given_name TEXT, surname TEXT, suffix TEXT);
     CREATE TABLE artifacts (id TEXT PRIMARY KEY, notes TEXT, transcription TEXT, creator_text TEXT, physical_location TEXT);
     CREATE TABLE stories (id TEXT PRIMARY KEY, body_markdown TEXT, notes TEXT);
-    CREATE TABLE places (id TEXT PRIMARY KEY, address_text TEXT, locality TEXT, region TEXT, country TEXT, notes TEXT);
+    CREATE TABLE places (id TEXT PRIMARY KEY, address_text TEXT, locality TEXT, county TEXT, region TEXT, country TEXT, postal_code TEXT, notes TEXT);
     CREATE TABLE place_aliases (id TEXT PRIMARY KEY, place_id TEXT NOT NULL, alias TEXT NOT NULL);
     CREATE TABLE collections (id TEXT PRIMARY KEY, description TEXT);
     CREATE TABLE claims (id TEXT PRIMARY KEY, statement TEXT, notes TEXT, status TEXT);
-    CREATE TABLE events (id TEXT PRIMARY KEY, event_type TEXT, event_date TEXT, event_place TEXT, description TEXT);
+    CREATE TABLE events (id TEXT PRIMARY KEY, event_type TEXT, event_date TEXT, event_place TEXT, plot TEXT, description TEXT);
     CREATE TABLE tags (id TEXT PRIMARY KEY, name TEXT NOT NULL);
     CREATE TABLE object_tags (id TEXT PRIMARY KEY, object_id TEXT NOT NULL, tag_id TEXT NOT NULL);
     CREATE VIRTUAL TABLE archive_search USING fts5(
@@ -97,6 +97,29 @@ describe('SearchRepository', () => {
     expect(repo.search('Ada wrote').data.map(row => row.id)).toEqual([]);
     expect(repo.search('apple', { allowedPrivacyLevels: ['public', 'family'] }).data.map(row => row.id)).toEqual([]);
     expect(repo.search('apple', { allowedPrivacyLevels: ['private'] }).data.map(row => row.id)).toEqual(['story-1']);
+  });
+
+  /* Issue #35: a plot used to live inside event_place and a county or ZIP
+     inside the place name, so all three were searchable for free. Once they
+     moved to their own columns the index had to be told about them, or
+     searching "Lot 482" would quietly stop finding the burial. */
+  it('finds a burial by its plot, and a place by its county or postal code', () => {
+    db.prepare("INSERT INTO archive_objects (id, object_type, title, privacy_level, is_deleted, created_at, updated_at) VALUES (?, 'event', ?, 'family', 0, datetime('now'), datetime('now'))")
+      .run('event-1', 'Burial');
+    db.prepare('INSERT INTO events (id, event_type, event_date, event_place, plot, description) VALUES (?, ?, ?, ?, ?, ?)')
+      .run('event-1', 'burial', '1962', "St. John's Cemetery, Worcester, Massachusetts", 'Lot 482 (Shrine of the Holy Family)', null);
+
+    db.prepare("INSERT INTO archive_objects (id, object_type, title, privacy_level, is_deleted, created_at, updated_at) VALUES (?, 'place', ?, 'family', 0, datetime('now'), datetime('now'))")
+      .run('place-1', 'Vernon, Vermont');
+    db.prepare('INSERT INTO places (id, address_text, locality, county, region, country, postal_code, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run('place-1', null, 'Vernon', 'Windham', 'Vermont', 'United States', '05354', null);
+
+    const repo = new SearchRepository();
+    repo.rebuildIndex();
+
+    expect(repo.search('482').data.map(row => row.id)).toEqual(['event-1']);
+    expect(repo.search('Windham').data.map(row => row.id)).toEqual(['place-1']);
+    expect(repo.search('05354').data.map(row => row.id)).toEqual(['place-1']);
   });
 
   it('reflects updates after rebuild', () => {

@@ -198,6 +198,13 @@ export function generateGedcom551(data: ExportData): string {
       lines.push(`1 ${tag}` + (event.description ? ` ${event.description}` : ''));
       if (event.event_date) lines.push(`2 DATE ${event.event_date}`);
       if (event.event_place) lines.push(`2 PLAC ${event.event_place}`);
+      // A plot is where in the cemetery the person lies, which neither 5.5.1
+      // nor 7.0 has a tag for -- there is no PLOT, and no registered extension
+      // for one. It travels as a NOTE on the event instead: prose rather than a
+      // field, but every program that exists can read it, and nothing drops it
+      // silently. Whitespace is collapsed because a newline mid-value would be
+      // a malformed line rather than a long one.
+      if (event.plot) lines.push(`2 NOTE Plot: ${event.plot.replace(/\s+/g, ' ').trim()}`);
       // WWW is the tag this exporter already uses for a source's URL, so an
       // event's source URL (#41) travels under the same one rather than being
       // folded into the description it was added to replace. The last-checked

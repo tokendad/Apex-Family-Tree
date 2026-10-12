@@ -47,6 +47,7 @@ interface FamilyEvent {
   event_type: string;
   event_date: string | null;
   event_place: string | null;
+  plot: string | null;
   description: string | null;
   source_url: string | null;
   source_url_checked_at: string | null;
@@ -204,7 +205,7 @@ const FamilyDetailPage: React.FC = () => {
   const [isAddingChild, setIsAddingChild] = useState(false);
   const [childError, setChildError] = useState<string | null>(null);
 
-  const [eventForm, setEventForm] = useState({ event_type: 'residence', event_date: '', event_place: '', description: '', ...EMPTY_EVENT_SOURCE });
+  const [eventForm, setEventForm] = useState({ event_type: 'residence', event_date: '', event_place: '', plot: '', description: '', ...EMPTY_EVENT_SOURCE });
   const [isAddingEvent, setIsAddingEvent] = useState(false);
   const [eventError, setEventError] = useState<string | null>(null);
 
@@ -364,13 +365,14 @@ const FamilyDetailPage: React.FC = () => {
           event_type: eventForm.event_type,
           event_date: eventForm.event_date.trim() || null,
           event_place: eventForm.event_place.trim() || null,
+          plot: eventForm.plot.trim() || null,
           description: eventForm.description.trim() || null,
           source_url: eventForm.source_url.trim() || null,
           source_url_checked_at: eventForm.source_url_checked_at || null,
         }),
       });
       if (!res.ok) throw new Error('Failed to add event');
-      setEventForm({ event_type: 'residence', event_date: '', event_place: '', description: '', ...EMPTY_EVENT_SOURCE });
+      setEventForm({ event_type: 'residence', event_date: '', event_place: '', plot: '', description: '', ...EMPTY_EVENT_SOURCE });
       setDrawerMode(null);
       await fetchFamily();
     } catch (err) {
@@ -775,7 +777,7 @@ const FamilyDetailPage: React.FC = () => {
                           <strong>{formatEventType(event.event_type)}</strong>
                           {event.event_date && <span className={archiveStyles.muted}>{event.event_date}</span>}
                         </div>
-                        {event.event_place && <p className={archiveStyles.muted}>📍 {event.event_place}</p>}
+                        {(event.event_place || event.plot) && <p className={archiveStyles.muted}>📍 {[event.event_place, event.plot].filter(Boolean).join(' — ')}</p>}
                         {event.description && <p className={archiveStyles.muted}>{event.description}</p>}
                         {event.source_url && (
                           <p className={archiveStyles.muted}>
@@ -860,6 +862,10 @@ const FamilyDetailPage: React.FC = () => {
         <label className={archiveStyles.field}>
           <span>Place</span>
           <Input value={eventForm.event_place} onChange={(e) => setEventForm({ ...eventForm, event_place: e.target.value })} placeholder="e.g. 12 Maple Street" />
+        </label>
+        <label className={archiveStyles.field}>
+          <span>Plot</span>
+          <Input value={eventForm.plot} onChange={(e) => setEventForm({ ...eventForm, plot: e.target.value })} placeholder="e.g. Lot 482, Garden of Heritage I" />
         </label>
         <label className={archiveStyles.field}>
           <span>Description</span>

@@ -410,6 +410,7 @@ export function processImport(jobId: string, content: string, userId: string, mo
                 event_type: event.eventType,
                 event_date: event.date || undefined,
                 event_place: event.place || undefined,
+                plot: event.plot || undefined,
                 description: event.description || undefined,
               });
               writeCitations(event.citations, { event_id: createdEvent.id });
@@ -616,6 +617,7 @@ export function processImport(jobId: string, content: string, userId: string, mo
                   event_type: incomingEvent.eventType,
                   event_date: incomingEvent.date ?? undefined,
                   event_place: incomingEvent.place ?? undefined,
+                  plot: incomingEvent.plot ?? undefined,
                   description: incomingEvent.description ?? undefined,
                 });
                 eventCount++;
@@ -672,6 +674,7 @@ export function processImport(jobId: string, content: string, userId: string, mo
             event_type: event.eventType,
             event_date: event.date || undefined,
             event_place: event.place || undefined,
+            plot: event.plot || undefined,
             description: event.description || undefined,
           });
           writeCitations(event.citations, { event_id: createdEvent.id });
@@ -747,6 +750,7 @@ export function processImport(jobId: string, content: string, userId: string, mo
             event_type: event.eventType,
             event_date: event.date || undefined,
             event_place: event.place || undefined,
+            plot: event.plot || undefined,
             description: event.description || undefined,
           });
           writeCitations(event.citations, { event_id: createdEvent.id });

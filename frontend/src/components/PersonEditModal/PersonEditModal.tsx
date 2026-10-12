@@ -43,6 +43,7 @@ interface PersonEvent {
   event_type: string;
   event_date: string | null;
   event_place: string | null;
+  plot: string | null;
   description: string | null;
   source_url: string | null;
   source_url_checked_at: string | null;
@@ -226,6 +227,7 @@ const DEFAULT_EVENT_FORM = {
   event_type: 'birth',
   event_date: '',
   event_place: '',
+  plot: '',
   description: '',
   ...EMPTY_EVENT_SOURCE,
 };
@@ -687,6 +689,7 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
       event_type: event.event_type,
       event_date: event.event_date ?? '',
       event_place: event.event_place ?? '',
+      plot: event.plot ?? '',
       description: event.description ?? '',
       source_url: event.source_url ?? '',
       source_url_checked_at: event.source_url_checked_at ?? '',
@@ -702,6 +705,7 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
         event_type: eventEditForm.event_type,
         event_date: eventEditForm.event_date || null,
         event_place: eventEditForm.event_place || null,
+        plot: eventEditForm.plot || null,
         description: eventEditForm.description || null,
         source_url: eventEditForm.source_url.trim() || null,
         source_url_checked_at: eventEditForm.source_url_checked_at || null,
@@ -756,6 +760,7 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
         event_type: addEventForm.event_type,
         event_date: addEventForm.event_date || null,
         event_place: addEventForm.event_place || null,
+        plot: addEventForm.plot || null,
         description: addEventForm.description || null,
         source_url: addEventForm.source_url.trim() || null,
         source_url_checked_at: addEventForm.source_url_checked_at || null,
@@ -1350,6 +1355,16 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
                         placeholder="City, State, Country"
                       />
                     </label>
+                    <label className={styles.formLabel}>
+                      Plot
+                      <Input
+                        value={eventEditForm.plot}
+                        onChange={(e) =>
+                          setEventEditForm((f) => ({ ...f, plot: e.target.value }))
+                        }
+                        placeholder="Lot 482, Garden of Heritage I"
+                      />
+                    </label>
                     <label className={[styles.formLabel, styles.fullWidth].join(' ')}>
                       {payloadLabel(eventEditForm.event_type)}
                       <textarea
@@ -1425,8 +1440,10 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
                       </div>
                     </div>
                   </div>
-                  {event.event_place && (
-                    <div className={styles.eventPlace}>📍 {event.event_place}</div>
+                  {(event.event_place || event.plot) && (
+                    <div className={styles.eventPlace}>
+                      📍 {[event.event_place, event.plot].filter(Boolean).join(' — ')}
+                    </div>
                   )}
                   {event.description && (
                     <div className={styles.eventDesc}>{event.description}</div>
@@ -1526,6 +1543,14 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
                     value={addEventForm.event_place}
                     onChange={(e) => setAddEventForm((f) => ({ ...f, event_place: e.target.value }))}
                     placeholder="City, State, Country"
+                  />
+                </label>
+                <label className={styles.formLabel}>
+                  Plot
+                  <Input
+                    value={addEventForm.plot}
+                    onChange={(e) => setAddEventForm((f) => ({ ...f, plot: e.target.value }))}
+                    placeholder="Lot 482, Garden of Heritage I"
                   />
                 </label>
                 <label className={[styles.formLabel, styles.fullWidth].join(' ')}>

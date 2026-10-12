@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS events (
   event_date_qualifier TEXT CHECK (event_date_qualifier IN ('exact', 'about', 'before', 'after', 'between', 'calculated', 'estimated')),
   event_date_sort_key INTEGER,
   event_place TEXT,
+  plot TEXT,
   description TEXT,
   source_url TEXT,
   source_url_checked_at TEXT,

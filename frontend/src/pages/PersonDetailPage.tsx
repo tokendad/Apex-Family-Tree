@@ -51,6 +51,7 @@ interface PersonEvent {
   /** Numeric YYYYMMDD the backend derives from the GEDCOM date, 0 for unknown parts. */
   event_date_sort_key?: number | null;
   event_place: string | null;
+  plot: string | null;
   description: string | null;
   source_url: string | null;
   source_url_checked_at: string | null;
@@ -776,8 +777,10 @@ const PersonDetailPage: React.FC = () => {
                             )}
                           </div>
                         </div>
-                        {event.event_place && (
-                          <div className={styles.eventPlace}>📍 {event.event_place}</div>
+                        {(event.event_place || event.plot) && (
+                          <div className={styles.eventPlace}>
+                            📍 {[event.event_place, event.plot].filter(Boolean).join(' — ')}
+                          </div>
                         )}
                       </div>
                     </li>
@@ -908,8 +911,10 @@ const PersonDetailPage: React.FC = () => {
                             )}
                           </div>
                         </div>
-                        {event.event_place && (
-                          <div className={styles.eventPlace}>📍 {event.event_place}</div>
+                        {(event.event_place || event.plot) && (
+                          <div className={styles.eventPlace}>
+                            📍 {[event.event_place, event.plot].filter(Boolean).join(' — ')}
+                          </div>
                         )}
                         {event.description && (
                           <div className={styles.eventDesc}>{event.description}</div>
@@ -957,8 +962,10 @@ const PersonDetailPage: React.FC = () => {
                             {formatYear(attribute.event_date, attribute.event_date_qualifier) || attribute.event_date}
                           </span>
                         )}
-                        {attribute.event_place && (
-                          <span className={styles.eventPlace}> 📍 {attribute.event_place}</span>
+                        {(attribute.event_place || attribute.plot) && (
+                          <span className={styles.eventPlace}>
+                            {' '}📍 {[attribute.event_place, attribute.plot].filter(Boolean).join(' — ')}
+                          </span>
                         )}
                       </span>
                     </div>
