@@ -233,6 +233,59 @@ export class ArtifactRepository extends BaseRepository {
     return apply();
   }
 
+  /**
+   * Narrower fixtures bridge no media at all. Guarded like artifact_files.
+   */
+  private hasMediaItemsTable(): boolean {
+    return Boolean(
+      this.db.prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'media_items'",
+      ).get(),
+    );
+  }
+
+  /**
+   * Write a retitled artifact back to its media row, when it has one.
+   *
+   * The two pages read different tables -- the Media gallery shows
+   * media_items.title, the catalogue shows archive_objects.title -- so a title
+   * written to only one of them leaves them disagreeing. Worse,
+   * MediaRepository.syncArtifact rebuilds the catalogue entry from the media
+   * row on any media edit, so a title stored only in archive_objects is
+   * reverted to the filename the next time someone sets a date or a
+   * description. Mirroring is what keeps both readers right and keeps that
+   * sync honest; see #42.
+   *
+   * The id match is the whole guard: an artifact created through this API
+   * alone has no media row (see the note on GET /artifacts/:id/file) and
+   * simply matches nothing.
+   */
+  private mirrorToMediaItem(id: string, data: UpdateArtifactInput): void {
+    if (data.title === undefined && data.summary === undefined) return;
+    if (!this.hasMediaItemsTable()) return;
+
+    const fields: string[] = [];
+    const values: unknown[] = [];
+
+    // Trimmed to match what ArchiveObjectRepository.update stores, so the two
+    // copies are byte-identical rather than merely equivalent.
+    if (data.title !== undefined) {
+      fields.push('title = ?');
+      values.push(data.title.trim());
+    }
+
+    // archive_objects.summary is media_items.description: same field, two names.
+    if (data.summary !== undefined) {
+      fields.push('description = ?');
+      values.push(data.summary);
+    }
+
+    fields.push('updated_at = ?');
+    values.push(this.now(), id);
+
+    this.db.prepare(`UPDATE media_items SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+  }
+
   update(id: string, data: UpdateArtifactInput): ArtifactRecord | undefined {
     if (!this.findById(id)) return undefined;
 
@@ -243,6 +296,8 @@ export class ArtifactRepository extends BaseRepository {
         privacy_level: data.privacy_level,
         updated_by: data.updated_by,
       });
+
+      this.mirrorToMediaItem(id, data);
 
       const fields: string[] = [];
       const values: unknown[] = [];
