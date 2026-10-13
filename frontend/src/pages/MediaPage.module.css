@@ -122,6 +122,14 @@
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: var(--space-2);
   align-items: start;  /* prevents cells stretching to row height → masonry feel */
+  /* And align-content, which is a different thing: the grid is flex: 1 inside
+     a full-height column, so it is taller than its rows whenever the gallery
+     is short. align-content defaults to normal, which for a grid behaves as
+     stretch, and stretch hands the leftover height to the rows -- two rows of
+     results came out as two clumps with a row-sized hole between them, which
+     reads as two separate lists. Only visible once a filter cut the gallery
+     down to a couple of rows. */
+  align-content: start;
   flex: 1;
 }
 
