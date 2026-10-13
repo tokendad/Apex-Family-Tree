@@ -6,6 +6,7 @@ import crypto from 'crypto';
 import { requireRole } from '../middleware/auth.js';
 import { MediaRepository } from '../repositories/MediaRepository.js';
 import { PersonRepository } from '../repositories/PersonRepository.js';
+import { EventRepository } from '../repositories/EventRepository.js';
 import { SourceRepository } from '../repositories/SourceRepository.js';
 import { getMediaPath } from '../services/init.js';
 import { recordBulk } from '../services/audit.js';
@@ -648,6 +649,24 @@ mediaRouter.get('/people/:id/media', (req, res) => {
 
     const media = mediaRepo.findByPerson(personId);
     res.json(media);
+  } catch {
+    res.status(500).json({ error: 'Failed to list media' });
+  }
+});
+
+// GET /events/:id/media — The media attached to an event
+mediaRouter.get('/events/:id/media', (req, res) => {
+  try {
+    const eventRepo = new EventRepository();
+    const mediaRepo = new MediaRepository();
+
+    const eventId = paramStr(req.params.id);
+    if (!eventRepo.findById(eventId)) {
+      res.status(404).json({ error: 'Event not found' });
+      return;
+    }
+
+    res.json(mediaRepo.findByEvent(eventId));
   } catch {
     res.status(500).json({ error: 'Failed to list media' });
   }

@@ -71,6 +71,13 @@ function seedDB(database: Database.Database) {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       PRIMARY KEY (person_id, media_id)
     );
+    CREATE TABLE event_media (
+      event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      media_id TEXT NOT NULL REFERENCES media_items(id) ON DELETE CASCADE,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (event_id, media_id)
+    );
     CREATE TABLE media_person_regions (
       id TEXT PRIMARY KEY,
       media_id TEXT NOT NULL REFERENCES media_items(id) ON DELETE CASCADE,
@@ -132,6 +139,38 @@ describe('MediaRepository search', () => {
   it('does not drag in a photograph from another folder', () => {
     expect(new MediaRepository().findAll({ search: 'Funeral' }).data.map((i) => i.id))
       .not.toContain('m-other');
+  });
+});
+
+/* Media attached to an event -- the photographs of a wake -- was reachable
+   only by reading event_media directly: no repository method, no endpoint,
+   and so nothing on the event's page could show them. */
+describe('MediaRepository findByEvent', () => {
+  beforeEach(() => {
+    db = new Database(':memory:');
+    seedDB(db);
+    db.prepare("INSERT INTO events (id, person_id, event_type, event_date) VALUES ('ev-wake', 'person-1', 'wake', '1990-11-29')").run();
+    db.prepare("INSERT INTO events (id, person_id, event_type, event_date) VALUES ('ev-burial', 'person-1', 'burial', '1990-11-29')").run();
+    const insert = db.prepare(
+      `INSERT INTO media_items (id, filename, original_filename, mime_type, file_size, file_path)
+       VALUES (?, ?, ?, 'image/jpeg', 12, ?)`,
+    );
+    insert.run('m-a', 'Cyr Sisters.jpeg', 'Cyr Sisters.jpeg', '/media/wake/Cyr Sisters.jpeg');
+    insert.run('m-b', 'Higgins Brothers.jpeg', 'Higgins Brothers.jpeg', '/media/wake/Higgins Brothers.jpeg');
+    const link = db.prepare('INSERT INTO event_media (event_id, media_id, sort_order) VALUES (?, ?, ?)');
+    link.run('ev-wake', 'm-b', 0);
+    link.run('ev-wake', 'm-a', 1);
+  });
+
+  afterEach(() => db.close());
+
+  it('returns the media attached to that event, in the order they were linked', () => {
+    expect(new MediaRepository().findByEvent('ev-wake').map((item) => item.id))
+      .toEqual(['m-b', 'm-a']);
+  });
+
+  it('returns nothing for an event with none', () => {
+    expect(new MediaRepository().findByEvent('ev-burial')).toEqual([]);
   });
 });
 

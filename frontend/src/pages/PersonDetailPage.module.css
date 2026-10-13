@@ -599,7 +599,12 @@
 .eventType {
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
-  color: var(--color-text-primary);
+  /* A link to the event's own page, and it has to read as one: an event's
+     media hangs off the event, so this name is the way through to it, and a
+     link nobody can see is the same as no link. The page's other in-page
+     links use this colour. */
+  color: var(--color-primary-700);
+  text-decoration: none;
 }
 
 .eventDate {
@@ -907,4 +912,10 @@
   .mediaGrid {
     grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
   }
+}
+
+.eventType:hover,
+.eventType:focus-visible {
+  color: var(--color-primary-600);
+  text-decoration: underline;
 }

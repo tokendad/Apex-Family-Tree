@@ -94,6 +94,18 @@ export class MediaRepository extends BaseRepository {
     ).all(personId) as MediaItem[];
   }
 
+  /** The media attached to an event: the photographs of a wake, the scan of a
+      funeral card. Ordered the way they were linked, which for a folder
+      uploaded at once is the order the files were in. */
+  findByEvent(eventId: string): MediaItem[] {
+    return this.db.prepare(
+      `SELECT mi.* FROM media_items mi
+       INNER JOIN event_media em ON mi.id = em.media_id
+       WHERE em.event_id = ?
+       ORDER BY em.sort_order ASC, mi.original_filename ASC`
+    ).all(eventId) as MediaItem[];
+  }
+
   findBySource(sourceId: string): MediaItem[] {
     return this.db.prepare(
       `SELECT mi.* FROM media_items mi

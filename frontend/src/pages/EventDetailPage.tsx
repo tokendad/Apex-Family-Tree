@@ -8,6 +8,7 @@ import ArchiveObjectLayout from '@/components/archive-object/ArchiveObjectLayout
 import { type ContextActionItem } from '@/components/archive-object/ContextActionsMenu';
 import { usePageActions } from '@/contexts/PageActionsContext';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useModal } from '@/components/modals/useModal';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
 import { formatEventType, isAttributeType, payloadLabel } from '@/utils/eventTypes';
 import { EventSourceFields, EventSourceLink, EMPTY_EVENT_SOURCE } from '@/components/EventSource';
@@ -38,6 +39,18 @@ interface EventRecord {
   person?: PersonSummary | null;
   /** The family this event belongs to, when it is a family event. */
   family?: { id: string; spouse1: PersonSummary | null; spouse2: PersonSummary | null } | null;
+}
+
+interface MediaItem {
+  id: string;
+  filename?: string | null;
+  original_filename?: string | null;
+  title?: string | null;
+  mime_type?: string | null;
+}
+
+function mediaName(item: MediaItem): string {
+  return item.title?.trim() || item.original_filename || item.filename || `Media ${item.id.slice(0, 8)}`;
 }
 
 interface ConnectedObject {
@@ -99,9 +112,15 @@ const EventDetailPage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { canEdit, canDelete } = usePermissions();
+  const { openModal } = useModal();
   const [event, setEvent] = useState<EventRecord | null>(null);
   const [form, setForm] = useState({ event_type: '', event_date: '', event_place: '', plot: '', description: '', ...EMPTY_EVENT_SOURCE });
   const [connected, setConnected] = useState<ConnectedObject[]>([]);
+  /* Media hangs off an event through event_media, which is older than the
+     archive relationship graph and separate from it. Nothing on this page
+     read it, so a wake with twenty photographs attached showed none of them
+     and reported no connections. */
+  const [media, setMedia] = useState<MediaItem[]>([]);
   const [placeId, setPlaceId] = useState('');
   const [artifactId, setArtifactId] = useState('');
   const [personId, setPersonId] = useState('');
@@ -134,8 +153,26 @@ const EventDetailPage: React.FC = () => {
     setConnected(json.data);
   }, [id]);
 
+  const loadMedia = useCallback(async () => {
+    if (!id) return;
+    const res = await fetch(`/api/v1/media/events/${id}/media`, { credentials: 'include' });
+    if (!res.ok) return;
+    setMedia(await res.json() as MediaItem[]);
+  }, [id]);
+
   useEffect(() => { void loadEvent(); }, [loadEvent]);
   useEffect(() => { void loadConnected(); }, [loadConnected]);
+  useEffect(() => { void loadMedia(); }, [loadMedia]);
+
+  const openMedia = async (item: MediaItem) => {
+    await openModal('MediaEditor', {
+      mediaId: item.id,
+      initialItem: item,
+      onMediaDeleted: () => setMedia((prev) => prev.filter((m) => m.id !== item.id)),
+      onMediaUpdated: (updated: MediaItem) =>
+        setMedia((prev) => prev.map((m) => (m.id === updated.id ? updated : m))),
+    });
+  };
 
   const handleSave = async (eventArg: FormEvent) => {
     eventArg.preventDefault();
@@ -208,12 +245,14 @@ const EventDetailPage: React.FC = () => {
               summary={event.description}
               avatar={<span>◆</span>}
               stats={[
-                { label: 'Connections', value: connected.length },
+                { label: 'Connections', value: connected.length + media.length },
+                { label: 'Media', value: media.length },
                 { label: 'Date', value: event.event_date ?? '—' },
               ]}
               tabs={[
                 { id: 'overview', label: 'Overview' },
-                { id: 'connections', label: 'Connections', count: connected.length },
+                { id: 'media', label: 'Media', count: media.length },
+                { id: 'connections', label: 'Connections', count: connected.length + media.length },
               ]}
               activeTab={activeTab}
               onTabChange={setActiveTab}
@@ -286,12 +325,45 @@ const EventDetailPage: React.FC = () => {
                 </div>
               )}
 
+              {activeTab === 'media' && (
+                <section className={styles.section} aria-labelledby="event-media-heading">
+                  <div className={styles.sectionHeader}>
+                    <h2 className={styles.sectionTitle} id="event-media-heading">Media</h2>
+                  </div>
+                  {media.length === 0 ? (
+                    <p className={styles.muted}>
+                      Nothing attached yet. Photographs are linked from the Media gallery —
+                      select them there and link them to this event.
+                    </p>
+                  ) : (
+                    <div className={styles.mediaGrid}>
+                      {media.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className={styles.mediaCard}
+                          onClick={() => { void openMedia(item); }}
+                        >
+                          <img
+                            className={styles.mediaThumb}
+                            src={`/api/v1/media/${item.id}/thumbnail`}
+                            alt={mediaName(item)}
+                            loading="lazy"
+                          />
+                          <span className={styles.mediaName}>{mediaName(item)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              )}
+
               {activeTab === 'connections' && (
                 <section className={styles.section} aria-labelledby="event-connections-heading">
                   <div className={styles.sectionHeader}>
                     <h2 className={styles.sectionTitle} id="event-connections-heading">Connected Objects</h2>
                   </div>
-                  {connected.length === 0 ? (
+                  {connected.length === 0 && media.length === 0 ? (
                     <p className={styles.muted}>No relationships connected yet.</p>
                   ) : (
                     <div className={styles.linkList}>
@@ -300,6 +372,21 @@ const EventDetailPage: React.FC = () => {
                           <strong>{object.title}</strong>
                           <span>{object.relationship_type_code.replace(/_/g, ' ')}</span>
                         </Link>
+                      ))}
+                      {/* Media is a connection like any other, even though it
+                          is held in its own table rather than in the
+                          relationship graph. Leaving it out is what made this
+                          tab read "0" for an event with twenty photographs. */}
+                      {media.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className={styles.linkItem}
+                          onClick={() => { void openMedia(item); }}
+                        >
+                          <strong>{mediaName(item)}</strong>
+                          <span>media</span>
+                        </button>
                       ))}
                     </div>
                   )}

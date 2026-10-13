@@ -768,9 +768,13 @@ const PersonDetailPage: React.FC = () => {
                       <div className={styles.eventDot} aria-hidden="true" />
                       <div className={styles.eventContent}>
                         <div className={styles.eventHeader}>
-                          <span className={styles.eventType}>
+                          {/* The event is its own page, and that is where its
+                              media lives: a wake's photographs hang off the
+                              event, not off the person, so the name has to be
+                              the way through to them. */}
+                          <Link className={styles.eventType} to={`/events/${event.id}`}>
                             {formatEventType(event.event_type)}
-                          </span>
+                          </Link>
                           <div className={styles.eventHeaderRight}>
                             {event.event_date && (
                               <span className={styles.eventDate}>{event.event_date}</span>
@@ -902,9 +906,9 @@ const PersonDetailPage: React.FC = () => {
                       <div className={styles.eventDot} aria-hidden="true" />
                       <div className={styles.eventContent}>
                         <div className={styles.eventHeader}>
-                          <span className={styles.eventType}>
+                          <Link className={styles.eventType} to={`/events/${event.id}`}>
                             {formatEventType(event.event_type)}
-                          </span>
+                          </Link>
                           <div className={styles.eventHeaderRight}>
                             {event.event_date && (
                               <span className={styles.eventDate}>{event.event_date}</span>

@@ -121,6 +121,14 @@
   border-radius: var(--radius-md);
   color: inherit;
   text-decoration: none;
+  /* A row is a link or a button depending on what it points at; a button
+     brings its own border, background and alignment with it. */
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
 }
 
 .linkItem:hover {
@@ -161,4 +169,43 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+
+/* ── Media attached to an object ── */
+.mediaGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: var(--space-3);
+}
+
+.mediaCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: 0;
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-primary);
+  cursor: pointer;
+  overflow: hidden;
+  text-align: left;
+}
+
+.mediaCard:hover {
+  border-color: var(--color-primary-500);
+}
+
+.mediaThumb {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: var(--color-bg-secondary);
+  display: block;
+}
+
+.mediaName {
+  padding: 0 var(--space-2) var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  word-break: break-word;
 }
