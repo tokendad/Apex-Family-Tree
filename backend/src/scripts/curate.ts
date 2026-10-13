@@ -37,6 +37,7 @@ import { PersonRepository } from '../repositories/PersonRepository.js';
 import { FamilyRepository } from '../repositories/FamilyRepository.js';
 import { EventRepository } from '../repositories/EventRepository.js';
 import { MediaRepository } from '../repositories/MediaRepository.js';
+import { ArtifactRepository } from '../repositories/ArtifactRepository.js';
 import { UserRepository } from '../repositories/UserRepository.js';
 
 // ─── The change-set format ───────────────────────────────────────────────────
@@ -133,6 +134,17 @@ interface SetFamilyOp {
   note?: string;
 }
 
+interface SetArtifactOp {
+  op: 'artifact.set';
+  /** The artifact's id, or the tail of its file path. */
+  artifact: string;
+  title?: string;
+  /** The date the thing itself carries, as written on it. */
+  original_date_text?: string;
+  notes?: string;
+  note?: string;
+}
+
 interface DeleteEventOp {
   op: 'event.delete';
   /** The event's id: deleting by description would be a guess. */
@@ -155,6 +167,7 @@ type Op =
   | SetPrimaryNameOp
   | SetEventOp
   | SetFamilyOp
+  | SetArtifactOp
   | DeleteEventOp
   | LinkMediaOp;
 
@@ -462,6 +475,47 @@ function applySetFamily(op: SetFamilyOp): void {
   }
 }
 
+function applySetArtifact(op: SetArtifactOp): void {
+  const db = getDatabase();
+  const found = db.prepare(
+    `SELECT a.id, ao.title FROM artifacts a
+     INNER JOIN archive_objects ao ON ao.id = a.id
+     LEFT JOIN media_items m ON m.id = a.id
+     WHERE a.id = ? OR m.file_path LIKE ?`,
+  ).all(op.artifact, `%${op.artifact}%`) as { id: string; title: string }[];
+
+  if (found.length === 0) throw new Error(`artifact.set: nothing matches "${op.artifact}"`);
+  if (found.length > 1) {
+    throw new Error(`artifact.set: ${found.length} artifacts match "${op.artifact}" — be more specific`);
+  }
+  const artifact = found[0];
+
+  const before = db.prepare(
+    'SELECT original_date_text, notes FROM artifacts WHERE id = ?',
+  ).get(artifact.id) as { original_date_text: string | null; notes: string | null };
+
+  const changes: Record<string, string> = {};
+  const described: string[] = [];
+  if (op.title !== undefined && op.title !== artifact.title) {
+    changes.title = op.title;
+    described.push(`title: ${artifact.title} → ${op.title}`);
+  }
+  for (const field of ['original_date_text', 'notes'] as const) {
+    const wanted = op[field];
+    if (wanted === undefined || (before[field] ?? null) === wanted) continue;
+    changes[field] = wanted;
+    described.push(`${field}: ${before[field] ?? '—'} → ${wanted}`);
+  }
+
+  if (described.length === 0) {
+    record('skip', `artifact ${artifact.title}`, 'already as described');
+    return;
+  }
+
+  new ArtifactRepository().update(artifact.id, changes);
+  record('update', `artifact ${artifact.title}`, described.join('; '));
+}
+
 function applyDeleteEvent(op: DeleteEventOp): void {
   const events = new EventRepository();
   const existing = events.findById(op.id);
@@ -554,6 +608,7 @@ function applyOp(op: Op): void {
     case 'person.setName': return applySetPrimaryName(op);
     case 'event.set': return applySetEvent(op);
     case 'family.set': return applySetFamily(op);
+    case 'artifact.set': return applySetArtifact(op);
     case 'event.delete': return applyDeleteEvent(op);
     case 'media.link': return applyLinkMedia(op);
     default: throw new Error(`unknown op: ${JSON.stringify(op)}`);
