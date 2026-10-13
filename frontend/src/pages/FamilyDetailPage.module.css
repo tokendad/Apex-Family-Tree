@@ -228,3 +228,16 @@
 .removeBtn:hover {
   text-decoration: underline;
 }
+
+/* An event's name on this page is a link to the event, where its media is. */
+.eventLink {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-primary-700);
+  text-decoration: none;
+}
+
+.eventLink:hover,
+.eventLink:focus-visible {
+  color: var(--color-primary-600);
+  text-decoration: underline;
+}
