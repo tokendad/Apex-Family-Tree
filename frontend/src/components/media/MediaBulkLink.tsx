@@ -174,24 +174,32 @@ const MediaBulkLink: React.FC<MediaBulkLinkProps> = ({
           )}
         </div>
 
-        {subjectId && events.length > 0 && (
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Attach to</span>
-            <select
-              className={styles.select}
-              value={target}
-              aria-label="Attach to"
-              onChange={(e) => setTarget(e.target.value)}
-            >
+        {/* Always rendered, disabled until there is a subject to read events
+            from. It used to appear only once a person had been chosen, which
+            made the one thing this control is for -- attaching a folder of
+            photographs to a single event -- invisible to anyone who had not
+            already found it. */}
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Attach to</span>
+          <select
+            className={styles.select}
+            value={target}
+            aria-label="Attach to"
+            disabled={!subjectId}
+            onChange={(e) => setTarget(e.target.value)}
+          >
+            {!subjectId ? (
+              <option value={SUBJECT}>Choose someone first…</option>
+            ) : (
               <option value={SUBJECT}>
                 {subjectType === 'person' ? 'The person' : 'The family'}
               </option>
-              {events.map((event) => (
-                <option key={event.id} value={event.id}>{eventLabel(event)}</option>
-              ))}
-            </select>
-          </label>
-        )}
+            )}
+            {events.map((event) => (
+              <option key={event.id} value={event.id}>{eventLabel(event)}</option>
+            ))}
+          </select>
+        </label>
 
         <Button
           variant="primary"
