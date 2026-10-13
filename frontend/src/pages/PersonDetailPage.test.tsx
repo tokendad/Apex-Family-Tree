@@ -267,6 +267,27 @@ describe('PersonDetailPage — events vs attributes', () => {
     expect(screen.getByText('Occupation')).toBeInTheDocument();
     expect(screen.getByText('Residence')).toBeInTheDocument();
   });
+
+  /* An event's photographs hang off the event, not off the person -- a wake
+     with twenty pictures of other people is not twenty portraits of him. The
+     timeline is the way through to them, so the name has to be a link. */
+  it('links each event to its own page', async () => {
+    renderPage();
+
+    await waitFor(() => expect(screen.getByRole('tab', { name: /timeline/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('tab', { name: /timeline/i }));
+
+    const timeline = await screen.findByRole('list', { name: /life events timeline/i });
+    expect(within(timeline).getByRole('link', { name: 'Birth' })).toHaveAttribute('href', '/events/e1');
+    expect(within(timeline).getByRole('link', { name: 'Death' })).toHaveAttribute('href', '/events/e4');
+  });
+
+  it('links them from the overview summary too', async () => {
+    renderPage();
+
+    const summary = await screen.findByRole('list', { name: /key life events/i });
+    expect(within(summary).getByRole('link', { name: 'Birth' })).toHaveAttribute('href', '/events/e1');
+  });
 });
 
 describe('PersonDetailPage — artifacts and attribute dates', () => {
