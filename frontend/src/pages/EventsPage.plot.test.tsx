@@ -76,6 +76,18 @@ describe('EventsPage — the burial plot', () => {
     expect(screen.getByPlaceholderText(/garden of heritage/i)).toBeInTheDocument();
   });
 
+  /* The parser understands four shapes and keeps anything else verbatim,
+     half-read. The field has to say which one it wants, or "Nov 29 1990"
+     sorts to the start of 1990 with nothing on screen to explain it. */
+  it('says what shape a date should be', async () => {
+    renderPage();
+    await waitFor(() => expect(screen.getByText('Burial')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /new event/i }));
+
+    expect(screen.getByPlaceholderText(/YYYY-MM-DD/)).toBeInTheDocument();
+  });
+
   it('sends the plot it was given', async () => {
     renderPage();
     await waitFor(() => expect(screen.getByText('Burial')).toBeInTheDocument());

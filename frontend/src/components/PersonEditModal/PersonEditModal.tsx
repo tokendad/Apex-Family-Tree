@@ -18,6 +18,7 @@ import {
   EMPTY_EVENT_SOURCE,
 } from '@/components/EventSource';
 import styles from './PersonEditModal.module.css';
+import { DATE_INPUT_HINT } from '@/utils/dateInput';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1342,7 +1343,7 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
                         onChange={(e) =>
                           setEventEditForm((f) => ({ ...f, event_date: e.target.value }))
                         }
-                        placeholder="e.g. 1 JAN 1900"
+                        placeholder={DATE_INPUT_HINT}
                       />
                     </label>
                     <label className={styles.formLabel}>
@@ -1534,7 +1535,7 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
                   <Input
                     value={addEventForm.event_date}
                     onChange={(e) => setAddEventForm((f) => ({ ...f, event_date: e.target.value }))}
-                    placeholder="e.g. 1 JAN 1900"
+                    placeholder={DATE_INPUT_HINT}
                   />
                 </label>
                 <label className={styles.formLabel}>

@@ -12,6 +12,7 @@ import { getPersonDisplayName } from '@/utils/entityDisplay';
 import { formatEventType, isAttributeType, payloadLabel } from '@/utils/eventTypes';
 import { EventSourceFields, EventSourceLink, EMPTY_EVENT_SOURCE } from '@/components/EventSource';
 import styles from '@/components/archive-object/ArchiveDetailPage.module.css';
+import { DATE_INPUT_HINT } from '@/utils/dateInput';
 
 interface PersonSummary {
   id: string;
@@ -231,7 +232,7 @@ const EventDetailPage: React.FC = () => {
                         </label>
                         <label className={styles.field}>
                           <span>Date</span>
-                          <Input value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} />
+                          <Input value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} placeholder={DATE_INPUT_HINT} />
                         </label>
                         <label className={styles.field}>
                           <span>Place Text</span>

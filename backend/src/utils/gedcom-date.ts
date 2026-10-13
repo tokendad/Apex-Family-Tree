@@ -41,6 +41,27 @@ export function parseGedcomDate(dateStr: string): ParsedDate {
   let month: number | null = null;
   let day: number | null = null;
 
+  // ISO first, and not as a fallback. Read after the other shapes it never
+  // matched at all: "1990-11-29" is one whitespace-delimited part, so it took
+  // the year-only branch, where parseInt stops at the first hyphen and returns
+  // 1990. That made `year` truthy, the `!year` guard below false, and the
+  // month and day were dropped from a date that stated both -- silently, with
+  // the text kept verbatim on screen and only the sort order showing it.
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(working);
+  if (iso) {
+    const year = parseInt(iso[1], 10);
+    const month = parseInt(iso[2], 10);
+    const day = parseInt(iso[3], 10);
+    return {
+      year,
+      month,
+      day,
+      qualifier,
+      sortKey: year * 10000 + month * 100 + day,
+      original,
+    };
+  }
+
   const parts = working.split(/\s+/);
 
   if (parts.length === 3) {
@@ -52,14 +73,6 @@ export function parseGedcomDate(dateStr: string): ParsedDate {
     year = parseInt(parts[1], 10) || null;
   } else if (parts.length === 1) {
     year = parseInt(parts[0], 10) || null;
-  }
-
-  // Also accept ISO-ish format: YYYY-MM-DD
-  if (!year && /^\d{4}-\d{2}-\d{2}$/.test(original)) {
-    const [y, m, d] = original.split('-');
-    year = parseInt(y, 10);
-    month = parseInt(m, 10);
-    day = parseInt(d, 10);
   }
 
   const sortKey = (year || 0) * 10000 + (month || 0) * 100 + (day || 0);

@@ -4,6 +4,7 @@ import Input from '@/components/Form/Input';
 import Label from '@/components/Form/Label';
 import FormGroup from '@/components/Form/FormGroup';
 import styles from './TagPicker.module.css';
+import { DATE_INPUT_HINT } from '@/utils/dateInput';
 
 export interface EventData {
   type: string;
@@ -62,7 +63,7 @@ const TagPicker: React.FC<TagPickerProps> = ({
             <FormGroup>
               <Label>Date</Label>
               <Input
-                placeholder="e.g. 1 Jan 1900 or ABT 1900"
+                placeholder={DATE_INPUT_HINT}
                 value={event.date}
                 onChange={(e) => onEventChange(idx, 'date', e.target.value)}
               />

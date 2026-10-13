@@ -16,6 +16,7 @@ import { getPersonDisplayName } from '@/utils/entityDisplay';
 import { formatEventType } from '@/utils/eventTypes';
 import archiveStyles from '@/components/archive-object/ArchiveDetailPage.module.css';
 import styles from './FamilyDetailPage.module.css';
+import { DATE_INPUT_HINT } from '@/utils/dateInput';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -658,7 +659,7 @@ const FamilyDetailPage: React.FC = () => {
                     <div className={archiveStyles.formGrid}>
                       <label className={archiveStyles.field}>
                         <span>Marriage Date</span>
-                        <Input value={editForm.marriage_date} onChange={(e) => setEditForm((f) => ({ ...f, marriage_date: e.target.value }))} placeholder="e.g. 15 Jun 1990" />
+                        <Input value={editForm.marriage_date} onChange={(e) => setEditForm((f) => ({ ...f, marriage_date: e.target.value }))} placeholder={DATE_INPUT_HINT} />
                       </label>
                       <label className={archiveStyles.field}>
                         <span>Marriage Place</span>
@@ -666,7 +667,7 @@ const FamilyDetailPage: React.FC = () => {
                       </label>
                       <label className={archiveStyles.field}>
                         <span>Divorce Date</span>
-                        <Input value={editForm.divorce_date} onChange={(e) => setEditForm((f) => ({ ...f, divorce_date: e.target.value }))} placeholder="e.g. 2 Mar 2005" />
+                        <Input value={editForm.divorce_date} onChange={(e) => setEditForm((f) => ({ ...f, divorce_date: e.target.value }))} placeholder={DATE_INPUT_HINT} />
                       </label>
                       <label className={archiveStyles.field}>
                         <span>Divorce Place</span>
@@ -857,7 +858,7 @@ const FamilyDetailPage: React.FC = () => {
         </label>
         <label className={archiveStyles.field}>
           <span>Date</span>
-          <Input value={eventForm.event_date} onChange={(e) => setEventForm({ ...eventForm, event_date: e.target.value })} placeholder="e.g. ABT 1962" />
+          <Input value={eventForm.event_date} onChange={(e) => setEventForm({ ...eventForm, event_date: e.target.value })} placeholder={DATE_INPUT_HINT} />
         </label>
         <label className={archiveStyles.field}>
           <span>Place</span>
