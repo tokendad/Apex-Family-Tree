@@ -95,6 +95,33 @@ describe('MediaPage — linking a folder of photographs at once', () => {
     expect(screen.getByText('3 selected')).toBeInTheDocument();
   });
 
+  /* It used to appear only after a person was chosen, so the one thing the
+     control exists for was invisible until you had already found it. */
+  it('shows where photos can be attached before anyone is chosen', async () => {
+    renderGallery();
+    await enterSelectMode();
+
+    const attachTo = screen.getByLabelText('Attach to');
+    expect(attachTo).toBeDisabled();
+    expect(attachTo).toHaveTextContent(/choose someone first/i);
+  });
+
+  it('fills it with the person\u2019s events once there is a person', async () => {
+    renderGallery();
+    await enterSelectMode();
+
+    fireEvent.click(screen.getByRole('button', { name: /select a person/i }));
+    fireEvent.change(screen.getByPlaceholderText(/search for a person/i), {
+      target: { value: 'Higgins' },
+    });
+    fireEvent.click(await screen.findByText(/Walter Higgins Sr/, {}, { timeout: 3000 }));
+
+    const attachTo = await screen.findByLabelText('Attach to');
+    await waitFor(() => expect(attachTo).not.toBeDisabled());
+    expect(attachTo).toHaveTextContent(/Wake — 29 NOV 1990/);
+    expect(attachTo).toHaveTextContent(/The person/);
+  });
+
   /* The case this was built for: every photo in the folder onto one event of
      one person, chosen once rather than eighteen times. */
   it('links every selected photo to the event that was chosen', async () => {
