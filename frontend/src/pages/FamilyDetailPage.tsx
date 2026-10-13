@@ -14,6 +14,7 @@ import PersonPicker from '@/components/entity-pickers/PersonPicker';
 import type { PersonResult } from '@/components/PersonSearch/PersonSearch';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
 import { formatEventType, sortEventsForTimeline } from '@/utils/eventTypes';
+import { useModal } from '@/components/modals/useModal';
 import archiveStyles from '@/components/archive-object/ArchiveDetailPage.module.css';
 import styles from './FamilyDetailPage.module.css';
 import { DATE_INPUT_HINT } from '@/utils/dateInput';
@@ -41,6 +42,17 @@ interface ChildMember {
   person_id: string;
   role: 'child' | 'adopted' | 'foster' | 'step';
   person: PersonWithNames | undefined;
+}
+
+interface FamilyMedia {
+  id: string;
+  filename?: string | null;
+  original_filename?: string | null;
+  title?: string | null;
+}
+
+function mediaName(item: FamilyMedia): string {
+  return item.title?.trim() || item.original_filename || item.filename || `Media ${item.id.slice(0, 8)}`;
 }
 
 interface FamilyEvent {
@@ -180,6 +192,12 @@ const FamilyDetailPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+  /* Photographs of the household rather than of one occasion: a Christmas
+     with half the family in it belongs to the family, where a wedding
+     photograph belongs to the wedding. Nothing displayed family_media before,
+     so linking a photograph here put it somewhere it could not be seen. */
+  const [media, setMedia] = useState<FamilyMedia[]>([]);
+  const { openModal } = useModal();
 
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState<EditForm>({
@@ -227,9 +245,30 @@ const FamilyDetailPage: React.FC = () => {
     }
   }, [id]);
 
+  const fetchMedia = useCallback(async () => {
+    if (!id) return;
+    const res = await fetch(`/api/v1/media/families/${id}/media`, { credentials: 'include' });
+    if (!res.ok) return;
+    setMedia(await res.json() as FamilyMedia[]);
+  }, [id]);
+
   useEffect(() => {
     fetchFamily();
   }, [fetchFamily]);
+
+  useEffect(() => {
+    void fetchMedia();
+  }, [fetchMedia]);
+
+  const openMedia = async (item: FamilyMedia) => {
+    await openModal('MediaEditor', {
+      mediaId: item.id,
+      initialItem: item,
+      onMediaDeleted: () => setMedia((prev) => prev.filter((m) => m.id !== item.id)),
+      onMediaUpdated: (updated: FamilyMedia) =>
+        setMedia((prev) => prev.map((m) => (m.id === updated.id ? updated : m))),
+    });
+  };
 
   const handleAssignSpouse = async (slot: 'spouse1' | 'spouse2', personId: string) => {
     if (!id) return;
@@ -587,6 +626,7 @@ const FamilyDetailPage: React.FC = () => {
               { id: 'overview', label: 'Overview' },
               { id: 'people', label: 'People', count: [family.spouse1, family.spouse2].filter(Boolean).length + childCount },
               { id: 'timeline', label: 'Timeline', count: sortedEvents.length },
+              { id: 'media', label: 'Media', count: media.length },
               { id: 'artifacts', label: 'Artifacts' },
               { id: 'stories', label: 'Stories' },
               { id: 'claims', label: 'Claims' },
@@ -771,7 +811,12 @@ const FamilyDetailPage: React.FC = () => {
                     {sortedEvents.map((event) => (
                       <div key={event.id} className={archiveStyles.section}>
                         <div className={archiveStyles.sectionHeader}>
-                          <strong>{formatEventType(event.event_type)}</strong>
+                          {/* The event's own page is where its media lives --
+                              the wedding photographs hang off the marriage,
+                              not off the family. */}
+                          <Link className={styles.eventLink} to={`/events/${event.id}`}>
+                            {formatEventType(event.event_type)}
+                          </Link>
                           {event.event_date && <span className={archiveStyles.muted}>{event.event_date}</span>}
                         </div>
                         {(event.event_place || event.plot) && <p className={archiveStyles.muted}>📍 {[event.event_place, event.plot].filter(Boolean).join(' — ')}</p>}
@@ -782,6 +827,39 @@ const FamilyDetailPage: React.FC = () => {
                           </p>
                         )}
                       </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {activeTab === 'media' && (
+              <section className={archiveStyles.section} aria-labelledby="family-media-heading">
+                <div className={archiveStyles.sectionHeader}>
+                  <h2 className={archiveStyles.sectionTitle} id="family-media-heading">Media</h2>
+                </div>
+                {media.length === 0 ? (
+                  <p className={archiveStyles.muted}>
+                    Nothing attached yet. In the Media gallery, select photographs and link them to
+                    this family — a photograph of one occasion belongs to that event instead.
+                  </p>
+                ) : (
+                  <div className={archiveStyles.mediaGrid}>
+                    {media.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className={archiveStyles.mediaCard}
+                        onClick={() => { void openMedia(item); }}
+                      >
+                        <img
+                          className={archiveStyles.mediaThumb}
+                          src={`/api/v1/media/${item.id}/thumbnail`}
+                          alt={mediaName(item)}
+                          loading="lazy"
+                        />
+                        <span className={archiveStyles.mediaName}>{mediaName(item)}</span>
+                      </button>
                     ))}
                   </div>
                 )}
