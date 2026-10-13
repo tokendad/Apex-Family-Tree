@@ -79,8 +79,11 @@ async function start() {
     runMigrations(db, migrationsDir, logger);
 
     // Data backfills (idempotent — only process rows missing computed values)
-    const { backfillMarriageSortKeys } = await import('./db/backfill.js');
+    const { backfillMarriageSortKeys, backfillFamilyLifecycleEvents } = await import('./db/backfill.js');
     backfillMarriageSortKeys(db, logger);
+    // After the sort keys, so an event created here inherits a date the
+    // family already understands.
+    backfillFamilyLifecycleEvents(db, logger);
 
     pruneExpiredTokens(logger);
 
