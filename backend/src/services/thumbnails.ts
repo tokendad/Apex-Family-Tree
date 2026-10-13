@@ -61,7 +61,7 @@ export type ThumbnailOutcome = 'generated' | 'exists' | 'unsupported' | 'source-
  * Generate the thumbnail for one media item unless it already has a usable
  * one. Idempotent: safe to call on every upload and on every startup.
  */
-export async function ensureThumbnail(media: MediaItem): Promise<ThumbnailOutcome> {
+export async function ensureThumbnail(media: MediaItem, logger?: Logger): Promise<ThumbnailOutcome> {
   if (media.thumbnail_path?.trim() && fs.existsSync(media.thumbnail_path)) return 'exists';
   if (!canThumbnail(media.mime_type)) return 'unsupported';
   if (!media.file_path || !fs.existsSync(media.file_path)) return 'source-missing';
@@ -84,7 +84,14 @@ export async function ensureThumbnail(media: MediaItem): Promise<ThumbnailOutcom
       .webp({ quality: 80 })
       .toFile(target);
     new MediaRepository().setThumbnail(media.id, target, THUMBNAIL_MIME);
-  } catch {
+  } catch (error) {
+    /* "49 failed" on every boot, with no hint of what failed, is how a
+       foreign key violation in setThumbnail stayed hidden: the decode and the
+       database write share this catch, so the count said nothing about
+       which. */
+    logger?.warn(
+      `Thumbnail failed for ${media.original_filename ?? media.id}: ${(error as Error).message}`,
+    );
     return 'failed';
   }
 
@@ -116,7 +123,7 @@ export async function backfillThumbnails(logger: Logger): Promise<BackfillCounts
 
   logger.info(`Thumbnail backfill: ${pending.length} media item(s) to consider`);
   for (const media of pending) {
-    const outcome = await ensureThumbnail(media);
+    const outcome = await ensureThumbnail(media, logger);
     if (outcome === 'generated') counts.generated += 1;
     else if (outcome === 'failed') counts.failed += 1;
     else counts.skipped += 1;

@@ -20,6 +20,13 @@ function tempFile(name: string, contents = 'bytes'): string {
   return file;
 }
 
+/** Makes the media item an artifact too, which is what gives it a row in
+    artifact_files. A scanned photograph is not one until somebody says so. */
+function seedArtifact(id: string) {
+  db.prepare('INSERT INTO artifacts (id, artifact_type_id) VALUES (?, ?)')
+    .run(id, 'artifact_type_photograph');
+}
+
 function seed(id: string, overrides: Record<string, unknown> = {}) {
   db.prepare(
     `INSERT INTO media_items (id, filename, original_filename, mime_type, file_size, file_path,
@@ -54,6 +61,13 @@ beforeEach(() => {
       id TEXT PRIMARY KEY, object_type TEXT, title TEXT, summary TEXT, privacy_level TEXT,
       is_deleted INTEGER DEFAULT 0, created_at TEXT, updated_at TEXT, created_by TEXT, updated_by TEXT
     );
+    /* A media item is only an artifact when a row here says so, and the
+       thumbnail file row is written only for those: artifact_files.artifact_id
+       references this table, so writing it for a plain scanned photograph
+       failed the foreign key and rolled the thumbnail back with it. */
+    CREATE TABLE artifacts (
+      id TEXT PRIMARY KEY, artifact_type_id TEXT
+    );
     CREATE TABLE artifact_files (
       id TEXT PRIMARY KEY, artifact_id TEXT, file_role TEXT,
       storage_provider TEXT DEFAULT 'local', storage_path TEXT, original_filename TEXT,
@@ -85,6 +99,7 @@ describe('setThumbnail', () => {
   it('records the thumbnail in media_items and in artifact_files', () => {
     const thumb = tempFile('m1.webp', 'small');
     seed('m1');
+    seedArtifact('m1');
 
     new MediaRepository().setThumbnail('m1', thumb, 'image/webp');
 
@@ -109,6 +124,7 @@ describe('setThumbnail', () => {
 
   it('replaces an earlier thumbnail row rather than failing on its id', () => {
     seed('m1');
+    seedArtifact('m1');
     const first = tempFile('old.webp', 'old');
     const second = tempFile('new.webp', 'newer bytes');
     const repo = new MediaRepository();
