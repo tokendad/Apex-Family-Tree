@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireRole } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { PersonRepository } from '../repositories/PersonRepository.js';
+import { createLogger } from '../services/logger.js';
 import { EventRepository } from '../repositories/EventRepository.js';
 import { FamilyRepository } from '../repositories/FamilyRepository.js';
 import type { Name } from '../types/db.js';
@@ -12,6 +13,12 @@ function paramStr(val: string | string[]): string {
 }
 
 export const peopleRouter = Router();
+
+/* A 500 that leaves no trace is two bugs: the failure, and having to guess at
+   it afterwards. The list handler threw for one archive and the only evidence
+   anywhere was the status code in the access log. */
+const logger = createLogger();
+
 
 // GET /people — List all persons (paginated, searchable, filterable)
 peopleRouter.get('/', async (req, res) => {
@@ -102,7 +109,11 @@ peopleRouter.get('/', async (req, res) => {
       homePersonId,
     });
     res.json(result);
-  } catch {
+  } catch (error) {
+    logger.error(`GET /people failed: ${(error as Error).message}`, {
+      query: req.originalUrl,
+      stack: (error as Error).stack,
+    });
     res.status(500).json({ error: 'Failed to list persons' });
   }
 });
