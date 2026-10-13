@@ -5,11 +5,11 @@ import Input from '@/components/Form/Input';
 import Select from '@/components/Form/Select';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
 import {
-  EVENT_EARLY_ORDER,
   formatEventType,
   groupedTypeOptions,
   partitionByKind,
   payloadLabel,
+  sortEventsForTimeline,
 } from '@/utils/eventTypes';
 import { useModal } from '@/components/modals/useModal';
 import {
@@ -43,6 +43,9 @@ interface PersonEvent {
   id: string;
   event_type: string;
   event_date: string | null;
+  /** The numeric key the backend derives from the date; what the order is
+      actually computed on, since the text may be approximate or unparseable. */
+  event_date_sort_key?: number | null;
   event_place: string | null;
   plot: string | null;
   description: string | null;
@@ -172,18 +175,6 @@ function fullName(name: PersonName): string {
   const nickname = name.nickname ? `"${name.nickname}"` : null;
   const parts = [name.prefix, name.given_name, name.middle_name, nickname, name.surname, name.suffix].filter(Boolean);
   return parts.length > 0 ? parts.join(' ') : 'Unknown';
-}
-
-function sortEvents(events: PersonEvent[]): PersonEvent[] {
-  return [...events].sort((a, b) => {
-    const aOrder = a.event_type === 'death' ? 999 : (EVENT_EARLY_ORDER[a.event_type] ?? 50);
-    const bOrder = b.event_type === 'death' ? 999 : (EVENT_EARLY_ORDER[b.event_type] ?? 50);
-    if (aOrder !== bOrder) return aOrder - bOrder;
-    if (a.event_date && b.event_date) return a.event_date.localeCompare(b.event_date);
-    if (a.event_date) return -1;
-    if (b.event_date) return 1;
-    return 0;
-  });
 }
 
 function mediaDisplayName(item: MediaItem): string {
@@ -877,7 +868,10 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
   const aliasNames = person
     ? person.names.filter((n) => n.id !== primaryNameEntry?.id)
     : [];
-  const sortedEvents = person ? sortEvents(person.events) : [];
+  // The same order the person's own page shows. This modal used to sort by
+  // event type and pin death last, so a burial -- which happens after a
+  // death -- was listed above it, and the two views of one life disagreed.
+  const sortedEvents = person ? sortEventsForTimeline(person.events) : [];
   const { events: timelineEvents, attributes } = partitionByKind(sortedEvents);
   const childFamilies = relationships.filter((r) => r.type === 'child_family');
   const parentFamilies = relationships.filter((r) => r.type === 'parent_family');

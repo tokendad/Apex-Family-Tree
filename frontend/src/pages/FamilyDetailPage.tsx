@@ -13,7 +13,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import PersonPicker from '@/components/entity-pickers/PersonPicker';
 import type { PersonResult } from '@/components/PersonSearch/PersonSearch';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
-import { formatEventType } from '@/utils/eventTypes';
+import { formatEventType, sortEventsForTimeline } from '@/utils/eventTypes';
 import archiveStyles from '@/components/archive-object/ArchiveDetailPage.module.css';
 import styles from './FamilyDetailPage.module.css';
 import { DATE_INPUT_HINT } from '@/utils/dateInput';
@@ -47,6 +47,9 @@ interface FamilyEvent {
   id: string;
   event_type: string;
   event_date: string | null;
+  /** The numeric key the backend derives from the date; what the order is
+      actually computed on, since the text may be approximate or unparseable. */
+  event_date_sort_key?: number | null;
   event_place: string | null;
   plot: string | null;
   description: string | null;
@@ -91,15 +94,6 @@ const ROLE_CSS: Record<ChildMember['role'], string> = {
   step: styles.roleStep,
 };
 
-
-function sortEvents(events: FamilyEvent[]): FamilyEvent[] {
-  return [...events].sort((a, b) => {
-    if (a.event_date && b.event_date) return a.event_date.localeCompare(b.event_date);
-    if (a.event_date) return -1;
-    if (b.event_date) return 1;
-    return 0;
-  });
-}
 
 function personName(p: PersonLike | null): string {
   if (!p) return 'Unknown';
@@ -539,7 +533,9 @@ const FamilyDetailPage: React.FC = () => {
 
   if (!family) return null;
 
-  const sortedEvents = sortEvents(family.events ?? []);
+  // Ordered the way every other timeline is. Comparing the date text put
+  // "1 JUL 2014" before "ABT 1986", because "1" precedes "A".
+  const sortedEvents = sortEventsForTimeline(family.events ?? []);
   const childCount = family.children.length;
   const parents = [family.spouse1, family.spouse2].filter(
     (p): p is PersonSummary => p !== null,
