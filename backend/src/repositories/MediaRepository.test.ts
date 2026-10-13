@@ -71,6 +71,16 @@ function seedDB(database: Database.Database) {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       PRIMARY KEY (person_id, media_id)
     );
+    CREATE TABLE families (
+      id TEXT PRIMARY KEY, spouse1_id TEXT, spouse2_id TEXT, marriage_date TEXT
+    );
+    CREATE TABLE family_media (
+      family_id TEXT NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+      media_id TEXT NOT NULL REFERENCES media_items(id) ON DELETE CASCADE,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (family_id, media_id)
+    );
     CREATE TABLE event_media (
       event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
       media_id TEXT NOT NULL REFERENCES media_items(id) ON DELETE CASCADE,
@@ -171,6 +181,32 @@ describe('MediaRepository findByEvent', () => {
 
   it('returns nothing for an event with none', () => {
     expect(new MediaRepository().findByEvent('ev-burial')).toEqual([]);
+  });
+});
+
+describe('MediaRepository findByFamily', () => {
+  /* Photographs of a household rather than of an occasion. family_media could
+     be written from the gallery long before anything displayed it. */
+  beforeEach(() => {
+    db = new Database(':memory:');
+    seedDB(db);
+    db.prepare("INSERT INTO families (id, spouse1_id, spouse2_id) VALUES ('fam-1', 'person-1', 'person-2')").run();
+    db.prepare("INSERT INTO families (id, spouse1_id) VALUES ('fam-2', 'person-1')").run();
+    db.prepare(
+      `INSERT INTO media_items (id, filename, original_filename, mime_type, file_size, file_path)
+       VALUES ('m-x', 'christmas.jpg', 'christmas.jpg', 'image/jpeg', 12, '/media/christmas.jpg')`,
+    ).run();
+    db.prepare("INSERT INTO family_media (family_id, media_id, sort_order) VALUES ('fam-1', 'm-x', 0)").run();
+  });
+
+  afterEach(() => db.close());
+
+  it('returns the media attached to that family', () => {
+    expect(new MediaRepository().findByFamily('fam-1').map((item) => item.id)).toEqual(['m-x']);
+  });
+
+  it('returns nothing for a family with none', () => {
+    expect(new MediaRepository().findByFamily('fam-2')).toEqual([]);
   });
 });
 

@@ -106,6 +106,18 @@ export class MediaRepository extends BaseRepository {
     ).all(eventId) as MediaItem[];
   }
 
+  /** The media attached to a family itself: the photographs that are about
+      the household rather than about one occasion. Media attached to one of
+      the family's events belongs to that event and is listed there. */
+  findByFamily(familyId: string): MediaItem[] {
+    return this.db.prepare(
+      `SELECT mi.* FROM media_items mi
+       INNER JOIN family_media fm ON mi.id = fm.media_id
+       WHERE fm.family_id = ?
+       ORDER BY fm.sort_order ASC, mi.original_filename ASC`
+    ).all(familyId) as MediaItem[];
+  }
+
   findBySource(sourceId: string): MediaItem[] {
     return this.db.prepare(
       `SELECT mi.* FROM media_items mi

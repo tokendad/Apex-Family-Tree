@@ -7,6 +7,7 @@ import { requireRole } from '../middleware/auth.js';
 import { MediaRepository } from '../repositories/MediaRepository.js';
 import { PersonRepository } from '../repositories/PersonRepository.js';
 import { EventRepository } from '../repositories/EventRepository.js';
+import { FamilyRepository } from '../repositories/FamilyRepository.js';
 import { SourceRepository } from '../repositories/SourceRepository.js';
 import { getMediaPath } from '../services/init.js';
 import { recordBulk } from '../services/audit.js';
@@ -667,6 +668,24 @@ mediaRouter.get('/events/:id/media', (req, res) => {
     }
 
     res.json(mediaRepo.findByEvent(eventId));
+  } catch {
+    res.status(500).json({ error: 'Failed to list media' });
+  }
+});
+
+// GET /families/:id/media — The media attached to a family
+mediaRouter.get('/families/:id/media', (req, res) => {
+  try {
+    const familyRepo = new FamilyRepository();
+    const mediaRepo = new MediaRepository();
+
+    const familyId = paramStr(req.params.id);
+    if (!familyRepo.findById(familyId)) {
+      res.status(404).json({ error: 'Family not found' });
+      return;
+    }
+
+    res.json(mediaRepo.findByFamily(familyId));
   } catch {
     res.status(500).json({ error: 'Failed to list media' });
   }
