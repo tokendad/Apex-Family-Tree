@@ -19,6 +19,14 @@
  * --as names the user the audit log will attribute the changes to, and is
  * required for --apply: the archive's history should say who asked for a
  * change, not that it appeared from nowhere.
+ *
+ * RESTART THE APPLICATION AFTERWARDS. This writes from outside the container
+ * while the server holds the same file open, and the server's connection maps
+ * 256MB of it (mmap_size in db/connection.ts). After an outside write its view
+ * of the full-text index went stale: every search of people returned 500 while
+ * a fresh connection on the same file served them, and the handler threw the
+ * error away rather than saying so. A recreate clears it, which is why the
+ * script says so when it finishes.
  */
 import fs from 'fs';
 import path from 'path';
@@ -595,7 +603,15 @@ async function main(): Promise<void> {
   console.log(
     `\n${counts.create ?? 0} created, ${counts.update ?? 0} updated, ${counts.skip ?? 0} unchanged`,
   );
-  if (!apply && !failed) console.log('Dry run — rolled back. Re-run with --apply --as <email> to keep it.');
+  if (!apply && !failed) {
+    console.log('Dry run — rolled back. Re-run with --apply --as <email> to keep it.');
+  } else if (apply && !failed) {
+    console.log(
+      '\nThe running application still has this database open and its view of ' +
+      'the search index may be stale.\nRestart it:  docker compose -f ' +
+      '/data/DockerConfigs/docker-compose.yaml up -d --force-recreate aft',
+    );
+  }
 
   closeDatabase(logger);
   if (failed) process.exit(1);
