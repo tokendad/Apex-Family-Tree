@@ -77,6 +77,30 @@ interface AddNameOp {
   note?: string;
 }
 
+interface UpdatePersonOp {
+  op: 'person.update';
+  person: PersonRef;
+  /** What the archive calls them, which is not always what a document does.
+      Set it where a family name differs from the registered one. */
+  display_name?: string;
+  sex?: 'M' | 'F' | 'U';
+  is_living?: 0 | 1;
+  notes?: string;
+  note?: string;
+}
+
+interface SetPrimaryNameOp {
+  op: 'person.setName';
+  person: PersonRef;
+  prefix?: string;
+  given_name?: string;
+  middle_name?: string;
+  surname?: string;
+  suffix?: string;
+  nickname?: string;
+  note?: string;
+}
+
 interface SetEventOp {
   op: 'event.set';
   person: PersonRef;
@@ -109,7 +133,14 @@ interface LinkMediaOp {
   note?: string;
 }
 
-type Op = CreatePersonOp | AddNameOp | SetEventOp | SetFamilyOp | LinkMediaOp;
+type Op =
+  | CreatePersonOp
+  | UpdatePersonOp
+  | AddNameOp
+  | SetPrimaryNameOp
+  | SetEventOp
+  | SetFamilyOp
+  | LinkMediaOp;
 
 interface ChangeSet {
   /** What this set is for, printed with the plan. */
@@ -221,6 +252,30 @@ function applyCreatePerson(op: CreatePersonOp): void {
   record('create', `person ${personLabel(people, person.id)}`, op.note);
 }
 
+function applyUpdatePerson(op: UpdatePersonOp): void {
+  const people = new PersonRepository();
+  const personId = resolvePerson(people, op.person, 'person.update');
+  const before = people.findById(personId)!;
+
+  const changes: Record<string, unknown> = {};
+  const described: string[] = [];
+  for (const field of ['display_name', 'sex', 'is_living', 'notes'] as const) {
+    const wanted = op[field];
+    if (wanted === undefined) continue;
+    if ((before as unknown as Record<string, unknown>)[field] === wanted) continue;
+    changes[field] = wanted;
+    described.push(`${field}: ${(before as unknown as Record<string, unknown>)[field] ?? '—'} → ${wanted}`);
+  }
+
+  if (described.length === 0) {
+    record('skip', `person ${personLabel(people, personId)}`, 'already as described');
+    return;
+  }
+
+  people.update(personId, changes);
+  record('update', `person ${personLabel(people, personId)}`, described.join('; '));
+}
+
 function applyAddName(op: AddNameOp): void {
   const people = new PersonRepository();
   const personId = resolvePerson(people, op.person, 'person.addName');
@@ -251,6 +306,39 @@ function applyAddName(op: AddNameOp): void {
     is_primary: 0,
   });
   record('create', `name "${label}" on ${personLabel(people, personId)}`, op.note);
+}
+
+/** Corrects the name a person is known by, rather than recording another one
+    beside it: a middle name finally explained is the same name, better known,
+    and adding it as an alias would leave the archive showing the poorer form. */
+function applySetPrimaryName(op: SetPrimaryNameOp): void {
+  const people = new PersonRepository();
+  const personId = resolvePerson(people, op.person, 'person.setName');
+  const db = getDatabase();
+
+  const primary = db.prepare(
+    'SELECT * FROM names WHERE person_id = ? AND is_primary = 1 LIMIT 1',
+  ).get(personId) as Record<string, unknown> | undefined;
+  if (!primary) throw new Error(`person.setName: ${personLabel(people, personId)} has no primary name`);
+
+  const fields = ['prefix', 'given_name', 'middle_name', 'surname', 'suffix', 'nickname'] as const;
+  const changes: Record<string, string> = {};
+  const described: string[] = [];
+  for (const field of fields) {
+    const wanted = op[field];
+    if (wanted === undefined) continue;
+    if ((primary[field] ?? null) === wanted) continue;
+    changes[field] = wanted;
+    described.push(`${field}: ${primary[field] ?? '—'} → ${wanted}`);
+  }
+
+  if (described.length === 0) {
+    record('skip', `name of ${personLabel(people, personId)}`, 'already as described');
+    return;
+  }
+
+  people.updateName(primary.id as string, changes);
+  record('update', `name of ${personLabel(people, personId)}`, described.join('; '));
 }
 
 function applySetEvent(op: SetEventOp): void {
@@ -412,7 +500,9 @@ function applyLinkMedia(op: LinkMediaOp): void {
 function applyOp(op: Op): void {
   switch (op.op) {
     case 'person.create': return applyCreatePerson(op);
+    case 'person.update': return applyUpdatePerson(op);
     case 'person.addName': return applyAddName(op);
+    case 'person.setName': return applySetPrimaryName(op);
     case 'event.set': return applySetEvent(op);
     case 'family.set': return applySetFamily(op);
     case 'media.link': return applyLinkMedia(op);

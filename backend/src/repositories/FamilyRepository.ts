@@ -1,5 +1,6 @@
 import { BaseRepository } from './base.js';
 import { recordChange } from '../services/audit.js';
+import { parseGedcomDate } from '../utils/gedcom-date.js';
 import { runWithFlags } from '../services/requestContext.js';
 import { TreeRepository } from './TreeRepository.js';
 import type { Family, FamilyMember, FamilyWithSpouseNames, Name, SpouseNameSummary } from '../types/db.js';
@@ -199,9 +200,19 @@ export class FamilyRepository extends BaseRepository {
   }): Family {
     const id = this.generateId();
     const now = this.now();
+    /* The sort key is derived here, as it is for an event, rather than left
+       for the startup backfill to notice. Until that backfill next ran -- the
+       next time the application restarted -- a family created with a marriage
+       date sorted as though it had none, and the people search that filters on
+       a marriage year could not see it. */
+    const marriage = data.marriage_date ? parseGedcomDate(data.marriage_date) : null;
     this.db.prepare(
-      'INSERT INTO families (id, spouse1_id, spouse2_id, marriage_date, marriage_place, gedcom_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(id, data.spouse1_id || null, data.spouse2_id || null, data.marriage_date || null, data.marriage_place || null, data.gedcom_id || null, now, now);
+      'INSERT INTO families (id, spouse1_id, spouse2_id, marriage_date, marriage_date_qualifier, marriage_date_sort_key, marriage_place, gedcom_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(
+      id, data.spouse1_id || null, data.spouse2_id || null, data.marriage_date || null,
+      marriage?.qualifier ?? null, marriage && marriage.sortKey > 0 ? marriage.sortKey : null,
+      data.marriage_place || null, data.gedcom_id || null, now, now,
+    );
     runWithFlags({ inSync: true }, () => new TreeRepository().syncFamilyUnionFromLegacyFamily(id));
 
     const created = this.findById(id)!;
@@ -218,6 +229,14 @@ export class FamilyRepository extends BaseRepository {
         fields.push(`${key} = ?`);
         values.push(value);
       }
+    }
+
+    // Changing the date has to change what it sorts by, or an edit leaves the
+    // family ordered by the date it used to have.
+    if (data.marriage_date !== undefined) {
+      const marriage = data.marriage_date ? parseGedcomDate(data.marriage_date) : null;
+      fields.push('marriage_date_sort_key = ?', 'marriage_date_qualifier = ?');
+      values.push(marriage && marriage.sortKey > 0 ? marriage.sortKey : null, marriage?.qualifier ?? null);
     }
 
     if (fields.length === 0) return this.findById(id);

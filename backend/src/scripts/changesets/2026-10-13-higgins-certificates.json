@@ -1,0 +1,314 @@
+{
+  "description": "Walter Higgins Sr and Rita Veda Cyr: three certificates, cross-checked against the 773-person GEDCOM. No SSN.",
+  "ops": [
+    {
+      "op": "person.create",
+      "ref": "william",
+      "given_name": "William",
+      "middle_name": "Elliott",
+      "surname": "Higgins",
+      "sex": "M",
+      "is_living": 0,
+      "note": "Walter Sr's father. Birth certificate: Wm. Elliott Higgins, clerk, born Clinton MA. GEDCOM I0024 agrees and dates it."
+    },
+    {
+      "op": "event.set",
+      "person": {
+        "ref": "william"
+      },
+      "event_type": "birth",
+      "event_date": "1880-11-12",
+      "event_place": "Clinton, Massachusetts",
+      "note": "GEDCOM; the certificate gives the place only"
+    },
+    {
+      "op": "event.set",
+      "person": {
+        "ref": "william"
+      },
+      "event_type": "death",
+      "event_date": "1944-06-24",
+      "event_place": "Worcester, Massachusetts"
+    },
+    {
+      "op": "event.set",
+      "person": {
+        "ref": "william"
+      },
+      "event_type": "burial",
+      "event_date": "1944",
+      "event_place": "Worcester, Massachusetts"
+    },
+    {
+      "op": "event.set",
+      "person": {
+        "ref": "william"
+      },
+      "event_type": "occupation",
+      "description": "Clerk",
+      "note": "as recorded on his son's 1919 birth certificate"
+    },
+    {
+      "op": "person.create",
+      "ref": "alice",
+      "given_name": "Alice",
+      "middle_name": "E.",
+      "surname": "Odie",
+      "sex": "F",
+      "is_living": 0,
+      "note": "Walter Sr's mother. Odie is the maiden name: the birth certificate writes her as 'Alice E. (Odie) Higgins' and the death certificate as 'Alice Odie'."
+    },
+    {
+      "op": "person.addName",
+      "person": {
+        "ref": "alice"
+      },
+      "name_type": "married",
+      "given_name": "Alice",
+      "middle_name": "E.",
+      "surname": "Higgins"
+    },
+    {
+      "op": "event.set",
+      "person": {
+        "ref": "alice"
+      },
+      "event_type": "birth",
+      "event_date": "1889-01-29",
+      "event_place": "Holliston, Massachusetts",
+      "note": "GEDCOM; the certificate gives Holliston MA as her birthplace"
+    },
+    {
+      "op": "event.set",
+      "person": {
+        "ref": "alice"
+      },
+      "event_type": "death",
+      "event_date": "1927-01-20",
+      "event_place": "Worcester, Massachusetts"
+    },
+    {
+      "op": "event.set",
+      "person": {
+        "ref": "alice"
+      },
+      "event_type": "burial",
+      "event_place": "Hope Cemetery, Worcester, Massachusetts"
+    },
+    {
+      "op": "family.set",
+      "spouse1": {
+        "ref": "william"
+      },
+      "spouse2": {
+        "ref": "alice"
+      },
+      "marriage_date": "1911-01-04",
+      "marriage_place": "Worcester, Massachusetts",
+      "children": [
+        {
+          "id": "b477f801d7b9494a12af10c11b2cba74"
+        }
+      ],
+      "note": "GEDCOM F0038. Walter Sr was in no family as a child until now."
+    },
+    {
+      "op": "person.setName",
+      "person": {
+        "id": "b477f801d7b9494a12af10c11b2cba74"
+      },
+      "given_name": "Walter",
+      "middle_name": "Sylvester",
+      "surname": "Higgins",
+      "suffix": "Sr",
+      "note": "the S. on both certificates: Sylvester, as his son Walter Sylvester Jr carries it"
+    },
+    {
+      "op": "person.addName",
+      "person": {
+        "id": "b477f801d7b9494a12af10c11b2cba74"
+      },
+      "name_type": "aka",
+      "given_name": "Walter",
+      "middle_name": "S.",
+      "surname": "Higgins",
+      "suffix": "Sr",
+      "note": "how both certificates and the obituary write it"
+    },
+    {
+      "op": "event.set",
+      "person": {
+        "id": "b477f801d7b9494a12af10c11b2cba74"
+      },
+      "event_type": "birth",
+      "event_date": "1919-02-07",
+      "event_place": "Worcester, Massachusetts",
+      "note": "birth certificate 22170, City of Worcester, recorded 24 Feb 1919"
+    },
+    {
+      "op": "event.set",
+      "person": {
+        "id": "b477f801d7b9494a12af10c11b2cba74"
+      },
+      "event_type": "death",
+      "event_date": "1990-11-26",
+      "event_place": "Massachusetts General Hospital, Boston, Massachusetts",
+      "note": "death certificate 008288, City of Boston"
+    },
+    {
+      "op": "event.set",
+      "person": {
+        "id": "b477f801d7b9494a12af10c11b2cba74"
+      },
+      "event_type": "occupation",
+      "description": "Mail clerk, newspaper industry",
+      "note": "death certificate. The obituary names the Worcester Telegram & Gazette and 40 years in its mailroom, retiring in 1983."
+    },
+    {
+      "op": "event.set",
+      "person": {
+        "id": "b477f801d7b9494a12af10c11b2cba74"
+      },
+      "event_type": "residence",
+      "event_date": "1990",
+      "event_place": "56 Windsor Street, Worcester, Massachusetts",
+      "note": "his address on the death certificate, given by Rita as informant"
+    },
+    {
+      "op": "person.update",
+      "person": {
+        "id": "11394441829ca07472817caaa466a1ca"
+      },
+      "display_name": "Rita Cyr",
+      "note": "what the family called her, which is the one form of her name that never changed"
+    },
+    {
+      "op": "person.addName",
+      "person": {
+        "id": "11394441829ca07472817caaa466a1ca"
+      },
+      "name_type": "birth",
+      "given_name": "Veda",
+      "surname": "Cyr",
+      "note": "as registered in Worcester, 1920: no Rita on the record"
+    },
+    {
+      "op": "person.addName",
+      "person": {
+        "id": "11394441829ca07472817caaa466a1ca"
+      },
+      "name_type": "religious",
+      "given_name": "Rita",
+      "surname": "Cyr",
+      "note": "baptised in Canada; the priest would not accept Veda as a Christian name, so it moved to the middle"
+    },
+    {
+      "op": "person.addName",
+      "person": {
+        "id": "11394441829ca07472817caaa466a1ca"
+      },
+      "name_type": "aka",
+      "given_name": "Veda",
+      "middle_name": "Rita",
+      "surname": "Cyr",
+      "note": "the order some documents use"
+    },
+    {
+      "op": "person.addName",
+      "person": {
+        "id": "11394441829ca07472817caaa466a1ca"
+      },
+      "name_type": "aka",
+      "given_name": "V.",
+      "middle_name": "Rita",
+      "surname": "Cyr"
+    },
+    {
+      "op": "person.addName",
+      "person": {
+        "id": "11394441829ca07472817caaa466a1ca"
+      },
+      "name_type": "married",
+      "given_name": "Rita",
+      "middle_name": "V.",
+      "surname": "Higgins",
+      "note": "how she signed as informant on her husband's death certificate"
+    },
+    {
+      "op": "event.set",
+      "person": {
+        "id": "11394441829ca07472817caaa466a1ca"
+      },
+      "event_type": "birth",
+      "event_date": "1920-07-03",
+      "event_place": "Framingham, Massachusetts",
+      "note": "birth certificate 22171, City of Worcester, recorded January 1921"
+    },
+    {
+      "op": "person.addName",
+      "person": {
+        "id": "0260155efa06088f589642d67e97e659"
+      },
+      "name_type": "aka",
+      "given_name": "Oscar",
+      "middle_name": "C.",
+      "surname": "St. Cyr",
+      "note": "the family name in Canada; the St was dropped on moving to the United States"
+    },
+    {
+      "op": "person.addName",
+      "person": {
+        "id": "2592f29ed6c3201c3c93ff003db9e789"
+      },
+      "name_type": "aka",
+      "given_name": "Anna",
+      "surname": "Brault",
+      "note": "the spelling on her daughter's 1920 birth certificate"
+    },
+    {
+      "op": "media.link",
+      "media": "Walter Higgins Sr Birth Cert",
+      "to": {
+        "event": {
+          "person": {
+            "id": "b477f801d7b9494a12af10c11b2cba74"
+          },
+          "event_type": "birth"
+        }
+      }
+    },
+    {
+      "op": "media.link",
+      "media": "Walter Higgins Sr Death Cert",
+      "to": {
+        "person": {
+          "id": "b477f801d7b9494a12af10c11b2cba74"
+        }
+      }
+    },
+    {
+      "op": "media.link",
+      "media": "Walter Higgins Sr Death Cert",
+      "to": {
+        "event": {
+          "person": {
+            "id": "b477f801d7b9494a12af10c11b2cba74"
+          },
+          "event_type": "death"
+        }
+      }
+    },
+    {
+      "op": "media.link",
+      "media": "Rita Veda Birth Cert",
+      "to": {
+        "event": {
+          "person": {
+            "id": "11394441829ca07472817caaa466a1ca"
+          },
+          "event_type": "birth"
+        }
+      }
+    }
+  ]
+}
