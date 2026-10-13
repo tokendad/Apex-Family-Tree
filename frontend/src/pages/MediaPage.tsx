@@ -12,6 +12,7 @@ import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import PersonPicker from '@/components/entity-pickers/PersonPicker';
+import FamilyPicker from '@/components/entity-pickers/FamilyPicker';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useSearchStore } from '@/stores/searchStore';
 import { useModal } from '@/components/modals/useModal';
@@ -231,7 +232,6 @@ const MediaPage: React.FC = () => {
   const [uploadPersonId, setUploadPersonId] = useState('');
   const [uploadFamilyId, setUploadFamilyId] = useState('');
   const [uploadEventId, setUploadEventId] = useState('');
-  const [familyOptions, setFamilyOptions] = useState<LinkOption[]>([]);
   const [eventOptions, setEventOptions] = useState<LinkOption[]>([]);
 
   // ── Gallery filter & scan state ───────────────────────────────────────────
@@ -314,26 +314,13 @@ const MediaPage: React.FC = () => {
 
   const fetchLinkOptions = async () => {
     try {
-      /* People are not prefetched: PersonPicker searches the server as you
-         type. The old ?limit=500 both capped the list and offered it in
-         whatever order the API returned, which is insertion order. */
-      const [familiesRes, eventsRes] = await Promise.all([
-        fetch('/api/v1/families?limit=500', { credentials: 'include' }),
+      /* Neither people nor families are prefetched: their pickers search the
+         server as you type. The old ?limit=500 both capped the list and
+         offered it in whatever order the API returned, which is insertion
+         order. */
+      const [eventsRes] = await Promise.all([
         fetch('/api/v1/events?limit=500', { credentials: 'include' }),
       ]);
-
-      if (familiesRes.ok) {
-        const data = await familiesRes.json();
-        const items = data.data ?? data.families ?? [];
-        setFamilyOptions(
-          items
-            .map((f: Record<string, unknown>) => ({
-              id: f.id as string,
-              label: (f as Record<string, unknown>).display_name as string ?? (f.id as string),
-            }))
-            .sort((a: LinkOption, b: LinkOption) => a.label.localeCompare(b.label)),
-        );
-      }
 
       if (eventsRes.ok) {
         const data = await eventsRes.json();
@@ -718,29 +705,23 @@ const MediaPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Link to Family */}
-              {familyOptions.length > 0 && (
-                <div className={styles.formField}>
-                  <label className={styles.formLabel} htmlFor="upload-family">
-                    Link to Family{' '}
-                    <span className={styles.formLabelOptional}>(optional)</span>
-                  </label>
-                  <select
-                    id="upload-family"
-                    className={styles.formSelect}
-                    value={uploadFamilyId}
-                    onChange={(e) => setUploadFamilyId(e.target.value)}
-                    disabled={isUploading}
-                  >
-                    <option value="">— None —</option>
-                    {familyOptions.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.label}
-                      </option>
-                    ))}
-                  </select>
+              {/* Link to Family — type-to-search for the same reason the
+                  person field is. The list it replaced showed every family by
+                  its id, because the list endpoint returns the couple as
+                  spouse1/spouse2 and the label fell through to the hash. */}
+              <div className={styles.formField}>
+                <label className={styles.formLabel} id="upload-family-label">
+                  Link to Family{' '}
+                  <span className={styles.formLabelOptional}>(optional)</span>
+                </label>
+                <div aria-labelledby="upload-family-label">
+                  <FamilyPicker
+                    value={uploadFamilyId || null}
+                    onSelect={(family) => setUploadFamilyId(family.id)}
+                    onClear={() => setUploadFamilyId('')}
+                  />
                 </div>
-              )}
+              </div>
 
               {/* Link to Event */}
               {eventOptions.length > 0 && (

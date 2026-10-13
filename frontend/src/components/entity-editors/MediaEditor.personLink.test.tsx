@@ -92,11 +92,26 @@ describe('MediaEditor — connecting a person', () => {
 
     await screen.findByRole('button', { name: /select a person/i });
     fireEvent.change(screen.getByRole('combobox', { name: /link type/i }), {
-      target: { value: 'family' },
+      target: { value: 'event' },
     });
 
     expect(screen.getByRole('combobox', { name: /select entity to link/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /select a person/i })).not.toBeInTheDocument();
+  });
+
+  /* A family used to be one of those lists, and it listed hex ids: the list
+     endpoint returns the couple as spouse1/spouse2, so the label fell through
+     to the id. It searches by name now, like a person. */
+  it('searches for a family by name instead of listing ids', async () => {
+    renderEditor();
+
+    await screen.findByRole('button', { name: /select a person/i });
+    fireEvent.change(screen.getByRole('combobox', { name: /link type/i }), {
+      target: { value: 'family' },
+    });
+
+    expect(screen.getByRole('button', { name: /select a family/i })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /select entity to link/i })).not.toBeInTheDocument();
   });
 
   it('does not prefetch the whole tree', async () => {

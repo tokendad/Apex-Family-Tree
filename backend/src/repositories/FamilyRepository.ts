@@ -29,13 +29,24 @@ export class FamilyRepository extends BaseRepository {
     const conditions: string[] = [];
     const params: unknown[] = [];
 
-    if (options?.search) {
-      const term = `%${options.search}%`;
-      conditions.push(
-        '(EXISTS (SELECT 1 FROM names WHERE person_id = f.spouse1_id AND (surname LIKE ? OR given_name LIKE ?)) OR ' +
-        'EXISTS (SELECT 1 FROM names WHERE person_id = f.spouse2_id AND (surname LIKE ? OR given_name LIKE ?)))'
-      );
-      params.push(term, term, term, term);
+    /* One condition per word, and every word has to match somewhere in the
+       couple. A single LIKE over the whole string only ever matched one field,
+       so "Raymond LeFort" found nothing -- no row has a given_name or a
+       surname containing both words -- and typing a full name, which is what
+       anyone does when searching for a couple, was the one thing that failed.
+       Each word may land on either spouse, so "lefort eunice" finds the same
+       family as "eunice lefort". */
+    if (options?.search?.trim()) {
+      for (const word of options.search.trim().split(/\s+/)) {
+        const term = `%${word}%`;
+        conditions.push(
+          '(EXISTS (SELECT 1 FROM names WHERE person_id = f.spouse1_id AND (surname LIKE ? OR given_name LIKE ? OR middle_name LIKE ?)) OR ' +
+          'EXISTS (SELECT 1 FROM names WHERE person_id = f.spouse2_id AND (surname LIKE ? OR given_name LIKE ? OR middle_name LIKE ?)))'
+        );
+        // Middle name included: "Raymond Earl LeFort" is how the name is
+        // written down, so it is how it gets typed.
+        params.push(term, term, term, term, term, term);
+      }
     }
 
     if (useUnlinkedFilter) {
