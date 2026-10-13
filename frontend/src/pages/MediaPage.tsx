@@ -13,6 +13,7 @@ import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import PersonPicker from '@/components/entity-pickers/PersonPicker';
 import FamilyPicker from '@/components/entity-pickers/FamilyPicker';
+import MediaBulkLink from '@/components/media/MediaBulkLink';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useSearchStore } from '@/stores/searchStore';
 import { useModal } from '@/components/modals/useModal';
@@ -149,9 +150,12 @@ const CheckCircleIcon: React.FC<{ className?: string }> = ({ className }) => (
 interface ThumbCardProps {
   item: MediaItem;
   onClick: () => void;
+  /** In selection mode a click picks the item out rather than opening it. */
+  selectable?: boolean;
+  selected?: boolean;
 }
 
-const ThumbCard: React.FC<ThumbCardProps> = ({ item, onClick }) => {
+const ThumbCard: React.FC<ThumbCardProps> = ({ item, onClick, selectable, selected }) => {
   const [loaded, setLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
   const pdf = isPdf(item.mime_type);
@@ -166,13 +170,19 @@ const ThumbCard: React.FC<ThumbCardProps> = ({ item, onClick }) => {
 
   return (
     <div
-      className={styles.thumbCard}
-      role="button"
+      className={`${styles.thumbCard} ${selected ? styles.thumbCardSelected : ''}`}
+      role={selectable ? 'checkbox' : 'button'}
+      aria-checked={selectable ? !!selected : undefined}
       tabIndex={0}
-      aria-label={`View ${displayTitle(item)}`}
+      aria-label={selectable ? displayTitle(item) : `View ${displayTitle(item)}`}
       onClick={onClick}
       onKeyDown={handleKey}
     >
+      {selectable && (
+        <span className={styles.thumbCheck} aria-hidden="true">
+          {selected ? '✓' : ''}
+        </span>
+      )}
       {showPdfFallback ? (
         <div className={styles.pdfPlaceholder}>
           <DocIcon className={styles.pdfIcon} />
@@ -236,6 +246,10 @@ const MediaPage: React.FC = () => {
 
   // ── Gallery filter & scan state ───────────────────────────────────────────
   const [mediaFilter, setMediaFilter] = useState<MediaFilter>('all');
+  /* Selection mode. A folder of eighteen funeral photographs is one event and
+     eighteen trips through the editor without it. */
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<string | null>(null);
 
@@ -494,6 +508,18 @@ const MediaPage: React.FC = () => {
               <option value="unlinked">Unconnected</option>
             </select>
             {canEdit && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setIsSelecting((on) => !on);
+                  setSelectedIds([]);
+                }}
+              >
+                {isSelecting ? 'Done selecting' : 'Select'}
+              </Button>
+            )}
+            {canEdit && (
               <Button variant="ghost" size="sm" onClick={handleScan} loading={isScanning}>
                 {isScanning ? 'Scanning…' : 'Scan for Media'}
               </Button>
@@ -529,6 +555,20 @@ const MediaPage: React.FC = () => {
           </div>
         )}
 
+        {/* ── Bulk link ── */}
+        {isSelecting && canEdit && (
+          <MediaBulkLink
+            selectedIds={selectedIds}
+            onSelectAll={() => setSelectedIds(mediaItems.map((item) => item.id))}
+            onClear={() => setSelectedIds([])}
+            onLinked={(message) => {
+              setScanResult(message);
+              setSelectedIds([]);
+              void fetchMedia(globalQuery, null, false, mediaFilter);
+            }}
+          />
+        )}
+
         {/* ── Gallery ── */}
         {showSkeleton ? (
           <div className={styles.gallery} aria-busy="true" aria-label="Loading media…">
@@ -547,7 +587,21 @@ const MediaPage: React.FC = () => {
         ) : (
           <div className={styles.gallery}>
             {mediaItems.map((item) => (
-              <ThumbCard key={item.id} item={item} onClick={() => { void handleOpenDetail(item); }} />
+              <ThumbCard
+                key={item.id}
+                item={item}
+                selectable={isSelecting}
+                selected={selectedIds.includes(item.id)}
+                onClick={() => {
+                  if (!isSelecting) {
+                    void handleOpenDetail(item);
+                    return;
+                  }
+                  setSelectedIds((ids) =>
+                    ids.includes(item.id) ? ids.filter((id) => id !== item.id) : [...ids, item.id],
+                  );
+                }}
+              />
             ))}
           </div>
         )}

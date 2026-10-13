@@ -18,6 +18,7 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
   marriage: 'Marriage',
   divorce: 'Divorce',
   burial: 'Burial',
+  wake: 'Wake',
   baptism: 'Baptism',
   christening: 'Christening',
   graduation: 'Graduation',
