@@ -32,6 +32,14 @@ async function writeImage(name: string, width = 1200, height = 900): Promise<str
   return file;
 }
 
+/** Marks the media item as an artifact as well, which is what earns it a row
+    in artifact_files. A scanned photograph that nobody has made an artifact
+    of gets a thumbnail and no file row. */
+function seedArtifact(id: string) {
+  db.prepare('INSERT INTO artifacts (id, artifact_type_id) VALUES (?, ?)')
+    .run(id, 'artifact_type_photograph');
+}
+
 function seedMedia(id: string, overrides: Partial<Record<string, unknown>> = {}) {
   const row = {
     id,
@@ -72,6 +80,13 @@ beforeEach(() => {
       date_taken TEXT, uploaded_by TEXT, is_external INTEGER DEFAULT 0,
       created_at TEXT, updated_at TEXT
     );
+    /* A media item is only an artifact when a row here says so, and the
+       thumbnail file row is written only for those: artifact_files.artifact_id
+       references this table, so writing it for a plain scanned photograph
+       failed the foreign key and rolled the thumbnail back with it. */
+    CREATE TABLE artifacts (
+      id TEXT PRIMARY KEY, artifact_type_id TEXT
+    );
     CREATE TABLE artifact_files (
       id TEXT PRIMARY KEY, artifact_id TEXT, file_role TEXT,
       storage_provider TEXT DEFAULT 'local', storage_path TEXT, original_filename TEXT,
@@ -106,6 +121,7 @@ describe('ensureThumbnail', () => {
   it('writes a smaller file and records it in both tables', async () => {
     const source = await writeImage('wide.jpg');
     const media = seedMedia('m1', { file_path: source });
+    seedArtifact('m1');
 
     expect(await ensureThumbnail(media)).toBe('generated');
 

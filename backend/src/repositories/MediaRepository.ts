@@ -425,7 +425,15 @@ export class MediaRepository extends BaseRepository {
         .prepare('UPDATE media_items SET thumbnail_path = ?, updated_at = ? WHERE id = ?')
         .run(thumbnailPath, now, id);
 
-      if (!this.hasArtifactFilesTable()) return;
+      /* artifact_files.artifact_id is NOT NULL REFERENCES artifacts(id), and
+         a media item is not necessarily an artifact: a photograph picked up
+         by a scan is a media row and nothing else until somebody bridges it.
+         Writing this row for one of those failed the foreign key, took the
+         whole transaction with it -- including the thumbnail_path update
+         above -- and reported the thumbnail as failed, after the .webp had
+         already been written. 49 of this archive's media items regenerated
+         the same orphaned file on every single boot. */
+      if (!this.hasArtifactFilesTable() || !this.isArtifact(id)) return;
       const size = (() => {
         try {
           return fs.statSync(thumbnailPath).size;
@@ -454,6 +462,13 @@ export class MediaRepository extends BaseRepository {
           original?.original_filename ?? null, mimeType, size, now,
         );
     })();
+  }
+
+  private isArtifact(id: string): boolean {
+    const row = this.db
+      .prepare('SELECT COUNT(*) AS n FROM artifacts WHERE id = ?')
+      .get(id) as { n: number };
+    return row.n === 1;
   }
 
   private hasArtifactFilesTable(): boolean {
