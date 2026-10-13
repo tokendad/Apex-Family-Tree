@@ -1,0 +1,17 @@
+{
+  "description": "Rita and Walter's marriage: 2 June 1945, confirmed, replacing the 6 June the big GEDCOM carried",
+  "ops": [
+    {
+      "op": "family.set",
+      "spouse1": { "id": "b477f801d7b9494a12af10c11b2cba74" },
+      "spouse2": { "id": "11394441829ca07472817caaa466a1ca" },
+      "marriage_date": "1945-06-02",
+      "note": "2 Jun 1945 is confirmed. The 773-person GEDCOM says 6 Jun; the 264-person one says 2 Jun and 2 June was a Saturday, where the 6th was a Wednesday."
+    },
+    {
+      "op": "event.delete",
+      "id": "f3d341a537c048542d0480b94d41534a",
+      "note": "a marriage recorded against Walter alone. The marriage belongs to the family, where it shows on both their timelines rather than only his."
+    }
+  ]
+}

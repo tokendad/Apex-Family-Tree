@@ -32,7 +32,7 @@ import fs from 'fs';
 import path from 'path';
 import { createLogger } from '../services/logger.js';
 import { initializeDatabase, getDatabase, closeDatabase } from '../db/connection.js';
-import { runWithContext } from '../services/requestContext.js';
+import { runWithContext, runWithFlags } from '../services/requestContext.js';
 import { PersonRepository } from '../repositories/PersonRepository.js';
 import { FamilyRepository } from '../repositories/FamilyRepository.js';
 import { EventRepository } from '../repositories/EventRepository.js';
@@ -133,6 +133,13 @@ interface SetFamilyOp {
   note?: string;
 }
 
+interface DeleteEventOp {
+  op: 'event.delete';
+  /** The event's id: deleting by description would be a guess. */
+  id: string;
+  note?: string;
+}
+
 interface LinkMediaOp {
   op: 'media.link';
   /** A media id, or the tail of its file path — "Walter Higgins Sr Birth Cert". */
@@ -148,6 +155,7 @@ type Op =
   | SetPrimaryNameOp
   | SetEventOp
   | SetFamilyOp
+  | DeleteEventOp
   | LinkMediaOp;
 
 interface ChangeSet {
@@ -422,6 +430,7 @@ function applySetFamily(op: SetFamilyOp): void {
     if (Object.keys(changes).length > 0) {
       families.update(familyId, changes);
       record('update', `family ${couple}`, JSON.stringify(changes));
+      syncLifecycle(familyId, changes);
     } else {
       record('skip', `family ${couple}`, 'already recorded');
     }
@@ -434,6 +443,7 @@ function applySetFamily(op: SetFamilyOp): void {
     });
     familyId = family.id;
     record('create', `family ${couple}`, op.note);
+    syncLifecycle(familyId, { marriage_date: op.marriage_date, marriage_place: op.marriage_place });
   }
 
   if (op.ref) refs.set(op.ref, familyId);
@@ -450,6 +460,37 @@ function applySetFamily(op: SetFamilyOp): void {
     families.addMember(familyId, childId, 'child');
     record('create', `${personLabel(people, childId)} as a child of ${couple}`);
   }
+}
+
+function applyDeleteEvent(op: DeleteEventOp): void {
+  const events = new EventRepository();
+  const existing = events.findById(op.id);
+  if (!existing) {
+    record('skip', `event ${op.id.slice(0, 8)}`, 'already gone');
+    return;
+  }
+
+  events.delete(op.id);
+  record('update', `removed ${existing.event_type} ${existing.event_date ?? ''}`.trim(), op.note);
+}
+
+/** A family's marriage and divorce dates are mirrored into events, the way
+    the families route does it: a date that lives only on the family row shows
+    on the family page and on no timeline, because a timeline is built from
+    events. */
+function syncLifecycle(familyId: string, changes: Record<string, unknown>): void {
+  if (changes.marriage_date === undefined && changes.marriage_place === undefined) return;
+  const db = getDatabase();
+  const family = db.prepare('SELECT marriage_date, marriage_place FROM families WHERE id = ?')
+    .get(familyId) as { marriage_date: string | null; marriage_place: string | null };
+
+  runWithFlags({ inSync: true }, () => {
+    new EventRepository().syncFamilyEvent(familyId, 'marriage', {
+      event_date: family.marriage_date,
+      event_place: family.marriage_place,
+    });
+  });
+  record('update', 'marriage event', `kept in step with the family's date`);
 }
 
 function applyLinkMedia(op: LinkMediaOp): void {
@@ -513,6 +554,7 @@ function applyOp(op: Op): void {
     case 'person.setName': return applySetPrimaryName(op);
     case 'event.set': return applySetEvent(op);
     case 'family.set': return applySetFamily(op);
+    case 'event.delete': return applyDeleteEvent(op);
     case 'media.link': return applyLinkMedia(op);
     default: throw new Error(`unknown op: ${JSON.stringify(op)}`);
   }
