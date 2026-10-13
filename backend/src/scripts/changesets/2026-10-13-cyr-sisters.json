@@ -1,0 +1,190 @@
+{
+  "description": "The seven Cyr sisters, from Judy's 1954 letter to Aunt Henny and Alice Cormier's 2023 obituary, cross-checked against the 773-person GEDCOM",
+  "ops": [
+    {
+      "op": "artifact.set",
+      "artifact": "Judith Higgins Letter Letter to Henny",
+      "original_date_text": "1954-05-03",
+      "note": "dated 1945 in the archive. The letter is headed May 3, 1954, the envelope is postmarked MAY 4 1954, and Judy -- born 1946 -- is preparing for her First Communion, which fits an eight-year-old and not an infant."
+    },
+
+    {
+      "op": "person.create",
+      "ref": "henny",
+      "given_name": "Hennritta",
+      "middle_name": "M",
+      "surname": "Cyr",
+      "sex": "F",
+      "is_living": 0,
+      "notes": "Aunt Henny. The artist of the family: her nephew Walter Jr asked when \"our artist-aunt\" would write to him.",
+      "note": "GEDCOM I0008, named in the 1944 photograph of the seven sisters and in Alice's obituary as Hennritta Holt"
+    },
+    { "op": "event.set", "person": { "ref": "henny" }, "event_type": "birth", "event_date": "1917" },
+    { "op": "event.set", "person": { "ref": "henny" }, "event_type": "death", "event_date": "2003-10-21" },
+    {
+      "op": "event.set",
+      "person": { "ref": "henny" },
+      "event_type": "burial",
+      "event_date": "2003-10-24",
+      "plot": "Garden of Valor II, Lot 360, Grave 3",
+      "note": "the GEDCOM records the plot but names no cemetery, so none is guessed here"
+    },
+    {
+      "op": "person.create",
+      "ref": "richard_holt",
+      "given_name": "Richard",
+      "surname": "Holt",
+      "sex": "M",
+      "is_living": 0,
+      "note": "the GEDCOM has him as NAME /Richard/ with Richard filed as the surname and no given name. The envelope of the 1954 letter is addressed to Mrs. Richard Holt, 188 Richland St., Norwood, and Alice's obituary calls her sister Hennritta Holt."
+    },
+    { "op": "family.set", "spouse1": { "ref": "richard_holt" }, "spouse2": { "ref": "henny" } },
+    {
+      "op": "event.set",
+      "person": { "ref": "richard_holt" },
+      "event_type": "residence",
+      "event_date": "1954",
+      "event_place": "188 Richland Street, Norwood, Massachusetts",
+      "note": "the address the letter was sent to"
+    },
+
+    {
+      "op": "person.create",
+      "ref": "blanche",
+      "given_name": "Blanche",
+      "middle_name": "Elodia",
+      "surname": "Cyr",
+      "sex": "F",
+      "is_living": 0,
+      "note": "GEDCOM I0741; Blanche Tower in Alice's obituary"
+    },
+    { "op": "event.set", "person": { "ref": "blanche" }, "event_type": "birth", "event_date": "1915-09-30" },
+    { "op": "event.set", "person": { "ref": "blanche" }, "event_type": "death", "event_date": "2001-01-14" },
+    {
+      "op": "event.set",
+      "person": { "ref": "blanche" },
+      "event_type": "burial",
+      "event_place": "St. John's Cemetery, Worcester, Massachusetts",
+      "plot": "St Christopher, Lot 1835"
+    },
+    {
+      "op": "person.create",
+      "ref": "harold_towers",
+      "given_name": "Harold",
+      "surname": "Towers",
+      "sex": "M",
+      "is_living": 0,
+      "note": "GEDCOM I0788. The obituary writes his widow as Blanche Tower, without the s."
+    },
+    { "op": "family.set", "spouse1": { "ref": "harold_towers" }, "spouse2": { "ref": "blanche" } },
+
+    {
+      "op": "person.create",
+      "ref": "loraine",
+      "given_name": "Loraine",
+      "middle_name": "Phillips",
+      "surname": "Cyr",
+      "sex": "F",
+      "is_living": 0,
+      "note": "GEDCOM I0009; Lorraine Morrissey in Alice's obituary, and one of the two women in the funeral photograph named 'Elsie Stewart Lorraine Morrissey'"
+    },
+    { "op": "event.set", "person": { "ref": "loraine" }, "event_type": "birth", "event_date": "1918-08-01" },
+    { "op": "event.set", "person": { "ref": "loraine" }, "event_type": "death", "event_date": "2000-11-04" },
+    {
+      "op": "person.create",
+      "ref": "henrey_morrissey",
+      "given_name": "Henrey",
+      "surname": "Morrissey",
+      "sex": "M",
+      "is_living": 0,
+      "note": "GEDCOM I0012"
+    },
+    { "op": "family.set", "spouse1": { "ref": "henrey_morrissey" }, "spouse2": { "ref": "loraine" } },
+
+    {
+      "op": "person.create",
+      "ref": "claire",
+      "given_name": "Claire",
+      "surname": "Cyr",
+      "sex": "F",
+      "is_living": 0,
+      "note": "GEDCOM I0021; Claire Steele in Alice's obituary, which lists her among the sisters who died before Alice in 2023"
+    },
+    { "op": "event.set", "person": { "ref": "claire" }, "event_type": "birth", "event_date": "1925" },
+    {
+      "op": "person.create",
+      "ref": "tom_steele",
+      "given_name": "Tom",
+      "surname": "Steele",
+      "sex": "M",
+      "is_living": 0,
+      "note": "GEDCOM I0022"
+    },
+    { "op": "family.set", "spouse1": { "ref": "tom_steele" }, "spouse2": { "ref": "claire" } },
+
+    {
+      "op": "person.create",
+      "ref": "caline",
+      "given_name": "Caline",
+      "surname": "Cyr",
+      "sex": "F",
+      "is_living": 0,
+      "note": "GEDCOM I0092; Caline Burton in Alice's obituary. The GEDCOM records no husband, so Burton is a married name without a marriage yet."
+    },
+    { "op": "event.set", "person": { "ref": "caline" }, "event_type": "birth", "event_date": "1929" },
+
+    {
+      "op": "family.set",
+      "spouse1": { "id": "0260155efa06088f589642d67e97e659" },
+      "spouse2": { "id": "2592f29ed6c3201c3c93ff003db9e789" },
+      "children": [
+        { "ref": "blanche" },
+        { "ref": "henny" },
+        { "ref": "loraine" },
+        { "ref": "claire" },
+        { "ref": "caline" }
+      ],
+      "note": "Oscar and Anna's daughters. Rita and Alice are already children of this family; these five complete the seven of the 1944 photograph."
+    },
+
+    {
+      "op": "person.addName",
+      "person": { "ref": "henny" },
+      "name_type": "married",
+      "given_name": "Hennritta",
+      "middle_name": "M",
+      "surname": "Holt"
+    },
+    {
+      "op": "person.addName",
+      "person": { "ref": "blanche" },
+      "name_type": "married",
+      "given_name": "Blanche",
+      "middle_name": "Elodia",
+      "surname": "Tower",
+      "note": "as the obituary writes it"
+    },
+    {
+      "op": "person.addName",
+      "person": { "ref": "loraine" },
+      "name_type": "married",
+      "given_name": "Lorraine",
+      "surname": "Morrissey",
+      "note": "the obituary spells her Lorraine where the GEDCOM has Loraine"
+    },
+    {
+      "op": "person.addName",
+      "person": { "ref": "claire" },
+      "name_type": "married",
+      "given_name": "Claire",
+      "surname": "Steele"
+    },
+    {
+      "op": "person.addName",
+      "person": { "ref": "caline" },
+      "name_type": "married",
+      "given_name": "Caline",
+      "surname": "Burton"
+    }
+  ]
+}
