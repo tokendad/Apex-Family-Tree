@@ -49,8 +49,13 @@ export class MediaRepository extends BaseRepository {
 
     if (options?.search) {
       const term = `%${options.search.trim()}%`;
-      conditions.push('(title LIKE ? OR original_filename LIKE ? OR description LIKE ?)');
-      params.push(term, term, term);
+      // file_path too, so a folder can be searched for as a whole. Photographs
+      // arrive a folder at a time -- eighteen from one funeral, each named for
+      // the people in it -- and the folder is the only thing they have in
+      // common. Without this the shared name is unsearchable and the only way
+      // to gather them again is to recognise them one by one.
+      conditions.push('(title LIKE ? OR original_filename LIKE ? OR description LIKE ? OR file_path LIKE ?)');
+      params.push(term, term, term, term);
     }
 
     if (options?.filter === 'unlinked') {

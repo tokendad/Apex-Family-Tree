@@ -60,7 +60,7 @@ describe('eventTypes — database agreement', () => {
   // The picker used to offer 'military', which events.event_type's CHECK
   // constraint rejects, so saving a military event failed outright.
   const ALLOWED = new Set([
-    'birth', 'death', 'burial', 'cremation', 'baptism', 'christening',
+    'birth', 'death', 'burial', 'wake', 'cremation', 'baptism', 'christening',
     'bar_mitzvah', 'bat_mitzvah', 'confirmation', 'first_communion',
     'graduation', 'immigration', 'emigration', 'naturalization',
     'census', 'residence', 'occupation', 'retirement',

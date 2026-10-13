@@ -97,6 +97,44 @@ function seedDB(database: Database.Database) {
   ).run('media-1', 'photo.jpg', 'photo.jpg', 'image/jpeg', 12, '/tmp/photo.jpg');
 }
 
+/* A folder of photographs arrives at once and the folder name is the only
+   thing they share: eighteen from one funeral, each file named for the people
+   in it rather than for the occasion. Searching only the title and the
+   filename could not gather them again. */
+describe('MediaRepository search', () => {
+  beforeEach(() => {
+    db = new Database(':memory:');
+    seedDB(db);
+    const insert = db.prepare(
+      `INSERT INTO media_items (id, filename, original_filename, mime_type, file_size, file_path)
+       VALUES (?, ?, ?, 'image/jpeg', 12, ?)`,
+    );
+    insert.run('m-cyr', 'Cyr Sisters.jpeg', 'Cyr Sisters.jpeg',
+      '/media/photos/GrandPa Walter Higgins Funeral/Cyr Sisters.jpeg');
+    insert.run('m-0008', 'Funeral-0008.jpeg', 'Funeral-0008.jpeg',
+      '/media/photos/GrandPa Walter Higgins Funeral/Funeral-0008.jpeg');
+    insert.run('m-other', 'Wedding.jpeg', 'Wedding.jpeg', '/media/photos/Wedding.jpeg');
+  });
+
+  afterEach(() => db.close());
+
+  it('finds a whole folder by its name', () => {
+    const found = new MediaRepository().findAll({ search: 'GrandPa Walter Higgins Funeral' });
+
+    expect(found.data.map((item) => item.id).sort()).toEqual(['m-0008', 'm-cyr']);
+  });
+
+  it('still finds a photograph by what it is called', () => {
+    expect(new MediaRepository().findAll({ search: 'Cyr Sisters' }).data.map((i) => i.id))
+      .toEqual(['m-cyr']);
+  });
+
+  it('does not drag in a photograph from another folder', () => {
+    expect(new MediaRepository().findAll({ search: 'Funeral' }).data.map((i) => i.id))
+      .not.toContain('m-other');
+  });
+});
+
 describe('MediaRepository person regions', () => {
   beforeAll(() => {
     db = new Database(':memory:');

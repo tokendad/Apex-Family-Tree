@@ -196,6 +196,12 @@ export function generateGedcom551(data: ExportData): string {
       const tag = getEventTag551(event.event_type);
       if (!tag) continue;
       lines.push(`1 ${tag}` + (event.description ? ` ${event.description}` : ''));
+      // A generic EVEN says nothing about what happened. TYPE is the
+      // substructure both grammars provide for exactly that, and without it a
+      // wake, an anniversary and an unclassified event all export as the same
+      // bare tag and come back indistinguishable.
+      const evenType = EVEN_TYPE_NAMES[event.event_type];
+      if (tag === 'EVEN' && evenType) lines.push(`2 TYPE ${evenType}`);
       if (event.event_date) lines.push(`2 DATE ${event.event_date}`);
       if (event.event_place) lines.push(`2 PLAC ${event.event_place}`);
       // A plot is where in the cemetery the person lies, which neither 5.5.1
@@ -282,6 +288,14 @@ export function generateGedcom551(data: ExportData): string {
   return lines.join('\n') + '\n';
 }
 
+/** What to write in `2 TYPE` for the event types that export as a bare EVEN.
+    The importer reads these back, so the words are part of the format and not
+    a label -- changing one breaks the round trip. */
+const EVEN_TYPE_NAMES: Record<string, string> = {
+  wake: 'Wake',
+  anniversary: 'Anniversary',
+};
+
 // ─── Event Tag Reverse Mapping (551) ────────────────────────────────────────
 
 function getEventTag551(eventType: string): string | null {
@@ -304,10 +318,13 @@ function getEventTag551(eventType: string): string | null {
     retirement: 'RETI',
     military_service: '_MILT',
     other: 'EVEN',
-    // Neither GEDCOM 5.5.1 nor 7.0 has an anniversary tag. EVEN is the
-    // generic event tag, and is what 'other' already maps to, so an
-    // anniversary exports exactly as it did before it had its own type.
+    // Neither GEDCOM 5.5.1 nor 7.0 has an anniversary tag, or a wake one.
+    // EVEN is the generic event tag, and is what 'other' already maps to, so
+    // an anniversary exports exactly as it did before it had its own type.
+    // What kind of event it is travels in the TYPE substructure below, which
+    // both grammars define for EVEN and which is how it comes back on import.
     anniversary: 'EVEN',
+    wake: 'EVEN',
     occupation: 'OCCU',
     residence: 'RESI',
     education: 'EDUC',

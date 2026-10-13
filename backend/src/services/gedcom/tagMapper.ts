@@ -159,13 +159,30 @@ const NAME_TYPE_MAP: Record<string, MappedName['nameType']> = {
 
 // ─── Mappers ────────────────────────────────────────────────────────────────
 
+/** The kinds of event the exporters write as a bare EVEN with a TYPE line.
+    Read back here, so a wake that leaves this archive comes home a wake
+    rather than an unclassified event. Keyed on the lowercased TYPE value, so
+    "Wake", "wake" and "WAKE" all land -- other programs are not careful about
+    case, and the alternative is dropping the one piece of information the
+    line exists to carry. */
+const EVEN_TYPE_EVENTS: Record<string, string> = {
+  wake: 'wake',
+  anniversary: 'anniversary',
+};
+
 function extractEvent(record: GedcomRecord, eventType: string): MappedEvent {
   const dateRec = findChildByTag(record, 'DATE');
   const placeRec = findChildByTag(record, 'PLAC');
   const descRec = record.value;
 
+  let resolvedType = eventType;
+  if (eventType === 'other') {
+    const typeValue = findChildByTag(record, 'TYPE')?.value?.trim().toLowerCase();
+    if (typeValue && EVEN_TYPE_EVENTS[typeValue]) resolvedType = EVEN_TYPE_EVENTS[typeValue];
+  }
+
   return {
-    eventType,
+    eventType: resolvedType,
     date: dateRec?.value || null,
     place: placeRec?.value || null,
     plot: extractPlot(record),
