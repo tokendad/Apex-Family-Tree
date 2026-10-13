@@ -150,9 +150,24 @@ AFT supports GEDCOM-standard date qualifiers for flexible, historically accurate
 | `CAL` | Calculated from other data | `CAL 1920` |
 | `EST` | Estimated | `EST 1920` |
 
-You can enter just a year (`1920`), a month and year (`MAR 1920`), or a full date (`15 MAR 1920`).
+You can enter a full date (`1920-03-15` or `15 MAR 1920`), a month and year (`MAR 1920`), or
+just a year (`1920`). Capitals do not matter: `15 mar 1920` reads the same.
 
-> **Tip:** A helper text below each date field reminds you of the supported qualifiers.
+`YYYY-MM-DD` is what the fields suggest, because it is the only numeric form that cannot be
+misread — whether `03-04-1920` means March or April depends on who wrote it.
+
+**What is not understood:** a date field never rejects anything. Whatever you type is stored and
+shown back exactly as typed, but a shape outside the list above is only partly read, and usually
+only its year survives. The common one is the American order: `Nov 29 1990` is read as three
+parts in the order day, month, year, so neither `Nov` nor `29` fits and the event sorts to the
+start of 1990 while still displaying the full date. If an event appears in the wrong place in a
+timeline, its date is the first thing to check.
+
+Dates are exported exactly as stored, so a form other software cannot read will not travel well
+either. Use a qualifier to say you are unsure: `ABT 1918` is honest and sorts sensibly, where
+`1918?` is neither.
+
+> **Tip:** Each date field shows the suggested format as placeholder text.
 
 **Additional events:**
 

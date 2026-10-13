@@ -145,3 +145,30 @@
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
 }
+
+/* A date-format table inside an answer. Two columns of short examples: a
+   definition list would wrap the example away from its meaning on a phone. */
+.formats {
+  width: 100%;
+  margin: 0 0 var(--space-3);
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.formats th {
+  text-align: left;
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--color-gray-300);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.formats td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--color-gray-200);
+  vertical-align: top;
+}
+
+.formats td:first-child {
+  white-space: nowrap;
+}

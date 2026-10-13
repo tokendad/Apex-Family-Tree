@@ -34,6 +34,23 @@ describe('FaqPage', () => {
     }
   });
 
+  /* The parser accepts four shapes and keeps anything else verbatim, so the
+     page has to say which four -- the failure is silent otherwise, and shows
+     up as an event sitting in the wrong place in a timeline. */
+  it('says which date formats are read, and what happens to the rest', () => {
+    renderPage();
+
+    const question = screen.getByText('What date formats are accepted?');
+    expect(question).toBeInTheDocument();
+
+    const answer = question.closest('details')!;
+    for (const shape of ['1990-11-29', '29 NOV 1990', 'NOV 1990', 'ABT 1900', 'BET 1900 AND 1910']) {
+      expect(answer).toHaveTextContent(shape);
+    }
+    // And the one that silently loses its day and month.
+    expect(answer).toHaveTextContent('Nov 29 1990');
+  });
+
   /* A contents list that scrolls nowhere is worse than none: the anchor looks
      live and does nothing. */
   it('has a section for every entry in the contents list', () => {

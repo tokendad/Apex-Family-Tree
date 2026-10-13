@@ -91,6 +91,58 @@ export default function FaqPage() {
         <section id="people" className={styles.section}>
           <h2>People &amp; the tree</h2>
 
+          <Qa id="faq-date-formats" q="What date formats are accepted?">
+            <p>
+              A date field is free text and nothing is ever rejected — whatever you type is kept
+              and shown back exactly as you typed it. What varies is how much of it the archive
+              understands, which is what orders a person&rsquo;s timeline.
+            </p>
+            <p>Four shapes are read in full:</p>
+            <table className={styles.formats}>
+              <thead>
+                <tr><th>You type</th><th>It reads as</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>1990-11-29</code></td><td>29 November 1990 — day, month and year</td></tr>
+                <tr><td><code>29 NOV 1990</code></td><td>the same day, in GEDCOM&rsquo;s own form</td></tr>
+                <tr><td><code>NOV 1990</code></td><td>November 1990 — no day</td></tr>
+                <tr><td><code>1990</code></td><td>the year alone</td></tr>
+              </tbody>
+            </table>
+            <p>
+              Month names are the three-letter GEDCOM abbreviations, and capitals do not matter:
+              <code>29 nov 1990</code> is read the same way. <code>YYYY-MM-DD</code> is what the
+              fields suggest because it is the one numeric form that cannot be misread — whether
+              <code>03-04-1990</code> means March or April depends on which side of the Atlantic
+              wrote it.
+            </p>
+            <p>Any of those may carry a qualifier in front, for a date you do not know exactly:</p>
+            <table className={styles.formats}>
+              <tbody>
+                <tr><td><code>ABT 1900</code></td><td>about — also <code>ABOUT</code></td></tr>
+                <tr><td><code>BEF 1900</code></td><td>before — also <code>BEFORE</code></td></tr>
+                <tr><td><code>AFT 1900</code></td><td>after — also <code>AFTER</code></td></tr>
+                <tr><td><code>BET 1900 AND 1910</code></td><td>between; it sorts from the earlier date</td></tr>
+                <tr><td><code>EST 1900</code></td><td>estimated — also <code>ESTIMATED</code></td></tr>
+                <tr><td><code>CAL 1900</code></td><td>calculated from another date — also <code>CALCULATED</code></td></tr>
+              </tbody>
+            </table>
+            <p>
+              Anything else is kept verbatim but only partly understood, and the part it keeps is
+              usually the year. <code>Nov 29 1990</code> is the common one: three parts are read
+              as day, month, year, so <code>Nov</code> is not a day and <code>29</code> is not a
+              month, and the event sorts to the start of 1990 — ahead of everything else that
+              year, with the full date still on screen. If an event sits in the wrong place in a
+              timeline, its date is the first thing to check.
+            </p>
+            <p>
+              Dates are exported exactly as they are stored, so a form other software cannot read
+              will not travel well either. A qualifier is the right way to say you are unsure —
+              <code>ABT 1918</code> is honest and sorts sensibly, where <code>1918?</code> is
+              neither.
+            </p>
+          </Qa>
+
           <Qa id="faq-privacy" q="Who can see a person I have marked private?">
             <p>
               Three levels. <strong>Public</strong> is visible to everyone with an account on this
