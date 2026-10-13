@@ -6,6 +6,7 @@ import PersonPicker from '@/components/entity-pickers/PersonPicker';
 import type { PersonResult } from '@/components/PersonSearch/PersonSearch';
 import type { ModalEditorProps } from '@/components/modals/modalTypes';
 import styles from './MarriageEditor.module.css';
+import { DATE_INPUT_HINT } from '@/utils/dateInput';
 
 interface MarriageEditorProps extends ModalEditorProps {
   personId: string;
@@ -175,7 +176,7 @@ const MarriageEditor: React.FC<MarriageEditorProps> = ({
               id={`me-date-${modalId}`}
               value={marriageDate}
               onChange={(e) => setMarriageDate(e.target.value)}
-              placeholder="e.g. 14 Jun 1910"
+              placeholder={DATE_INPUT_HINT}
             />
           </FormGroup>
 

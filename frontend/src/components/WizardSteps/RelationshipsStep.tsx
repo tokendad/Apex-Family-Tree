@@ -5,6 +5,7 @@ import { FormGroup, Label, Input } from '@/components/Form';
 import type { PersonResult } from '@/components/PersonSearch/PersonSearch';
 import type { WizardFormData } from '@/hooks/usePersonWizard';
 import styles from './RelationshipsStep.module.css';
+import { DATE_INPUT_HINT } from '@/utils/dateInput';
 
 interface RelationshipsStepProps {
   data: WizardFormData;
@@ -74,7 +75,7 @@ const RelationshipsStep: React.FC<RelationshipsStepProps> = ({ data, onChange })
             <FormGroup>
               <Label>Marriage date — {spouse.person.given_name} {spouse.person.surname}</Label>
               <Input
-                placeholder="e.g. 15 Jun 1950"
+                placeholder={DATE_INPUT_HINT}
                 value={spouse.marriageDate}
                 onChange={(e) =>
                   handleSpouseMarriageDateChange(spouse.person.id, e.target.value)

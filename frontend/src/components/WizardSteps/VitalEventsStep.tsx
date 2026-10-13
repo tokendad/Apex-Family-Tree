@@ -6,6 +6,7 @@ import type { EventData } from '@/components/TagPicker/TagPicker';
 import type { WizardFormData } from '@/hooks/usePersonWizard';
 import { useModal } from '@/components/modals/useModal';
 import styles from './VitalEventsStep.module.css';
+import { DATE_INPUT_HINT } from '@/utils/dateInput';
 
 const ADDITIONAL_EVENT_TYPES = [
   'Baptism',
@@ -82,7 +83,7 @@ const VitalEventsStep: React.FC<VitalEventsStepProps> = ({ data, onChange, editP
             <FormGroup>
               <Label>Date</Label>
               <Input
-                placeholder="e.g. 1 Jan 1900 or ABT 1900"
+                placeholder={DATE_INPUT_HINT}
                 value={data.birthDate}
                 onChange={(e) => onChange('birthDate', e.target.value)}
               />
@@ -104,7 +105,7 @@ const VitalEventsStep: React.FC<VitalEventsStepProps> = ({ data, onChange, editP
             <FormGroup>
               <Label>Date</Label>
               <Input
-                placeholder="e.g. 15 Mar 1980"
+                placeholder={DATE_INPUT_HINT}
                 value={data.deathDate}
                 onChange={(e) => onChange('deathDate', e.target.value)}
               />

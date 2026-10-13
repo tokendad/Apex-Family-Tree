@@ -7,6 +7,7 @@ import type { PersonResult } from '@/components/PersonSearch/PersonSearch';
 import type { ModalEditorProps, ModalResult } from '@/components/modals/modalTypes';
 import type { FamilySummary } from '@/types/genealogy';
 import styles from './FamilyEditor.module.css';
+import { DATE_INPUT_HINT } from '@/utils/dateInput';
 
 interface FamilyEditorProps extends ModalEditorProps {
   mode: 'create';
@@ -134,7 +135,7 @@ const FamilyEditor: React.FC<FamilyEditorProps> = ({
               id={`fe-marriage-date-${modalId}`}
               value={marriageDate}
               onChange={(e) => setMarriageDate(e.target.value)}
-              placeholder="e.g. 14 Jun 1910"
+              placeholder={DATE_INPUT_HINT}
             />
           </FormGroup>
 
