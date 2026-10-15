@@ -53,6 +53,43 @@
   position: relative;
 }
 
+.filterMenu {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.filterButton {
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--radius-full);
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  color: var(--color-topbar-text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.filterButton:hover,
+.filterButton[aria-expanded='true'] {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.filterPopover {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  width: min(360px, calc(100vw - 2rem));
+  max-height: min(75vh, 680px);
+  overflow: auto;
+  padding: var(--space-4);
+  color: var(--color-text-primary);
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  z-index: var(--z-modal);
+}
+
 .search::before {
   content: '⌕';
   position: absolute;
@@ -254,8 +291,26 @@
     min-width: 0;
   }
 
+  .topline {
+    flex-wrap: wrap;
+  }
+
   .search {
-    display: none;
+    display: block;
+    order: 3;
+    flex-basis: calc(100% - 84px);
+    max-width: none;
+  }
+
+  .filterMenu {
+    order: 4;
+  }
+
+  .filterPopover {
+    position: fixed;
+    top: 108px;
+    right: var(--space-3);
+    max-height: calc(100vh - 124px);
   }
 
   .navline {

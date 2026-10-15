@@ -3,7 +3,6 @@ import { objectPath } from '@/utils/objectPath';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
-import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import ObjectPicker, { ArchiveObjectResult } from '@/components/entity-pickers/ObjectPicker';
@@ -144,7 +143,7 @@ const CollectionDetailPage: React.FC = () => {
   };
 
   return (
-    <AppShell navbar={<Navbar />} sidebar={<Sidebar context="collections" />} context="collections">
+    <AppShell navbar={<Navbar />} context="collections">
       <div className={styles.page}>
         <Link className={styles.backLink} to="/collections">Back to collections</Link>
         {isLoading ? <div className={styles.empty}>Loading collection...</div> : error || !collection || !form ? <div className={styles.error}>{error ?? 'Collection not found'}</div> : <>

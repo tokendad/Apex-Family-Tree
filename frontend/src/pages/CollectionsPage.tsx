@@ -2,7 +2,6 @@ import React, { FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
-import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -100,7 +99,7 @@ const CollectionsPage: React.FC = () => {
   };
 
   return (
-    <AppShell navbar={<Navbar />} sidebar={<Sidebar context="collections" />} context="collections">
+    <AppShell navbar={<Navbar />} context="collections">
       <div className={styles.page}>
         <header className={styles.header}>
           <div><p className={styles.eyebrow}>Apex Family Legacy</p><h1>Collections</h1><p className={styles.subtitle}>Curate people, artifacts, events, places, and stories into narrative family groupings.</p></div>

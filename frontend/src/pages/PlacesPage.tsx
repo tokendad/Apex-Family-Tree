@@ -2,7 +2,6 @@ import React, { FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
-import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -78,7 +77,7 @@ const PlacesPage: React.FC = () => {
   };
 
   return (
-    <AppShell navbar={<Navbar />} sidebar={<Sidebar context="places" />} context="places">
+    <AppShell navbar={<Navbar />} context="places">
       <div className={styles.page}>
         <header className={styles.header}>
           <div><p className={styles.eyebrow}>Apex Family Legacy</p><h1>Places</h1><p className={styles.subtitle}>Reusable locations connected to events, people, artifacts, and stories.</p></div>
