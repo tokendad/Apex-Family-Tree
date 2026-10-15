@@ -3,7 +3,6 @@ import styles from './TreePage.module.css';
 import { useNavigate } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
-import Sidebar from '@/components/Sidebar/Sidebar';
 import TreeCanvas from '@/components/TreeCanvas/TreeCanvas';
 import FamilyChartTree from '@/components/FamilyChartTree/FamilyChartTree';
 import type { FamilyChartOrientation } from '@/components/FamilyChartTree/FamilyChartTree';
@@ -377,7 +376,6 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
   return (
     <AppShell
       navbar={<Navbar />}
-      sidebar={<Sidebar context="tree" />}
       detail={<DetailPanel onEditPerson={openPersonEditor} />}
       showDetail={selectedPersonId !== null}
       context="tree"
@@ -387,6 +385,7 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
         treeFilter={treeFilter}
         onTreeFilterChange={setTreeFilter}
         treeIssueCount={treeIssueCount}
+        showGenerations={renderer === 'classic'}
       />
       {treeFilter !== 'all' && (
         <div className={styles.filterBanner}>

@@ -2,7 +2,6 @@ import React, { FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
-import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import styles from './ArtifactsPage.module.css';
@@ -71,7 +70,7 @@ const SearchPage: React.FC = () => {
   };
 
   return (
-    <AppShell navbar={<Navbar />} sidebar={<Sidebar context="search" />} context="search">
+    <AppShell navbar={<Navbar />} context="search">
       <div className={styles.page}>
         <header className={styles.header}>
           <div><p className={styles.eyebrow}>Apex Family Legacy</p><h1>Archive Search</h1><p className={styles.subtitle}>Search people, artifacts, events, places, stories, claims, collections, tags, names, and transcriptions.</p></div>
