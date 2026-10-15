@@ -2,7 +2,6 @@ import React, { FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
-import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -89,7 +88,7 @@ const ClaimsPage: React.FC = () => {
   };
 
   return (
-    <AppShell navbar={<Navbar />} sidebar={<Sidebar context="claims" />} context="claims">
+    <AppShell navbar={<Navbar />} context="claims">
       <div className={styles.page}>
         <header className={styles.header}>
           <div><p className={styles.eyebrow}>Apex Family Legacy</p><h1>Claims</h1><p className={styles.subtitle}>Track historical conclusions separately from the artifacts that support, contradict, or mention them.</p></div>

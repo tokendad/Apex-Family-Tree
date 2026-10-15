@@ -4,6 +4,9 @@ import { useAuth } from '@/contexts/AuthContext.js';
 import { usePageActionsValue } from '@/contexts/PageActionsContext';
 import Avatar from '@/components/Avatar/Avatar';
 import ContextActionsMenu from '@/components/archive-object/ContextActionsMenu';
+import SearchSidebar from '@/components/SearchSidebar/SearchSidebar';
+import { hasActiveFilters, useSearchStore } from '@/stores/searchStore';
+import type { SidebarContext } from '@/stores/searchStore';
 import styles from './Navbar.module.css';
 
 const NAV_ITEMS = [
@@ -104,19 +107,47 @@ const Navbar: React.FC = () => {
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const searchState = useSearchStore();
   const { title: actionsTitle, actions: pageActions } = usePageActionsValue();
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const filterMenuRef = useRef<HTMLDivElement>(null);
   const userButtonRef = useRef<HTMLButtonElement>(null);
   const visibleNavItems = [
     ...NAV_ITEMS,
     ...(hasMinimumRole(user?.role, 'admin') ? [{ label: 'Tools', path: '/tools' }] : []),
     ...(user?.role === 'admin' ? [{ label: 'Admin', path: '/admin' }] : []),
   ];
+  const contextByPath: Record<string, SidebarContext> = {
+    '/': 'tree', '/people': 'people', '/families': 'families', '/sources': 'sources',
+    '/media': 'media', '/artifacts': 'artifacts', '/claims': 'claims',
+    '/collections': 'collections', '/stories': 'stories', '/search': 'search',
+    '/events': 'events', '/places': 'places',
+  };
+  const searchContext = Object.entries(contextByPath)
+    .find(([path]) => path === '/' ? location.pathname === '/' || location.pathname === '/tree' : location.pathname.startsWith(path))?.[1];
+  const filtersActive = hasActiveFilters(searchState, searchContext);
+
+  useEffect(() => {
+    setFiltersOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!filtersOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setFiltersOpen(false);
+    };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [filtersOpen]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setDropdownOpen(false);
+      }
+      if (filterMenuRef.current && !filterMenuRef.current.contains(e.target as Node)) {
+        setFiltersOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -169,6 +200,26 @@ const Navbar: React.FC = () => {
             }}
           />
         </div>
+
+        {searchContext && (
+          <div className={styles.filterMenu} ref={filterMenuRef}>
+            <button
+              type="button"
+              className={styles.filterButton}
+              aria-expanded={filtersOpen}
+              aria-controls="global-search-filters"
+              aria-label={filtersActive ? 'Filters, active' : 'Filters'}
+              onClick={() => setFiltersOpen((open) => !open)}
+            >
+              Filters{filtersActive ? ' •' : ''}
+            </button>
+            {filtersOpen && (
+              <div className={styles.filterPopover} id="global-search-filters">
+                <SearchSidebar context={searchContext} />
+              </div>
+            )}
+          </div>
+        )}
 
         <div className={styles.topActions}>
           {pageActions.length > 0 && (
