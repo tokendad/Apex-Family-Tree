@@ -2,7 +2,6 @@ import React, { FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
-import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import PersonPicker from '@/components/entity-pickers/PersonPicker';
@@ -79,7 +78,7 @@ const EventsPage: React.FC = () => {
   ];
 
   return (
-    <AppShell navbar={<Navbar />} sidebar={<Sidebar context="events" />} context="events">
+    <AppShell navbar={<Navbar />} context="events">
       <div className={styles.page}>
         <header className={styles.header}><div><p className={styles.eyebrow}>Apex Family Legacy</p><h1>Events</h1><p className={styles.subtitle}>Legacy genealogy events with archive-object identity for connections to places, artifacts, and people.</p></div>{canCreate && <Button onClick={() => setShowCreate((value) => !value)}>{showCreate ? 'Cancel' : 'New Event'}</Button>}</header>
         {showCreate && <form className={styles.formCard} onSubmit={handleSubmit}><div className={styles.formGrid}><label className={styles.field}><span>Person</span><PersonPicker value={selectedPerson?.id ?? null} onSelect={setSelectedPerson} onClear={() => setSelectedPerson(null)} /></label><label className={styles.field}><span>Type</span><select value={form.event_type} onChange={(e) => setForm({ ...form, event_type: e.target.value })} required><optgroup label="Events">{groupedTypeOptions().events.map(([val, label]) => <option key={val} value={val}>{label}</option>)}</optgroup><optgroup label="Facts &amp; Attributes">{groupedTypeOptions().attributes.map(([val, label]) => <option key={val} value={val}>{label}</option>)}</optgroup></select></label><label className={styles.field}><span>Date</span><Input value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} placeholder={DATE_INPUT_HINT} /></label><label className={styles.field}><span>Place Text</span><Input value={form.event_place} onChange={(e) => setForm({ ...form, event_place: e.target.value })} /></label><label className={styles.field}><span>Plot</span><Input value={form.plot} onChange={(e) => setForm({ ...form, plot: e.target.value })} placeholder="Lot 482, Garden of Heritage I" /></label></div><label className={styles.field}><span>Description</span><textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} /></label><EventSourceFields idPrefix="events-create" value={form} onChange={(next) => setForm({ ...form, ...next })} /><div className={styles.actions}><Button type="submit">Create Event</Button></div></form>}

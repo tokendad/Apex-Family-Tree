@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
-import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useSearchStore } from '@/stores/searchStore';
@@ -119,7 +118,7 @@ const FamiliesPage: React.FC = () => {
   const showEmpty = !isLoading && !error && families.length === 0;
 
   return (
-    <AppShell navbar={<Navbar />} sidebar={<Sidebar context="families" />} context="families">
+    <AppShell navbar={<Navbar />} context="families">
       <div className={styles.page}>
         <div className={styles.header}>
           <h1 className={styles.title}>Families</h1>

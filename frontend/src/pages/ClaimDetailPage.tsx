@@ -3,7 +3,6 @@ import { objectPath } from '@/utils/objectPath';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
-import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -125,7 +124,7 @@ const ClaimDetailPage: React.FC = () => {
   };
 
   return (
-    <AppShell navbar={<Navbar />} sidebar={<Sidebar context="claims" />} context="claims">
+    <AppShell navbar={<Navbar />} context="claims">
       <div className={styles.page}>
         <Link className={styles.backLink} to="/claims">Back to claims</Link>
         {isLoading ? <div className={styles.empty}>Loading claim...</div> : error || !claim || !form ? <div className={styles.error}>{error ?? 'Claim not found'}</div> : <>

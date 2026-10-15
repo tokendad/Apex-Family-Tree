@@ -3,7 +3,6 @@ import { objectPath } from '@/utils/objectPath';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
-import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -143,7 +142,7 @@ const StoryDetailPage: React.FC = () => {
   };
 
   return (
-    <AppShell navbar={<Navbar />} sidebar={<Sidebar context="stories" />} context="stories">
+    <AppShell navbar={<Navbar />} context="stories">
       <div className={styles.page}>
         <Link className={styles.backLink} to="/stories">Back to stories</Link>
         {isLoading ? <div className={styles.empty}>Loading story...</div> : error || !story || !form ? <div className={styles.error}>{error ?? 'Story not found'}</div> : <>

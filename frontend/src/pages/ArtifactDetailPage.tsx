@@ -2,7 +2,6 @@ import React, { FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
-import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import ActionDrawer from '@/components/archive-object/ActionDrawer';
@@ -485,7 +484,7 @@ const ArtifactDetailPage: React.FC = () => {
   usePageActions(artifact ? `Actions for ${artifact.title}` : '', artifact ? contextActions : []);
 
   return (
-    <AppShell navbar={<Navbar />} sidebar={<Sidebar context="artifacts" />} context="artifacts">
+    <AppShell navbar={<Navbar />} context="artifacts">
       <div className={styles.detailPage}>
         <div className={styles.detailPageInner}>
         <Link className={styles.backLink} to="/artifacts">Back to artifacts</Link>

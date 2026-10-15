@@ -8,7 +8,6 @@ import React, {
 } from 'react';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
-import Sidebar from '@/components/Sidebar/Sidebar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import PersonPicker from '@/components/entity-pickers/PersonPicker';
@@ -492,7 +491,7 @@ const MediaPage: React.FC = () => {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <AppShell navbar={<Navbar />} sidebar={<Sidebar context="media" />} context="media">
+    <AppShell navbar={<Navbar />} context="media">
       <div className={styles.page}>
         {/* ── Page header ── */}
         <div className={styles.header}>

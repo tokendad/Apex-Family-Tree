@@ -11,11 +11,12 @@ interface CanvasToolbarProps {
   treeFilter?: TreeFilter;
   onTreeFilterChange?: (filter: TreeFilter) => void;
   treeIssueCount?: number | null;
+  showGenerations?: boolean;
 }
 
-const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ onAddPerson, treeFilter = 'all', onTreeFilterChange, treeIssueCount }) => {
+const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ onAddPerson, treeFilter = 'all', onTreeFilterChange, treeIssueCount, showGenerations = false }) => {
   const navigate = useNavigate();
-  const { zoom, zoomIn, zoomOut, resetView, fitToScreen } = useCanvasStore();
+  const { zoom, zoomIn, zoomOut, resetView, fitToScreen, generations, setGenerations } = useCanvasStore();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [viewport, setViewport] = useState({ w: 1200, h: 700 });
 
@@ -92,6 +93,21 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ onAddPerson, treeFilter =
         <option value="unconnected-people">Unconnected People</option>
         <option value="unconnected-trees">Unconnected Trees</option>
       </select>
+
+      {showGenerations && (
+        <label className={styles.depthControl}>
+          <span>Depth</span>
+          <input
+            type="range"
+            min={1}
+            max={10}
+            value={generations}
+            aria-label="Tree generations"
+            onChange={(event) => setGenerations(Number(event.target.value))}
+          />
+          <span>{generations}</span>
+        </label>
+      )}
 
       {typeof treeIssueCount === 'number' && treeIssueCount > 0 && (
         <>
