@@ -55,6 +55,7 @@ const FamiliesPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
   const fetchFamilies = useCallback(
     async (
@@ -64,7 +65,11 @@ const FamiliesPage: React.FC = () => {
       append: boolean,
     ) => {
       setIsLoading(true);
-      if (!append) setError(null);
+      // Cleared for an append too, not just a fresh search. The auto-loader
+      // below stands down while an error is showing, so leaving a failed
+      // page's banner up would keep it stood down even after a later page
+      // succeeded.
+      setError(null);
       try {
         const params = new URLSearchParams({ limit: String(LIMIT), sort: 'surname' });
         if (searchQuery) params.set('q', searchQuery);
@@ -108,11 +113,43 @@ const FamiliesPage: React.FC = () => {
     };
   }, [globalQuery, filter, fetchFamilies]);
 
-  const loadMore = () => {
+  const loadMore = useCallback(() => {
     if (cursor && !isLoading) {
       fetchFamilies(globalQuery, filter, cursor, true);
     }
-  };
+  }, [cursor, isLoading, globalQuery, filter, fetchFamilies]);
+
+  /*
+   * Pull the next page in as soon as the end of the list comes into view.
+   *
+   * The grid is a flex item with flex: 1, so it stretches to the full height
+   * of the page whether or not it has enough cards to fill it. With 20 of 74
+   * families that left three rows of cards, several hundred pixels of white
+   * space, and no scrollbar -- the page looked finished, and "Load more" sat
+   * at the bottom of the viewport far enough from the last card to read as
+   * page furniture rather than the rest of the list. People concluded that 20
+   * was all there was.
+   *
+   * An IntersectionObserver only fires on a threshold crossing, so if the
+   * sentinel is still visible after a page is appended it will not fire a
+   * second time by itself. Re-subscribing on every cursor change is what
+   * keeps the cascade going: observe() delivers an initial callback for an
+   * already-visible target, so the list keeps filling until the viewport is
+   * covered or the families run out. The error guard matters for the same
+   * reason -- without it a failed fetch would re-arm and retry forever.
+   */
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node) return;
+    if (typeof IntersectionObserver === 'undefined') return;
+    if (!hasMore || isLoading || error) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) loadMore();
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMore, isLoading, error, cursor, loadMore]);
 
   const showSkeleton = isLoading && families.length === 0;
   const showEmpty = !isLoading && !error && families.length === 0;
@@ -205,14 +242,13 @@ const FamiliesPage: React.FC = () => {
                 </div>
               </div>
             ))}
-          </div>
-        )}
-
-        {hasMore && (
-          <div className={styles.loadMore}>
-            <Button variant="ghost" size="sm" onClick={loadMore} loading={isLoading}>
-              Load more
-            </Button>
+            {hasMore && (
+              <div className={styles.loadMore} ref={sentinelRef}>
+                <Button variant="ghost" size="sm" onClick={loadMore} loading={isLoading}>
+                  Load more
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>

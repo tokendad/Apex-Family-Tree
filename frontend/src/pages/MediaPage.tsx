@@ -254,13 +254,18 @@ const MediaPage: React.FC = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const globalQuery = useSearchStore((s) => s.globalQuery);
 
   // ── Fetch media ────────────────────────────────────────────────────────────
 
   const fetchMedia = useCallback(async (searchQuery: string, cursorParam: string | null, append: boolean, filter: MediaFilter = 'all') => {
     setIsLoading(true);
-    if (!append) setError(null);
+    // Cleared for an append too, not just a fresh search. The auto-loader
+    // below stands down while an error is showing, so leaving a failed
+    // page's banner up would keep it stood down even after a later page
+    // succeeded.
+    setError(null);
     try {
       const params = new URLSearchParams({ limit: String(LIMIT) });
       if (searchQuery) params.set('q', searchQuery);
@@ -303,11 +308,41 @@ const MediaPage: React.FC = () => {
     };
   }, [globalQuery, mediaFilter, fetchMedia]);
 
-  const loadMore = () => {
+  const loadMore = useCallback(() => {
     if (cursor && !isLoading) {
       fetchMedia(globalQuery, cursor, true, mediaFilter);
     }
-  };
+  }, [cursor, isLoading, globalQuery, mediaFilter, fetchMedia]);
+
+  /*
+   * Pull the next page in as soon as the end of the gallery comes into view.
+   *
+   * Same trap as the families list: .gallery is flex: 1, so it stretches to
+   * the height of the page whether or not it has enough thumbnails to fill
+   * it. A short page left the cards at the top, a stretch of white space
+   * below them, and "Load more" sitting at the bottom edge far enough from
+   * the last thumbnail to read as page furniture -- so the gallery looked
+   * complete when it was one page of many.
+   *
+   * An IntersectionObserver only fires on a threshold crossing, so if the
+   * sentinel is still visible after a page is appended it will not fire a
+   * second time by itself. Re-subscribing on every cursor change is what
+   * keeps the cascade going: observe() delivers an initial callback for an
+   * already-visible target. The error guard stops a failed fetch from
+   * re-arming and retrying forever.
+   */
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node) return;
+    if (typeof IntersectionObserver === 'undefined') return;
+    if (!hasMore || isLoading || error) return;
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) loadMore();
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMore, isLoading, error, cursor, loadMore]);
 
   // ── Upload handlers ────────────────────────────────────────────────────────
 
@@ -602,15 +637,14 @@ const MediaPage: React.FC = () => {
                 }}
               />
             ))}
-          </div>
-        )}
-
-        {/* ── Load more ── */}
-        {hasMore && (
-          <div className={styles.loadMore}>
-            <Button variant="ghost" size="sm" onClick={loadMore} loading={isLoading}>
-              Load more
-            </Button>
+            {/* ── Load more ── */}
+            {hasMore && (
+              <div className={styles.loadMore} ref={sentinelRef}>
+                <Button variant="ghost" size="sm" onClick={loadMore} loading={isLoading}>
+                  Load more
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>

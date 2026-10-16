@@ -184,6 +184,12 @@
 }
 
 .loadMore {
+  /* Full-width row inside the grid, so it follows the last card instead of
+     being pinned to the bottom of the stretched grid with a lake of white
+     space in between -- which read as the end of the page rather than as the
+     rest of the list. It doubles as the sentinel that pulls the next page in
+     when it scrolls into view. */
+  grid-column: 1 / -1;
   display: flex;
   justify-content: center;
   padding: var(--space-4);
