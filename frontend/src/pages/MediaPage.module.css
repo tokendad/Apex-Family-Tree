@@ -338,6 +338,11 @@
 ───────────────────────────────────────────────────────────────────────────── */
 
 .loadMore {
+  /* Full-width row inside the gallery grid, so it follows the last thumbnail
+     instead of being pinned below the stretched grid with a gap in between --
+     which read as the end of the page rather than as more media. It doubles
+     as the sentinel that pulls the next page in when it scrolls into view. */
+  grid-column: 1 / -1;
   display: flex;
   justify-content: center;
   padding: var(--space-4);
