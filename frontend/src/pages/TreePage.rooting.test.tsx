@@ -63,11 +63,11 @@ beforeEach(() => {
   global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ people: [], segments: [] }) });
   useCanvasStore.setState({
     nodes: [
-      { person: person('walter'), x: 0, y: 0, generation: 0 },
-      { person: person('george'), x: 0, y: 0, generation: 0 },
+      { person: person('home-person'), x: 0, y: 0, generation: 0 },
+      { person: person('far-person'), x: 0, y: 0, generation: 0 },
     ],
     families: [], connectors: [],
-    homePersonId: 'walter', treeRootId: null, selectedPersonId: null,
+    homePersonId: 'home-person', treeRootId: null, selectedPersonId: null,
     generations: 4, isLoading: false,
   });
 });
@@ -102,26 +102,26 @@ describe('TreePage — the Depth control', () => {
 describe('TreePage — centring the tree on someone', () => {
   it('re-roots the tree on the person selected', () => {
     renderPage();
-    fireEvent.click(screen.getByText('select george'));
+    fireEvent.click(screen.getByText('select far-person'));
 
-    expect(useCanvasStore.getState().treeRootId).toBe('george');
-    expect(useCanvasStore.getState().selectedPersonId).toBe('george');
+    expect(useCanvasStore.getState().treeRootId).toBe('far-person');
+    expect(useCanvasStore.getState().selectedPersonId).toBe('far-person');
   });
 
   it('leaves the home person alone when re-rooting', () => {
     renderPage();
-    fireEvent.click(screen.getByText('select george'));
-    expect(useCanvasStore.getState().homePersonId).toBe('walter');
+    fireEvent.click(screen.getByText('select far-person'));
+    expect(useCanvasStore.getState().homePersonId).toBe('home-person');
   });
 
   it('draws the chart around the person selected', () => {
     renderPage();
-    fireEvent.click(screen.getByText('select george'));
-    expect(screen.getByTestId('chart').getAttribute('data-main')).toBe('george');
+    fireEvent.click(screen.getByText('select far-person'));
+    expect(screen.getByTestId('chart').getAttribute('data-main')).toBe('far-person');
   });
 
   it('goes back to the home person, dropping the root and the selection', () => {
-    useCanvasStore.setState({ treeRootId: 'george', selectedPersonId: 'george' });
+    useCanvasStore.setState({ treeRootId: 'far-person', selectedPersonId: 'far-person' });
     renderPage();
 
     fireEvent.click(screen.getByText('Center on home person'));
@@ -134,16 +134,16 @@ describe('TreePage — centring the tree on someone', () => {
     // That view replaces the node list with its own; give it someone to show.
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ people: [person('george')] }),
+      json: async () => ({ people: [person('far-person')] }),
     }) as unknown as typeof fetch;
     renderPage();
     fireEvent.change(screen.getByLabelText('Filter tree'), { target: { value: 'unconnected-people' } });
     // That view fetches and writes its own node list; let it settle first.
     await waitFor(() => expect(useCanvasStore.getState().isLoading).toBe(false));
-    fireEvent.click(screen.getByText('select george'));
+    fireEvent.click(screen.getByText('select far-person'));
 
     // A refetch here would replace the filtered list with the whole tree.
     expect(useCanvasStore.getState().treeRootId).toBeNull();
-    expect(useCanvasStore.getState().selectedPersonId).toBe('george');
+    expect(useCanvasStore.getState().selectedPersonId).toBe('far-person');
   });
 });

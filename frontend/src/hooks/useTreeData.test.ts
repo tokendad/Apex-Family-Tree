@@ -28,45 +28,45 @@ beforeEach(() => {
 
 describe('useTreeData — which tree it asks for', () => {
   it('asks for the home tree when no root is set, and records who home is', async () => {
-    const fetchMock = respondWith('walter');
+    const fetchMock = respondWith('home-person');
     global.fetch = fetchMock as unknown as typeof fetch;
 
     renderHook(() => useTreeData());
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(urlOf(fetchMock)).toBe('/api/v1/tree?generations=4');
-    await waitFor(() => expect(useCanvasStore.getState().homePersonId).toBe('walter'));
+    await waitFor(() => expect(useCanvasStore.getState().homePersonId).toBe('home-person'));
   });
 
   it('asks for the tree around the root once one is set', async () => {
-    global.fetch = respondWith('walter') as unknown as typeof fetch;
+    global.fetch = respondWith('home-person') as unknown as typeof fetch;
     renderHook(() => useTreeData());
-    await waitFor(() => expect(useCanvasStore.getState().homePersonId).toBe('walter'));
+    await waitFor(() => expect(useCanvasStore.getState().homePersonId).toBe('home-person'));
 
-    const rooted = respondWith('george');
+    const rooted = respondWith('far-person');
     global.fetch = rooted as unknown as typeof fetch;
-    act(() => useCanvasStore.getState().setTreeRootId('george'));
+    act(() => useCanvasStore.getState().setTreeRootId('far-person'));
 
     await waitFor(() => expect(rooted).toHaveBeenCalled());
-    expect(urlOf(rooted)).toBe('/api/v1/tree/george?generations=4');
+    expect(urlOf(rooted)).toBe('/api/v1/tree/far-person?generations=4');
   });
 
   it('does not let a rooted request reassign the home person', async () => {
-    global.fetch = respondWith('walter') as unknown as typeof fetch;
+    global.fetch = respondWith('home-person') as unknown as typeof fetch;
     renderHook(() => useTreeData());
-    await waitFor(() => expect(useCanvasStore.getState().homePersonId).toBe('walter'));
+    await waitFor(() => expect(useCanvasStore.getState().homePersonId).toBe('home-person'));
 
     // GET /tree/:personId echoes the id it was given back as home_person_id.
     // Believing it would quietly move home to whoever was last clicked.
-    global.fetch = respondWith('george', ['george', 'kin']) as unknown as typeof fetch;
-    act(() => useCanvasStore.getState().setTreeRootId('george'));
+    global.fetch = respondWith('far-person', ['far-person', 'kin']) as unknown as typeof fetch;
+    act(() => useCanvasStore.getState().setTreeRootId('far-person'));
 
     await waitFor(() => expect(useCanvasStore.getState().nodes.length).toBeGreaterThan(0));
-    expect(useCanvasStore.getState().homePersonId).toBe('walter');
+    expect(useCanvasStore.getState().homePersonId).toBe('home-person');
   });
 
   it('carries the depth through to the request', async () => {
-    const fetchMock = respondWith('walter');
+    const fetchMock = respondWith('home-person');
     global.fetch = fetchMock as unknown as typeof fetch;
     useCanvasStore.setState({ generations: 9 });
 
@@ -83,7 +83,7 @@ describe('useTreeData — which tree it asks for', () => {
     global.fetch = vi.fn()
       .mockImplementationOnce(async () => {
         await slowFirst;
-        return { ok: true, json: async () => ({ persons: [person('stale')], families: [], home_person_id: 'walter' }) };
+        return { ok: true, json: async () => ({ persons: [person('stale')], families: [], home_person_id: 'home-person' }) };
       })
       .mockImplementationOnce(async () => ({
         ok: true, json: async () => ({ persons: [person('fresh')], families: [], home_person_id: 'fresh' }),
