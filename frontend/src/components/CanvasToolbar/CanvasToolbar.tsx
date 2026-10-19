@@ -12,9 +12,15 @@ interface CanvasToolbarProps {
   onTreeFilterChange?: (filter: TreeFilter) => void;
   treeIssueCount?: number | null;
   showGenerations?: boolean;
+  /**
+   * Re-root the tree on the saved home person. The camera reset alone was
+   * never enough once the tree could be rooted elsewhere: it would slide to
+   * where home used to be in a layout built around somebody else.
+   */
+  onGoHome?: () => void;
 }
 
-const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ onAddPerson, treeFilter = 'all', onTreeFilterChange, treeIssueCount, showGenerations = false }) => {
+const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ onAddPerson, treeFilter = 'all', onTreeFilterChange, treeIssueCount, showGenerations = false, onGoHome }) => {
   const navigate = useNavigate();
   const { zoom, zoomIn, zoomOut, resetView, fitToScreen, generations, setGenerations } = useCanvasStore();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -66,7 +72,10 @@ const CanvasToolbar: React.FC<CanvasToolbarProps> = ({ onAddPerson, treeFilter =
 
       <button
         className={styles.resetBtn}
-        onClick={resetView}
+        onClick={() => {
+          onGoHome?.();
+          resetView();
+        }}
         aria-label="Center on home person"
         title="Center on home person"
       >
