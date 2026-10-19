@@ -56,6 +56,13 @@ interface CanvasState {
   cameraX: number;
   cameraY: number;
   homePersonId: string | null;
+  /**
+   * The person the tree is currently fetched around, which is not the same as
+   * the home person. null means "the home person" -- the server picks it.
+   * Re-rooting here is what widens the data around someone far from home;
+   * homePersonId stays the saved preference the house button returns to.
+   */
+  treeRootId: string | null;
   selectedPersonId: string | null;
   hoveredPersonId: string | null;
   contextMenuPosition: { x: number; y: number; personId: string } | null;
@@ -70,6 +77,7 @@ interface CanvasState {
   setZoom: (zoom: number) => void;
   setCamera: (x: number, y: number) => void;
   setHomePersonId: (id: string | null) => void;
+  setTreeRootId: (id: string | null) => void;
   centerOnPerson: (personId: string) => void;
   fitToScreen: (viewportW: number, viewportH: number) => void;
   setSelectedPerson: (id: string | null) => void;
@@ -91,6 +99,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   cameraX: 0,
   cameraY: 0,
   homePersonId: null,
+  treeRootId: null,
   selectedPersonId: null,
   hoveredPersonId: null,
   contextMenuPosition: null,
@@ -104,6 +113,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   setZoom: (zoom) => set({ zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)) }),
   setCamera: (cameraX, cameraY) => set({ cameraX, cameraY }),
   setHomePersonId: (homePersonId) => set({ homePersonId }),
+  setTreeRootId: (treeRootId) => set({ treeRootId }),
 
   centerOnPerson: (personId) => {
     const node = get().nodes.find((n) => n.person.id === personId);

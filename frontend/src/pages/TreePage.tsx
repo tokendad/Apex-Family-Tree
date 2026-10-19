@@ -51,6 +51,9 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
     setContextMenu,
     homePersonId,
     setHomePersonId,
+    treeRootId,
+    setTreeRootId,
+    setGenerations,
   } = useCanvasStore();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -345,9 +348,55 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
   const chartMainId =
     selectedPersonId && chartPersons.some((p) => p.id === selectedPersonId)
       ? selectedPersonId
-      : homePersonId && chartPersons.some((p) => p.id === homePersonId)
-        ? homePersonId
-        : (chartPersons[0]?.id ?? null);
+      : treeRootId && chartPersons.some((p) => p.id === treeRootId)
+        ? treeRootId
+        : homePersonId && chartPersons.some((p) => p.id === homePersonId)
+          ? homePersonId
+          : (chartPersons[0]?.id ?? null);
+
+  /**
+   * The dropdown says "Depth", and until now it only told the chart how many
+   * levels to draw -- the fetch stayed at whatever generations was, so asking
+   * for ten levels drew ten levels of a four-deep payload and simply stopped
+   * at whoever sat on the edge of it.
+   *
+   * The fetch gets headroom rather than the same number: getFlatTree counts
+   * steps through the family graph, where reaching a spouse costs a step as
+   * surely as reaching a parent does, so N drawn generations needs more than
+   * N steps to have its edges filled in. The floor of 6 covers this archive
+   * end to end; the server clamps anything over 20.
+   */
+  const changeDepth = useCallback(
+    (depth: number) => {
+      setChartDepth(depth);
+      setGenerations(Math.max(6, depth + 3));
+    },
+    [setGenerations],
+  );
+
+  /**
+   * Clicking a card already re-centres the chart -- family-chart does that
+   * itself. What it could not do was widen the data, so centring on someone
+   * far from home drew the thin edge of the walk from home and looked like
+   * the family ended there. Re-rooting the fetch on them fills the
+   * neighbourhood in around the new centre.
+   *
+   * Left alone while a filter is on: those views write their own node list
+   * and a refetch would pull the tree out from under them.
+   */
+  const selectPerson = useCallback(
+    (personId: string) => {
+      setSelectedPerson(personId);
+      if (treeFilter === 'all' && personId !== treeRootId) setTreeRootId(personId);
+    },
+    [setSelectedPerson, treeFilter, treeRootId, setTreeRootId],
+  );
+
+  /** Back to the saved home person, clearing both the root and the selection. */
+  const goHome = useCallback(() => {
+    setTreeRootId(null);
+    setSelectedPerson(null);
+  }, [setTreeRootId, setSelectedPerson]);
 
   const setHomePerson = useCallback(
     async (personId: string) => {
@@ -386,6 +435,7 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
         onTreeFilterChange={setTreeFilter}
         treeIssueCount={treeIssueCount}
         showGenerations={renderer === 'classic'}
+        onGoHome={goHome}
       />
       {treeFilter !== 'all' && (
         <div className={styles.filterBanner}>
@@ -427,7 +477,7 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
             </label>
             <label>
               Depth
-              <select value={chartDepth} onChange={(e) => setChartDepth(Number(e.target.value))}>
+              <select value={chartDepth} onChange={(e) => changeDepth(Number(e.target.value))}>
                 {[1, 2, 3, 4, 5, 10].map((n) => (
                   <option key={n} value={n}>{n}</option>
                 ))}
@@ -442,7 +492,7 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
               orientation={orientation}
               ancestryDepth={chartDepth}
               progenyDepth={chartDepth}
-              onPersonSelect={setSelectedPerson}
+              onPersonSelect={selectPerson}
               onPersonOpen={(id) => navigate(`/people/${id}`)}
               onPersonContextMenu={(id, x, y) => setContextMenu({ x, y, personId: id })}
             />

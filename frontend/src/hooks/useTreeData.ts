@@ -1,11 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useCanvasStore } from '@/stores/canvasStore';
 import { layoutTree } from '@/utils/treeLayout';
 import type { TreePerson, TreeFamily } from '@/stores/canvasStore';
-
-interface UseTreeDataOptions {
-  rootPersonId?: string | null;
-}
 
 interface TreeApiResponse {
   persons: TreePerson[];
@@ -13,9 +9,10 @@ interface TreeApiResponse {
   home_person_id: string | null;
 }
 
-export function useTreeData(options: UseTreeDataOptions = {}) {
+export function useTreeData() {
   const {
     generations,
+    treeRootId,
     setNodes,
     setFamilies,
     setConnectors,
@@ -23,18 +20,33 @@ export function useTreeData(options: UseTreeDataOptions = {}) {
   } = useCanvasStore();
 
   const [error, setError] = useState<string | null>(null);
-  const [rootId, setRootId] = useState<string | null>(options.rootPersonId ?? null);
+
+  /**
+   * Re-rooting fires a new request on every selection, and a wide tree takes
+   * longer to build than a narrow one -- so an earlier, slower response can
+   * land after a later one and paint the tree the user has already navigated
+   * away from. Only the newest request is allowed to write.
+   */
+  const requestRef = useRef(0);
 
   const fetchTree = useCallback(async () => {
+    const requestId = ++requestRef.current;
+    const isCurrent = () => requestRef.current === requestId;
+
     setLoading(true);
     setError(null);
 
     try {
-      const endpoint = rootId
-        ? `/api/v1/tree/${rootId}?generations=${generations}`
+      // No root means "wherever home is"; the server resolves it and tells us
+      // who that was. A rooted request is the same tree walked from someone
+      // else, which is how a person far from home gets a full neighbourhood
+      // instead of the thin edge of the walk from home.
+      const endpoint = treeRootId
+        ? `/api/v1/tree/${treeRootId}?generations=${generations}`
         : `/api/v1/tree?generations=${generations}`;
 
       const res = await fetch(endpoint, { credentials: 'include' });
+      if (!isCurrent()) return;
 
       if (!res.ok) {
         if (res.status === 404) {
@@ -48,31 +60,35 @@ export function useTreeData(options: UseTreeDataOptions = {}) {
       }
 
       const data: TreeApiResponse = await res.json();
+      if (!isCurrent()) return;
+
       setFamilies(data.families);
 
-      const effectiveRoot = rootId ?? data.home_person_id;
-      if (!effectiveRoot) {
-        setRootId(data.persons[0]?.id ?? null);
-      } else {
-        setRootId(effectiveRoot);
+      const store = useCanvasStore.getState();
+
+      /* Only an unrooted response carries the real home person. GET
+         /tree/:personId echoes the id it was given back as home_person_id, so
+         trusting it on a rooted request would quietly reassign home to
+         whoever was last clicked -- and the house button would then return
+         to that person instead of the one the user chose. */
+      if (!treeRootId && data.home_person_id) {
+        store.setHomePersonId(data.home_person_id);
       }
+
+      const effectiveRoot = treeRootId ?? data.home_person_id ?? data.persons[0]?.id ?? null;
 
       const { nodes, connectors } = layoutTree({
         persons: data.persons,
         families: data.families,
-        rootPersonId: effectiveRoot ?? data.persons[0]?.id ?? null,
+        rootPersonId: effectiveRoot,
       });
 
       setNodes(nodes);
       setConnectors(connectors);
 
-      // Center the camera on the home person
-      const store = useCanvasStore.getState();
-      if (effectiveRoot) {
-        store.setHomePersonId(effectiveRoot);
-        store.centerOnPerson(effectiveRoot);
-      }
+      if (effectiveRoot) store.centerOnPerson(effectiveRoot);
     } catch (err) {
+      if (!isCurrent()) return;
       const message = err instanceof Error ? err.message : 'Unknown error';
       setError(message);
       // On error, show empty state rather than stale data
@@ -80,13 +96,13 @@ export function useTreeData(options: UseTreeDataOptions = {}) {
       setFamilies([]);
       setConnectors([]);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [rootId, generations, setNodes, setFamilies, setConnectors, setLoading]);
+  }, [treeRootId, generations, setNodes, setFamilies, setConnectors, setLoading]);
 
   useEffect(() => {
     void fetchTree();
   }, [fetchTree]);
 
-  return { error, refetch: fetchTree, rootId, setRootId };
+  return { error, refetch: fetchTree, rootId: treeRootId };
 }
