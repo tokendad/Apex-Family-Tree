@@ -83,6 +83,15 @@ describe('TreePage — the Depth control', () => {
     expect(useCanvasStore.getState().generations).toBeGreaterThanOrEqual(10);
   });
 
+  it('starts wide enough without waiting for anyone to touch the control', () => {
+    // changeDepth only fires on an interaction, so if the store's default
+    // fell below the floor it enforces, the first load -- the one everybody
+    // sees -- would be drawn from a payload too thin and stop at whoever sat
+    // on its edge. That was the original bug.
+    useCanvasStore.setState(useCanvasStore.getInitialState());
+    expect(useCanvasStore.getState().generations).toBeGreaterThanOrEqual(6);
+  });
+
   it('keeps enough headroom at shallow settings for spouses, who also cost a step', () => {
     renderPage();
     fireEvent.change(screen.getByLabelText('Depth'), { target: { value: '1' } });
