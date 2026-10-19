@@ -104,7 +104,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   hoveredPersonId: null,
   contextMenuPosition: null,
   isLoading: false,
-  generations: 4,
+  /* How deep the tree is fetched, in steps through the family graph. It is
+     not the Depth dropdown -- that one says how many levels to draw, and
+     TreePage.changeDepth keeps this at Math.max(6, depth + 3). The default
+     must already satisfy that floor, or the first load would be drawn from a
+     payload too thin for it and only widen once somebody touched a control. */
+  generations: 6,
   highlightedPersonIds: new Set<string>(),
 
   setNodes: (nodes) => set({ nodes }),
