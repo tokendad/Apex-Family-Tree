@@ -9,8 +9,9 @@ interface ContextMenuProps {
   onAddSpouse?: (personId: string) => void;
   onAddChild?: (personId: string) => void;
   /**
-   * What "View Details" does. The main tree selects the person, which opens
-   * its detail panel; a page without one can navigate instead.
+   * What "View Details" does. The main tree navigates to the person's page;
+   * a page that supplies no handler falls back to selecting the person, which
+   * opens its detail panel.
    */
   onViewDetails?: (personId: string) => void;
   /** Make this person the one the tree opens on. */
