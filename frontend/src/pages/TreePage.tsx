@@ -500,6 +500,7 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
         </>
       )}
       <ContextMenu
+        onViewDetails={(id) => navigate(`/people/${id}`)}
         onEditPerson={openPersonEditor}
         onAddParent={(id) => openPreLinkedWizard(id, 'parent')}
         onAddSpouse={(id) => openPreLinkedWizard(id, 'spouse')}
