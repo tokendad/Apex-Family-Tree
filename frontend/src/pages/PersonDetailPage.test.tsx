@@ -31,7 +31,11 @@ const stubPerson = {
   photo_url: null,
   names: [{ given_name: 'Jane', surname: 'Doe', name_type: 'birth', is_primary: 1 }],
   events: [],
-  notes: [],
+  /* null, not []. persons.notes is a TEXT column -- 245 rows hold text and 112
+     hold NULL, never an array -- and the page types it `string | null`. The
+     old `[]` was truthy, so an empty Notes section rendered for a person who
+     had none; nothing asserted on it, so it went unnoticed. */
+  notes: null,
   sources: [],
 };
 
@@ -137,6 +141,65 @@ function renderPage() {
     </MemoryRouter>
   );
 }
+
+/* Issue #51: research notes on this archive run to thousands of characters --
+   9,274 on the longest -- and the identity header rendered them unclamped,
+   pushing the stats, the tabs and every fact below the fold. */
+describe('PersonDetailPage — research notes (issue #51)', () => {
+  const LONG_NOTE =
+    'HIS NAME IS JOSEPH, AND "PROSPER" IS WITHDRAWN. ' + 'The register says so. '.repeat(200);
+
+  function renderWithNotes() {
+    const spy = vi.spyOn(globalThis, 'fetch' as never) as unknown as ReturnType<typeof vi.fn>;
+    spy.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/connected-objects'))
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+      if (url.includes('/relationships') || url.includes('/media') || url.includes('/sources'))
+        return Promise.resolve({ ok: true, json: async () => [] });
+      return Promise.resolve({ ok: true, json: async () => ({ ...stubPerson, notes: LONG_NOTE }) });
+    });
+    return renderPage();
+  }
+
+  it('keeps the notes out of the identity header', async () => {
+    renderWithNotes();
+    await screen.findByRole('button', { name: /view in tree/i });
+    /* The header is where #51 reported the overflow. Whatever else renders the
+       note, the <h1>'s own section must not. */
+    const header = screen.getByRole('heading', { level: 1 }).closest('header');
+    expect(header).not.toBeNull();
+    expect(header?.textContent ?? '').not.toContain('PROSPER');
+  });
+
+  it('shows a clamped preview on Overview that points at the Research tab', async () => {
+    renderWithNotes();
+    const preview = await screen.findByText(/PROSPER/);
+    /* Clamped by CSS, not truncated in the DOM: find-in-page and screen
+       readers still reach the whole note. */
+    expect(preview.className).toMatch(/notesPreview/);
+    expect(preview.textContent).toBe(LONG_NOTE);
+    expect(screen.getByRole('button', { name: /read all/i })).toBeInTheDocument();
+  });
+
+  it('shows the whole note on the Research tab', async () => {
+    renderWithNotes();
+    await screen.findByRole('button', { name: /view in tree/i });
+    fireEvent.click(screen.getByRole('tab', { name: /research/i }));
+    const heading = await screen.findByRole('heading', { name: 'Research', level: 2 });
+    const section = heading.closest('section');
+    expect(section?.textContent).toContain(LONG_NOTE);
+    /* Unclamped here -- this tab is where the long text belongs. */
+    expect(within(section as HTMLElement).getByText(/PROSPER/).className).not.toMatch(/notesPreview/);
+  });
+
+  it('says so plainly when a person has no research notes', async () => {
+    renderPage();
+    await screen.findByRole('button', { name: /view in tree/i });
+    fireEvent.click(screen.getByRole('tab', { name: /research/i }));
+    expect(await screen.findByText(/no research notes recorded/i)).toBeInTheDocument();
+  });
+});
 
 describe('PersonDetailPage — archive layout', () => {
   it('renders View in Tree in the identity header and no sidebar', async () => {

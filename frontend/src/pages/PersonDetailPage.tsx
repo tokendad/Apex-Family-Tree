@@ -131,8 +131,11 @@ interface MediaItem {
   filename?: string;
   file_name?: string;
   media_type?: string;
+  mime_type?: string;
   url?: string;
   thumbnail_url?: string;
+  /** 1 on the one photograph the tree shows for this person, 0 on the rest. */
+  is_primary?: number;
 }
 
 interface ConnectedObject {
@@ -313,6 +316,9 @@ const PersonDetailPage: React.FC = () => {
   // ── Media ──
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [mediaLoading, setMediaLoading] = useState(true);
+  /* The portrait request in flight, by media id, so one card can show "Saving"
+     without disabling the others. Null when nothing is pending. */
+  const [portraitSaving, setPortraitSaving] = useState<string | null>(null);
 
   // ── Archive connections ──
   const [connectedObjects, setConnectedObjects] = useState<ConnectedObject[]>([]);
@@ -386,6 +392,41 @@ const PersonDetailPage: React.FC = () => {
       setMediaLoading(false);
     }
   }, [id]);
+
+  /**
+   * Choose the photograph the tree shows for this person, or clear the choice
+   * by passing null.
+   *
+   * Nothing falls back: a person with no portrait chosen shows no face in the
+   * tree, which is intended. The first photograph on a person is as likely to
+   * be a census sheet or a death certificate as a likeness, and guessing is
+   * worse than leaving the node blank.
+   */
+  const handleSetPortrait = useCallback(
+    async (mediaId: string | null) => {
+      if (!id) return;
+      setPortraitSaving(mediaId ?? 'clear');
+      try {
+        const res = await fetch(`/api/v1/media/people/${id}/portrait`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ media_id: mediaId }),
+        });
+        if (res.ok) {
+          // Re-fetched rather than patched locally: is_primary is a property of
+          // the link, and the server has just moved it off whichever row used
+          // to hold it. Guessing which that was here would drift.
+          await fetchMedia();
+        }
+      } catch {
+        // Non-critical — the flag simply stays where it was.
+      } finally {
+        setPortraitSaving(null);
+      }
+    },
+    [id, fetchMedia],
+  );
 
   const fetchConnectedObjects = useCallback(async () => {
     if (!id) return;
@@ -684,7 +725,12 @@ const PersonDetailPage: React.FC = () => {
             SEX_LABELS[person.sex],
             person.is_private === 1 ? 'Private' : null,
           ].filter(Boolean).join(' • ')}
-          summary={person.notes}
+          /* NOT person.notes -- see issue #51. The header renders its summary
+             unclamped, and research notes on this archive run to thousands of
+             characters (9,274 on the longest), which pushed the stats, the tabs
+             and every fact below the fold. The notes now live on the Research
+             tab, with a clamped preview on Overview. */
+          summary={null}
           avatar={<span>{initialsFromName(displayTitle)}</span>}
           headerAction={(
             <Button variant="secondary" onClick={() => navigate('/')}>View in Tree</Button>
@@ -704,6 +750,7 @@ const PersonDetailPage: React.FC = () => {
             { id: 'stories', label: 'Stories', count: connectedStories.length },
             { id: 'collections', label: 'Collections', count: memberOf.length },
             { id: 'family', label: 'Family', count: relationships.length },
+            { id: 'research', label: 'Research' },
             { id: 'claims', label: 'Claims' },
           ]}
           activeTab={activeTab}
@@ -872,13 +919,21 @@ const PersonDetailPage: React.FC = () => {
               )}
             </section>
 
-            {/* ── Notes (read-only; shown when content exists) ── */}
+            {/* ── Research (preview; the full text is on the Research tab) ── */}
             {person.notes && (
               <section className={styles.section} aria-labelledby="notes-heading">
-                <h2 className={styles.sectionTitle} id="notes-heading">
-                  Notes
-                </h2>
-                <p className={styles.notesText}>{person.notes}</p>
+                <div className={styles.sectionHeader}>
+                  <h2 className={styles.sectionTitle} id="notes-heading">
+                    Research
+                  </h2>
+                  <Button variant="ghost" size="sm" onClick={() => setActiveTab('research')}>
+                    Read all
+                  </Button>
+                </div>
+                {/* Clamped to a few lines. The clamp is CSS, so the whole note
+                    is still in the DOM for find-in-page and for screen readers
+                    that ignore overflow. */}
+                <p className={`${styles.notesText} ${styles.notesPreview}`}>{person.notes}</p>
               </section>
             )}
             </div>
@@ -1129,20 +1184,51 @@ const PersonDetailPage: React.FC = () => {
                 <p className={styles.noInfo}>No artifacts connected to this person yet.</p>
               ) : (
                 <div className={styles.cardGrid}>
-                  {personArtifacts.map((artifact) => (
-                    <ArtifactCard
-                      key={artifact.id}
-                      href={`/artifacts/${artifact.id}`}
-                      title={artifact.title}
-                      subtitle={artifact.subtitle}
-                      typeName={artifact.typeName}
-                      /* The endpoint serves the generated thumbnail where one
-                         exists and the original where it does not. No
-                         thumbnail_url fallback: nothing in the backend has
-                         ever populated that field. */
-                      imageSrc={artifact.media ? `/api/v1/media/${artifact.media.id}/thumbnail` : null}
-                    />
-                  ))}
+                  {personArtifacts.map((artifact) => {
+                    /* The control is offered only on a photograph the tree
+                       could actually draw. A PDF is excluded deliberately:
+                       libvips here carries no poppler, so a PDF never gets a
+                       thumbnail, and choosing one as a portrait sets a flag
+                       that leaves the node as blank as before. That is the
+                       exact trap this control exists to close, not to
+                       reproduce. */
+                    const m = artifact.media;
+                    const canBePortrait = Boolean(m && m.mime_type?.startsWith('image/'));
+                    const isPortrait = Boolean(m?.is_primary);
+                    const saving = portraitSaving === m?.id || (isPortrait && portraitSaving === 'clear');
+
+                    return (
+                      <ArtifactCard
+                        key={artifact.id}
+                        href={`/artifacts/${artifact.id}`}
+                        title={artifact.title}
+                        subtitle={artifact.subtitle}
+                        typeName={artifact.typeName}
+                        /* The endpoint serves the generated thumbnail where one
+                           exists and the original where it does not. No
+                           thumbnail_url fallback: nothing in the backend has
+                           ever populated that field. */
+                        imageSrc={m ? `/api/v1/media/${m.id}/thumbnail` : null}
+                        action={
+                          canBePortrait && m ? (
+                            <button
+                              type="button"
+                              className={isPortrait ? styles.portraitButtonOn : styles.portraitButton}
+                              disabled={saving}
+                              aria-pressed={isPortrait}
+                              onClick={() => handleSetPortrait(isPortrait ? null : m.id)}
+                            >
+                              {saving
+                                ? 'Saving…'
+                                : isPortrait
+                                  ? '★ Portrait — click to clear'
+                                  : 'Set as portrait'}
+                            </button>
+                          ) : null
+                        }
+                      />
+                    );
+                  })}
                 </div>
               )}
             </section>
@@ -1191,6 +1277,19 @@ const PersonDetailPage: React.FC = () => {
                 canDelete={canDelete}
                 onChange={setMemberOf}
               />
+            </section>
+          )}
+
+          {activeTab === 'research' && (
+            <section className={styles.section} aria-labelledby="research-heading">
+              <h2 className={styles.sectionTitle} id="research-heading">Research</h2>
+              {person.notes ? (
+                <p className={styles.notesText}>{person.notes}</p>
+              ) : (
+                <p className={styles.noInfo}>
+                  No research notes recorded for {displayTitle} yet.
+                </p>
+              )}
             </section>
           )}
 

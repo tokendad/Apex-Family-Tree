@@ -86,8 +86,12 @@ export class MediaRepository extends BaseRepository {
   }
 
   findByPerson(personId: string): MediaItem[] {
+    /* is_primary is selected, not just sorted on: it is the flag the tree
+       reads for a person's portrait, and without it on the wire no caller can
+       show which photograph is currently chosen -- only guess from the order,
+       which is wrong as soon as nothing is chosen at all. */
     return this.db.prepare(
-      `SELECT mi.* FROM media_items mi
+      `SELECT mi.*, pm.is_primary FROM media_items mi
        INNER JOIN person_media pm ON mi.id = pm.media_id
        WHERE pm.person_id = ?
        ORDER BY pm.is_primary DESC, pm.sort_order ASC`
@@ -674,8 +678,19 @@ export class MediaRepository extends BaseRepository {
         'SELECT COALESCE(MAX(sort_order), -1) + 1 as next FROM person_media WHERE person_id = ?'
       ).get(personId) as { next: number };
 
+      /* An UPSERT, not INSERT OR IGNORE. The link usually already exists --
+         every photograph filed by a migration is linked before anyone thinks
+         about which one is the portrait -- and under OR IGNORE this whole
+         method became a way to DELETE a portrait: the UPDATE above cleared
+         every flag, the insert was ignored because (person_id, media_id) is
+         the primary key, and the person was left with no primary at all.
+         ON CONFLICT promotes the existing row instead. sort_order is left
+         alone on conflict so re-flagging a photo does not reorder a gallery
+         somebody arranged. */
       this.db.prepare(
-        'INSERT OR IGNORE INTO person_media (person_id, media_id, is_primary, sort_order, created_at) VALUES (?, ?, ?, ?, ?)'
+        `INSERT INTO person_media (person_id, media_id, is_primary, sort_order, created_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(person_id, media_id) DO UPDATE SET is_primary = excluded.is_primary`
       ).run(personId, mediaId, isPrimary ? 1 : 0, maxOrder.next, this.now());
 
       this.syncAppearsIn(mediaId, personId, maxOrder.next);
@@ -686,6 +701,43 @@ export class MediaRepository extends BaseRepository {
     });
 
     return link();
+  }
+
+  /**
+   * Choose the photograph the tree shows for a person, or clear the choice.
+   *
+   * A person has at most one portrait: the single person_media row carrying
+   * is_primary = 1, which is what TreeRepository joins on. Passing null
+   * leaves the person with none, which is a real and deliberate state --
+   * nothing falls back to "the first photo", because the first photo is as
+   * likely to be a census sheet or a death certificate as a face.
+   *
+   * The media must ALREADY be linked to the person. This method chooses among
+   * a person's photographs; it does not tag them. Returns false if the media
+   * is not one of theirs, so the caller can answer 400 rather than silently
+   * doing nothing.
+   */
+  setPortrait(personId: string, mediaId: string | null): boolean {
+    const choose = this.db.transaction(() => {
+      if (mediaId !== null) {
+        const linked = this.db.prepare(
+          'SELECT 1 FROM person_media WHERE person_id = ? AND media_id = ?'
+        ).get(personId, mediaId);
+        if (!linked) return false;
+      }
+
+      this.db.prepare('UPDATE person_media SET is_primary = 0 WHERE person_id = ?').run(personId);
+
+      if (mediaId !== null) {
+        this.db.prepare(
+          'UPDATE person_media SET is_primary = 1 WHERE person_id = ? AND media_id = ?'
+        ).run(personId, mediaId);
+      }
+
+      return true;
+    });
+
+    return choose();
   }
 
   unlinkFromPerson(mediaId: string, personId: string): boolean {

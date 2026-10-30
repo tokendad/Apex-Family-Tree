@@ -531,6 +531,18 @@
   word-break: break-word;
 }
 
+/* Issue #51: research notes here run to thousands of characters, so the
+   Overview shows the opening and sends the reader to the Research tab. The
+   clamp is presentational only -- the full text stays in the DOM, so
+   find-in-page and screen readers still reach all of it. */
+.notesPreview {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
+
 /* ── Events timeline ─────────────────────────────────────────────────────── */
 
 .eventsList {
@@ -918,4 +930,41 @@
 .eventType:focus-visible {
   color: var(--color-primary-600);
   text-decoration: underline;
+}
+
+/* "Set as portrait" under an artifact card. Quiet by default -- it sits under
+   every photograph on the tab and must not compete with the cards themselves
+   -- and filled once chosen, because the one that IS the portrait is the only
+   state worth spotting from across the page. */
+.portraitButton,
+.portraitButtonOn {
+  font: inherit;
+  font-size: var(--font-size-sm);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  border: 1px solid var(--color-border-warm);
+  transition: background 0.14s ease, color 0.14s ease;
+}
+
+.portraitButton {
+  background: var(--color-bg-primary);
+  color: var(--color-text-secondary);
+}
+
+.portraitButton:hover:not(:disabled) {
+  color: var(--color-text-primary);
+  border-color: var(--color-primary-800);
+}
+
+.portraitButtonOn {
+  background: var(--color-primary-800);
+  color: #fff;
+  border-color: var(--color-primary-800);
+}
+
+.portraitButton:disabled,
+.portraitButtonOn:disabled {
+  opacity: 0.6;
+  cursor: progress;
 }
