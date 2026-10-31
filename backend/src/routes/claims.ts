@@ -66,6 +66,16 @@ claimsRouter.get('/evidence/:objectId', (req, res) => {
   }
 });
 
+/* Registered above '/:id' so the two-segment path is not read as a claim id. */
+claimsRouter.get('/subject/:objectId', (req, res) => {
+  try {
+    const repo = new ClaimRepository();
+    res.json({ data: repo.findClaimsForSubject(paramStr(req.params.objectId)) });
+  } catch {
+    res.status(500).json({ error: 'Failed to list claims for subject' });
+  }
+});
+
 claimsRouter.get('/', (req, res) => {
   try {
     const repo = new ClaimRepository();

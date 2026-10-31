@@ -29,6 +29,14 @@ export interface ClaimRecord {
   evidence_count: number;
 }
 
+/* The person page needs the evidence split by role, not just a total: a claim
+   backed by four records with one against it is the case this feature exists
+   for, and "5 evidence links" cannot say that. See issue #52. */
+export interface ClaimForSubjectRecord extends ClaimRecord {
+  supporting_count: number;
+  contradicting_count: number;
+}
+
 export interface ClaimSubjectRecord {
   id: string;
   claim_id: string;

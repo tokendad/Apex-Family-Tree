@@ -41,6 +41,22 @@
   --color-error: #ef4444;
   --color-info: #3b82f6;
 
+  /* Colors — Confidence levels (issue #52)
+     One fill per row of confidence_levels, ordered by the numeric value the
+     table already carries. These are FILLS, not text colors: at these
+     saturations none of them is legible as text on this background, but all
+     six clear WCAG AA for body text under --color-confidence-ink. Disputed
+     reuses accent-400, which was already here. Teal is deliberately absent --
+     it is the app's link and button color, so a teal pill would read as
+     clickable. */
+  --color-confidence-confirmed: #60a5fa;
+  --color-confidence-probable: #4ade80;
+  --color-confidence-disputed: var(--color-accent-400);
+  --color-confidence-possible: #fb923c;
+  --color-confidence-rejected: #f87171;
+  --color-confidence-unknown: #d6d3d1;
+  --color-confidence-ink: var(--color-gray-900);
+
   /* Colors — Background */
   --color-bg-primary: #ffffff;
   --color-bg-secondary: var(--color-gray-50);

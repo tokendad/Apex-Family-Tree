@@ -4,6 +4,7 @@ import { decodeUpdatedAtCursor, encodeUpdatedAtCursor } from '../utils/cursor.js
 import type {
   AddClaimEvidenceInput,
   ClaimEvidenceRecord,
+  ClaimForSubjectRecord,
   ClaimRecord,
   ClaimSubjectRecord,
   ConfidenceLevelRecord,
@@ -208,6 +209,29 @@ export class ClaimRepository extends BaseRepository {
        GROUP BY c.id
        ORDER BY ao.updated_at DESC, ao.id ASC`,
     ).all(evidenceObjectId) as ClaimRecord[];
+  }
+
+  /* Claims about one archive object, however they were attached: claims carry a
+     single subject_object_id, and claim_subjects carries the rest, so a claim
+     reached only through the join table must appear here too. */
+  findClaimsForSubject(subjectObjectId: string): ClaimForSubjectRecord[] {
+    return this.db.prepare(
+      `SELECT ao.*, c.*, cl.name AS confidence_level_name, subj.title AS subject_title,
+              COUNT(ce.id) AS evidence_count,
+              SUM(CASE WHEN ce.evidence_role = 'supports' THEN 1 ELSE 0 END) AS supporting_count,
+              SUM(CASE WHEN ce.evidence_role = 'contradicts' THEN 1 ELSE 0 END) AS contradicting_count
+       FROM claims c
+       INNER JOIN archive_objects ao ON ao.id = c.id
+       LEFT JOIN confidence_levels cl ON cl.id = c.confidence_level_id
+       LEFT JOIN archive_objects subj ON subj.id = c.subject_object_id
+       LEFT JOIN claim_evidence ce ON ce.claim_id = c.id
+       WHERE ao.is_deleted = 0
+         AND (c.subject_object_id = ?
+              OR EXISTS (SELECT 1 FROM claim_subjects cs
+                          WHERE cs.claim_id = c.id AND cs.subject_object_id = ?))
+       GROUP BY c.id
+       ORDER BY ao.updated_at DESC, ao.id ASC`,
+    ).all(subjectObjectId, subjectObjectId) as ClaimForSubjectRecord[];
   }
 
   addEvidence(claimId: string, data: AddClaimEvidenceInput): ClaimEvidenceRecord {

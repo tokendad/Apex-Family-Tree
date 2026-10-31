@@ -192,4 +192,66 @@ describe('ClaimRepository', () => {
     expect(page3.data.map(c => c.id)).toEqual([idOldest]);
     expect(page3.next_cursor).toBeNull();
   });
+
+  describe('findClaimsForSubject', () => {
+    it('splits the evidence tally by role', () => {
+      const repo = new ClaimRepository();
+      const claim = repo.create({
+        statement: 'Grandpa served in World War II.',
+        subject_object_id: 'person-1',
+        confidence_level_id: 'confidence_confirmed',
+        status: 'conflicted',
+      });
+      repo.addEvidence(claim.id, { evidence_object_id: 'artifact-1', evidence_role: 'supports' });
+      repo.addEvidence(claim.id, { evidence_object_id: 'artifact-1', evidence_role: 'contradicts' });
+      repo.addEvidence(claim.id, { evidence_object_id: 'artifact-1', evidence_role: 'mentions' });
+
+      const [found] = repo.findClaimsForSubject('person-1');
+
+      // The whole point of the split: "3 evidence links" cannot say that one
+      // of the three disagrees, and a Confirmed claim over conflicting
+      // records is the case the feature exists for.
+      expect(found).toMatchObject({
+        id: claim.id,
+        confidence_level_name: 'Confirmed',
+        status: 'conflicted',
+        evidence_count: 3,
+        supporting_count: 1,
+        contradicting_count: 1,
+      });
+    });
+
+    it('finds a claim attached only through claim_subjects', () => {
+      const repo = new ClaimRepository();
+      const claim = repo.create({ statement: 'The family lived in Paris.', subject_object_id: 'place-1' });
+      repo.addSubject(claim.id, 'person-1', 'subject');
+
+      expect(repo.findClaimsForSubject('person-1').map(c => c.id)).toEqual([claim.id]);
+      // subject_object_id still finds it too, so neither path shadows the other.
+      expect(repo.findClaimsForSubject('place-1').map(c => c.id)).toEqual([claim.id]);
+    });
+
+    it('reports no claims for a person who has none, and skips deleted ones', () => {
+      const repo = new ClaimRepository();
+      expect(repo.findClaimsForSubject('person-1')).toEqual([]);
+
+      const claim = repo.create({ statement: 'Grandpa served in World War II.', subject_object_id: 'person-1' });
+      expect(repo.findClaimsForSubject('person-1')).toHaveLength(1);
+
+      repo.delete(claim.id);
+      expect(repo.findClaimsForSubject('person-1')).toEqual([]);
+    });
+
+    it('returns a claim with no evidence as zero on both counts, not null', () => {
+      const repo = new ClaimRepository();
+      repo.create({ statement: 'Grandpa served in World War II.', subject_object_id: 'person-1' });
+
+      // SUM() over no rows is NULL in SQLite; the person page renders these
+      // numbers directly, so a null would reach the UI as "null support".
+      const [found] = repo.findClaimsForSubject('person-1');
+      expect(found.evidence_count).toBe(0);
+      expect(found.supporting_count).toBe(0);
+      expect(found.contradicting_count).toBe(0);
+    });
+  });
 });
