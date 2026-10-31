@@ -54,7 +54,8 @@ function seedDB(database: Database.Database) {
       confidence_level_id TEXT REFERENCES confidence_levels(id),
       confidence_score INTEGER CHECK (confidence_score IS NULL OR confidence_score BETWEEN 0 AND 100),
       status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'supported', 'conflicted', 'rejected', 'unknown')),
-      notes TEXT
+      notes TEXT,
+      research_section TEXT
     );
     CREATE TABLE claim_subjects (
       id TEXT PRIMARY KEY,
@@ -191,6 +192,53 @@ describe('ClaimRepository', () => {
     const page3 = repo.findAll({ limit: 1, cursor: page2.next_cursor! });
     expect(page3.data.map(c => c.id)).toEqual([idOldest]);
     expect(page3.next_cursor).toBeNull();
+  });
+
+  describe('research_section (#52)', () => {
+    it('stores and returns the slug of the passage that argues the claim', () => {
+      const repo = new ClaimRepository();
+      const claim = repo.create({
+        statement: 'Grandpa served in World War II.',
+        subject_object_id: 'person-1',
+        research_section: 'note-his-service-is-on-the-discharge',
+      });
+
+      expect(claim.research_section).toBe('note-his-service-is-on-the-discharge');
+      expect(repo.findById(claim.id)?.research_section).toBe('note-his-service-is-on-the-discharge');
+      expect(repo.findClaimsForSubject('person-1')[0].research_section)
+        .toBe('note-his-service-is-on-the-discharge');
+    });
+
+    it('defaults to no anchor, which is a working state and not missing data', () => {
+      const repo = new ClaimRepository();
+      const claim = repo.create({ statement: 'Grandpa served in World War II.', subject_object_id: 'person-1' });
+      expect(claim.research_section).toBeNull();
+    });
+
+    it('can be set and cleared by an update', () => {
+      const repo = new ClaimRepository();
+      const claim = repo.create({ statement: 'Grandpa served in World War II.', subject_object_id: 'person-1' });
+
+      expect(repo.update(claim.id, { research_section: 'note-the-discharge-record' })?.research_section)
+        .toBe('note-the-discharge-record');
+
+      /* Clearing matters: the passage may be rewritten away, and a claim
+         pointing at a slug that no longer exists should be able to let go. */
+      expect(repo.update(claim.id, { research_section: null })?.research_section).toBeNull();
+    });
+
+    it('leaves the anchor alone when an update does not mention it', () => {
+      const repo = new ClaimRepository();
+      const claim = repo.create({
+        statement: 'Grandpa served in World War II.',
+        subject_object_id: 'person-1',
+        research_section: 'note-the-discharge-record',
+      });
+
+      const updated = repo.update(claim.id, { status: 'supported' });
+      expect(updated?.status).toBe('supported');
+      expect(updated?.research_section).toBe('note-the-discharge-record');
+    });
   });
 
   describe('findClaimsForSubject', () => {

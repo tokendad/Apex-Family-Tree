@@ -96,8 +96,8 @@ export class ClaimRepository extends BaseRepository {
       this.db.prepare(
         `INSERT INTO claims (
           id, statement, claim_type, subject_object_id, date_text, date_start, date_end,
-          confidence_level_id, confidence_score, status, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          confidence_level_id, confidence_score, status, notes, research_section
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         archiveObject.id,
         data.statement,
@@ -110,6 +110,7 @@ export class ClaimRepository extends BaseRepository {
         data.confidence_score ?? null,
         data.status ?? 'open',
         data.notes ?? null,
+        data.research_section ?? null,
       );
 
       if (data.subject_object_id) {
@@ -137,7 +138,7 @@ export class ClaimRepository extends BaseRepository {
       const values: unknown[] = [];
       for (const key of [
         'statement', 'claim_type', 'subject_object_id', 'date_text', 'date_start', 'date_end',
-        'confidence_level_id', 'confidence_score', 'status', 'notes',
+        'confidence_level_id', 'confidence_score', 'status', 'notes', 'research_section',
       ] as const) {
         if (data[key] !== undefined) {
           fields.push(`${key} = ?`);

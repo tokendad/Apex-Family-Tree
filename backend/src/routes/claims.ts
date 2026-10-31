@@ -45,6 +45,7 @@ function claimBody(body: Record<string, unknown>) {
     confidence_score: numberOptional(body.confidence_score),
     status: typeof body.status === 'string' ? body.status as ClaimStatus : undefined,
     notes: cleanOptional(body.notes),
+    research_section: cleanOptional(body.research_section),
   };
 }
 

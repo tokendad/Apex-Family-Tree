@@ -24,6 +24,9 @@ export interface ClaimRecord {
   confidence_score: number | null;
   status: ClaimStatus;
   notes: string | null;
+  /* Slug of the research-note passage that argues this claim (#52). Derived
+     from the note's own headings, so it can dangle: nothing constrains it. */
+  research_section: string | null;
   confidence_level_name: string | null;
   subject_title: string | null;
   evidence_count: number;
@@ -87,6 +90,7 @@ export interface CreateClaimInput {
   confidence_score?: number | null;
   status?: ClaimStatus;
   notes?: string | null;
+  research_section?: string | null;
   created_by?: string | null;
 }
 

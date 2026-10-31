@@ -1,0 +1,36 @@
+-- Add claims.research_section: the slug of the research-note passage that
+-- argues this claim.
+--
+-- Issue #52. A claim row can record THAT Celanire's father is Joseph with
+-- confidence 95. It cannot record WHY -- that four independent records say
+-- Joseph and the single act saying Prosper is wrong in two separate fields.
+-- That argument is the most valuable content in this archive and it does not
+-- survive being flattened into an enum, so the claim points at the prose
+-- instead of replacing it. This column is the pointer.
+--
+-- It holds a SLUG, not an offset and not a copy of the text. The slugs are
+-- derived at read time from the note's own capitalised opening sentences --
+-- "HER FATHER'S NAME WAS NEVER IN DOUBT AFTER ALL." becomes
+-- note-her-fathers-name-was-never-in-doubt-after-all -- a convention already
+-- present in 245 people's notes rather than one imposed on them.
+--
+-- WHY NOT A PARAGRAPH INDEX. It was the obvious design and it is wrong here.
+-- Migrations in this archive rewrite whole notes strings: 160 does a full
+-- SET notes = '...', and 156 appends with COALESCE(notes || ...). Any stored
+-- index would shift underneath every claim that pointed past the edit, and a
+-- claim citing the wrong paragraph is worse than one citing none -- it would
+-- look right. A slug breaks loudly instead: the passage is either there or the
+-- reader is told it has been rewritten.
+--
+-- NO FOREIGN KEY IS POSSIBLE. The sections are not rows; they are read off
+-- persons.notes when the page renders. So this column cannot be constrained,
+-- and a slug may dangle. That is handled in the UI, which says the linked
+-- passage is no longer in the note and shows the whole note, rather than
+-- scrolling the reader to a passage the claim did not mean.
+--
+-- NULL means the claim has no anchor, which stays the common case: the
+-- reasoning may live on another person's note, or not be written down yet.
+-- Those claims link to the note's top instead, so NULL is a working state and
+-- not missing data.
+
+ALTER TABLE claims ADD COLUMN research_section TEXT;
