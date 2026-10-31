@@ -15,6 +15,14 @@ interface ArtifactCardProps {
    * case: the endpoint serves the original instead.
    */
   imageSrc?: string | null;
+  /**
+   * An optional control rendered beneath the card -- "Set as portrait" and the
+   * like. It is deliberately NOT inside the Link: a <button> nested in an <a>
+   * is invalid HTML, and every click on it would navigate away before the
+   * handler could do anything. The card and the control are siblings, and the
+   * wrapper only appears when there is a control to put in it.
+   */
+  action?: React.ReactNode;
 }
 
 const GLYPHS: Array<[RegExp, string]> = [
@@ -31,11 +39,11 @@ function glyphFor(typeName?: string | null): string {
   return '▤';
 }
 
-const ArtifactCard: React.FC<ArtifactCardProps> = ({ href, title, subtitle, typeName, imageSrc }) => {
+const ArtifactCard: React.FC<ArtifactCardProps> = ({ href, title, subtitle, typeName, imageSrc, action }) => {
   const [imgFailed, setImgFailed] = useState(false);
   const showImage = Boolean(imageSrc) && !imgFailed;
 
-  return (
+  const card = (
     <Link to={href} className={styles.card}>
       <div
         className={showImage ? `${styles.thumb} ${styles.thumbImage}` : styles.thumb}
@@ -58,6 +66,15 @@ const ArtifactCard: React.FC<ArtifactCardProps> = ({ href, title, subtitle, type
         {subtitle && <span>{subtitle}</span>}
       </div>
     </Link>
+  );
+
+  if (!action) return card;
+
+  return (
+    <div className={styles.cardWithAction}>
+      {card}
+      <div className={styles.cardAction}>{action}</div>
+    </div>
   );
 };
 

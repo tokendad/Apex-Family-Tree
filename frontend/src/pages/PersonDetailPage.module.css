@@ -522,6 +522,192 @@
 
 /* ── Notes text ──────────────────────────────────────────────────────────── */
 
+/* ── Research note sections (#52) ──
+   The headings are read off the prose, which already opens its paragraphs with
+   a capitalised sentence; nothing here is stored. */
+.noteToc {
+  border: 1px solid var(--color-border-warm);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg-app);
+  padding: var(--space-4) var(--space-5);
+  margin-bottom: var(--space-6);
+}
+
+.noteTocLabel {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-2);
+}
+
+.noteToc ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.noteToc a {
+  font-size: var(--font-size-sm);
+  color: var(--color-primary-700);
+  text-decoration: none;
+}
+
+.noteToc a:hover {
+  text-decoration: underline;
+}
+
+.noteBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.noteSection {
+  /* Anchored from a claim and from the contents list; without this the heading
+     lands under the top of the scroll container. */
+  scroll-margin-top: var(--space-6);
+}
+
+/* The arrival marker is deliberately neutral: it means "you came from a claim",
+   so it must not borrow a colour from the confidence scale, or a Disputed
+   claim's link would arrive in yellow. */
+.noteSection[data-linked='true'] {
+  background-color: var(--color-gray-50);
+  outline: 2px solid var(--color-gray-400);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+}
+
+.linkedFlag {
+  display: inline-block;
+  font-size: var(--font-size-2xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-inverse);
+  background-color: var(--color-gray-600);
+  border-radius: var(--radius-full);
+  padding: var(--space-1) var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.noteHeading {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-normal);
+  letter-spacing: 0.01em;
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-primary);
+}
+
+.anchorLost {
+  font-size: var(--font-size-sm);
+  color: var(--color-accent-800);
+  background-color: var(--color-accent-50);
+  border: 1px solid var(--color-accent-200);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  margin: 0 0 var(--space-5);
+}
+
+/* ── Claims (#52) ── */
+.claimsLede {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-relaxed);
+  margin: 0 0 var(--space-5);
+  max-width: 70ch;
+}
+
+.claimList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.claimCard {
+  border: 1px solid var(--color-border-warm);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+  background-color: var(--color-surface);
+}
+
+.claimType {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-2);
+}
+
+.claimStatement {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-normal);
+  margin: 0 0 var(--space-3);
+}
+
+.claimStatement a {
+  color: var(--color-text-primary);
+  text-decoration: none;
+}
+
+.claimStatement a:hover {
+  text-decoration: underline;
+}
+
+.claimMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: center;
+}
+
+/* A filled pill is the confidence level. The fills are deliberately not text
+   colours: at these saturations none of them is legible as text, but all six
+   clear WCAG AA under --color-confidence-ink. The level's name and number are
+   always inside the pill, so colour is never the only signal. */
+.confidencePill {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-confidence-ink);
+  background-color: var(--color-confidence-unknown);
+  border-radius: var(--radius-full);
+  padding: var(--space-1) var(--space-3);
+  white-space: nowrap;
+}
+
+.confidencePill[data-confidence='confirmed'] { background-color: var(--color-confidence-confirmed); }
+.confidencePill[data-confidence='probable'] { background-color: var(--color-confidence-probable); }
+.confidencePill[data-confidence='disputed'] { background-color: var(--color-confidence-disputed); }
+.confidencePill[data-confidence='possible'] { background-color: var(--color-confidence-possible); }
+.confidencePill[data-confidence='rejected'] { background-color: var(--color-confidence-rejected); }
+
+/* An outline chip is the state of the records, not of the conclusion. Outline
+   rather than filled so it cannot be mistaken for a confidence grade -- yellow
+   belongs to Disputed, and an amber status chip would have collided with it. */
+.statusChip {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-gray-700);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-gray-400);
+  border-radius: var(--radius-full);
+  padding: calc(var(--space-1) - 1px) var(--space-3);
+  white-space: nowrap;
+}
+
+.evidenceTally {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
 .notesText {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
@@ -529,6 +715,18 @@
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Issue #51: research notes here run to thousands of characters, so the
+   Overview shows the opening and sends the reader to the Research tab. The
+   clamp is presentational only -- the full text stays in the DOM, so
+   find-in-page and screen readers still reach all of it. */
+.notesPreview {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
 }
 
 /* ── Events timeline ─────────────────────────────────────────────────────── */
@@ -918,4 +1116,78 @@
 .eventType:focus-visible {
   color: var(--color-primary-600);
   text-decoration: underline;
+}
+
+/* "Set as portrait" under an artifact card. Quiet by default -- it sits under
+   every photograph on the tab and must not compete with the cards themselves
+   -- and filled once chosen, because the one that IS the portrait is the only
+   state worth spotting from across the page. */
+.portraitButton,
+.portraitButtonOn {
+  font: inherit;
+  font-size: var(--font-size-sm);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  border: 1px solid var(--color-border-warm);
+  transition: background 0.14s ease, color 0.14s ease;
+}
+
+.portraitButton {
+  background: var(--color-bg-primary);
+  color: var(--color-text-secondary);
+}
+
+.portraitButton:hover:not(:disabled) {
+  color: var(--color-text-primary);
+  border-color: var(--color-primary-800);
+}
+
+.portraitButtonOn {
+  background: var(--color-primary-800);
+  color: #fff;
+  border-color: var(--color-primary-800);
+}
+
+.portraitButton:disabled,
+.portraitButtonOn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* ── Claim card footer (#52) ── */
+.claimFooter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  align-items: baseline;
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-bg-tertiary);
+}
+
+.argumentLink,
+.argumentLinkButton {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-primary-700);
+  text-decoration: none;
+}
+
+.argumentLinkButton {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.argumentLink:hover,
+.argumentLinkButton:hover {
+  text-decoration: underline;
+}
+
+.argumentHint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
 }

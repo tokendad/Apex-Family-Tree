@@ -691,6 +691,60 @@ mediaRouter.get('/families/:id/media', (req, res) => {
   }
 });
 
+// PUT /people/:id/portrait — Choose (or clear) the photograph the tree shows
+//
+// Separate from the link routes on purpose. Linking says "this person is in
+// this photograph"; this says "and that is the one to show". Overloading the
+// link endpoint is what let a re-flag silently clear a portrait, and keeping
+// them apart means this route can refuse a media the person is not linked to
+// instead of quietly tagging them.
+mediaRouter.put(
+  '/people/:id/portrait',
+  requireRole('admin', 'editor', 'limited_editor'),
+  (req, res) => {
+    try {
+      const personRepo = new PersonRepository();
+      const mediaRepo = new MediaRepository();
+
+      const personId = paramStr(req.params.id);
+      const person = personRepo.findById(personId);
+      if (!person) {
+        res.status(404).json({ error: 'Person not found' });
+        return;
+      }
+
+      /* Undefined and null mean different things here. An absent media_id is
+         a malformed request; an explicit null is "clear the portrait", which
+         is a thing a person is allowed to want. */
+      const raw = (req.body ?? {}).media_id;
+      if (raw === undefined) {
+        res.status(400).json({ error: 'media_id is required (use null to clear the portrait)' });
+        return;
+      }
+
+      const mediaId = raw === null ? null : paramStr(raw);
+
+      if (mediaId !== null) {
+        const media = mediaRepo.findById(mediaId);
+        if (!media) {
+          res.status(404).json({ error: 'Media not found' });
+          return;
+        }
+      }
+
+      const chosen = mediaRepo.setPortrait(personId, mediaId);
+      if (!chosen) {
+        res.status(400).json({ error: 'That media is not linked to this person' });
+        return;
+      }
+
+      res.json({ person_id: personId, media_id: mediaId });
+    } catch {
+      res.status(500).json({ error: 'Failed to set portrait' });
+    }
+  },
+);
+
 // POST /people/:id/media — Link media to person
 mediaRouter.post(
   '/people/:id/media',

@@ -31,7 +31,11 @@ const stubPerson = {
   photo_url: null,
   names: [{ given_name: 'Jane', surname: 'Doe', name_type: 'birth', is_primary: 1 }],
   events: [],
-  notes: [],
+  /* null, not []. persons.notes is a TEXT column -- 245 rows hold text and 112
+     hold NULL, never an array -- and the page types it `string | null`. The
+     old `[]` was truthy, so an empty Notes section rendered for a person who
+     had none; nothing asserted on it, so it went unnoticed. */
+  notes: null,
   sources: [],
 };
 
@@ -91,6 +95,9 @@ beforeEach(() => {
     if (url.includes('/collections/for-object/')) {
       return Promise.resolve({ ok: true, json: async () => ({ data: stubCollectionMembership }) });
     }
+    if (url.includes('/claims/subject/')) {
+      return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+    }
     if (url.includes('/connected')) {
       return Promise.resolve({ ok: true, json: async () => ({ data: stubConnectedObjects }) });
     }
@@ -125,9 +132,9 @@ function TestChrome() {
   return <ContextActionsMenu title={title || undefined} actions={actions} />;
 }
 
-function renderPage() {
+function renderPage(entry = '/people/per-1') {
   return render(
-    <MemoryRouter initialEntries={['/people/per-1']}>
+    <MemoryRouter initialEntries={[entry]}>
       <PageActionsProvider>
         <TestChrome />
         <Routes>
@@ -137,6 +144,70 @@ function renderPage() {
     </MemoryRouter>
   );
 }
+
+/* Issue #51: research notes on this archive run to thousands of characters --
+   9,274 on the longest -- and the identity header rendered them unclamped,
+   pushing the stats, the tabs and every fact below the fold. */
+describe('PersonDetailPage — research notes (issue #51)', () => {
+  const LONG_NOTE =
+    'HIS NAME IS PRESTON, AND "MARLOW" IS WITHDRAWN. ' + 'The register says so. '.repeat(200);
+
+  function renderWithNotes() {
+    const spy = vi.spyOn(globalThis, 'fetch' as never) as unknown as ReturnType<typeof vi.fn>;
+    spy.mockImplementation((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/connected-objects'))
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+      if (url.includes('/relationships') || url.includes('/media') || url.includes('/sources'))
+        return Promise.resolve({ ok: true, json: async () => [] });
+      return Promise.resolve({ ok: true, json: async () => ({ ...stubPerson, notes: LONG_NOTE }) });
+    });
+    return renderPage();
+  }
+
+  it('keeps the notes out of the identity header', async () => {
+    renderWithNotes();
+    await screen.findByRole('button', { name: /view in tree/i });
+    /* The header is where #51 reported the overflow. Whatever else renders the
+       note, the <h1>'s own section must not. */
+    const header = screen.getByRole('heading', { level: 1 }).closest('header');
+    expect(header).not.toBeNull();
+    expect(header?.textContent ?? '').not.toContain('MARLOW');
+  });
+
+  it('shows a clamped preview on Overview that points at the Research tab', async () => {
+    renderWithNotes();
+    const preview = await screen.findByText(/MARLOW/);
+    /* Clamped by CSS, not truncated in the DOM: find-in-page and screen
+       readers still reach the whole note. */
+    expect(preview.className).toMatch(/notesPreview/);
+    expect(preview.textContent).toBe(LONG_NOTE);
+    expect(screen.getByRole('button', { name: /read all/i })).toBeInTheDocument();
+  });
+
+  it('shows the whole note on the Research tab', async () => {
+    renderWithNotes();
+    await screen.findByRole('button', { name: /view in tree/i });
+    fireEvent.click(screen.getByRole('tab', { name: /research/i }));
+    const heading = await screen.findByRole('heading', { name: 'Research', level: 2 });
+    const section = heading.closest('section');
+    /* #51's guarantee is that nothing is truncated in the DOM. The note is now
+       split into a heading and a body (#52), so its text is spread across
+       elements: comparing with whitespace removed proves no prose was dropped
+       without asserting how the note is divided up. */
+    const squash = (text: string) => text.replace(/\s+/g, '');
+    expect(squash(section?.textContent ?? '')).toContain(squash(LONG_NOTE));
+    /* Unclamped here -- this tab is where the long text belongs. */
+    expect(within(section as HTMLElement).getByText(/MARLOW/).className).not.toMatch(/notesPreview/);
+  });
+
+  it('says so plainly when a person has no research notes', async () => {
+    renderPage();
+    await screen.findByRole('button', { name: /view in tree/i });
+    fireEvent.click(screen.getByRole('tab', { name: /research/i }));
+    expect(await screen.findByText(/no research notes recorded/i)).toBeInTheDocument();
+  });
+});
 
 describe('PersonDetailPage — archive layout', () => {
   it('renders View in Tree in the identity header and no sidebar', async () => {
@@ -505,5 +576,294 @@ describe('PersonDetailPage — half- and step-siblings', () => {
     /* Below the parents, not among them -- Betty is not an ancestor. */
     const parents = screen.getByText('Parents').parentElement!;
     expect(parents.textContent).not.toContain('Betty');
+  });
+});
+
+/* Issue #52: the Claims tab rendered a placeholder saying the feature was not
+   wired up, while the Glossary and FAQ described it to users in detail. */
+describe('PersonDetailPage claims tab', () => {
+  const claims = [
+    {
+      id: 'claim-1',
+      statement: 'Her father is Preston, not Marlow.',
+      claim_type: 'parentage',
+      status: 'conflicted' as const,
+      confidence_level_id: 'confidence_confirmed',
+      confidence_level_name: 'Confirmed',
+      confidence_score: 95,
+      evidence_count: 5,
+      supporting_count: 4,
+      contradicting_count: 1,
+      research_section: null,
+    },
+    {
+      id: 'claim-2',
+      statement: 'Her birth year is 1904.',
+      claim_type: 'date',
+      status: 'open' as const,
+      confidence_level_id: 'confidence_disputed',
+      confidence_level_name: 'Disputed',
+      confidence_score: 40,
+      evidence_count: 0,
+      supporting_count: 0,
+      contradicting_count: 0,
+      research_section: null,
+    },
+  ];
+
+  function mockWithClaims(data: unknown[]) {
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/claims/subject/')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data }) });
+      }
+      if (url.includes('/connected')) {
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+      }
+      if (url.includes('/relationships') || url.includes('/media') || url.includes('/sources')) {
+        return Promise.resolve({ ok: true, json: async () => [] });
+      }
+      return Promise.resolve({ ok: true, json: async () => stubPerson });
+    });
+  }
+
+  async function openClaimsTab() {
+    renderPage();
+    await waitFor(() => expect(screen.getByRole('tab', { name: /claims/i })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('tab', { name: /claims/i }));
+  }
+
+  it('shows each claim with its confidence, status and evidence split by role', async () => {
+    mockWithClaims(claims);
+    await openClaimsTab();
+
+    expect(await screen.findByRole('link', { name: 'Her father is Preston, not Marlow.' })).toBeInTheDocument();
+    expect(screen.getByText('Confirmed · 95')).toBeInTheDocument();
+
+    /* Confirmed AND conflicted together is the point of the feature: the
+       records disagree, the conclusion does not. */
+    expect(screen.getByText('Records conflict')).toBeInTheDocument();
+    expect(screen.getByText('4 support · 1 contradicts')).toBeInTheDocument();
+  });
+
+  it('colours the pill from the confidence level rather than the status', async () => {
+    mockWithClaims(claims);
+    await openClaimsTab();
+
+    const confirmed = await screen.findByText('Confirmed · 95');
+    expect(confirmed).toHaveAttribute('data-confidence', 'confirmed');
+    expect(screen.getByText('Disputed · 40')).toHaveAttribute('data-confidence', 'disputed');
+  });
+
+  it('says so plainly when a claim has no evidence yet', async () => {
+    mockWithClaims(claims);
+    await openClaimsTab();
+
+    expect(await screen.findByText('No evidence attached yet')).toBeInTheDocument();
+  });
+
+  it('counts evidence that neither supports nor contradicts', async () => {
+    mockWithClaims([{ ...claims[0], evidence_count: 6, supporting_count: 4, contradicting_count: 1 }]);
+    await openClaimsTab();
+
+    /* A mention is still a record somebody attached; it must not vanish from a
+       tally that claims to total the evidence. */
+    expect(await screen.findByText('4 support · 1 contradicts · 1 other')).toBeInTheDocument();
+  });
+
+  it('falls back to a neutral pill for an ungraded claim', async () => {
+    mockWithClaims([{
+      ...claims[0],
+      confidence_level_id: null,
+      confidence_level_name: null,
+      confidence_score: null,
+    }]);
+    await openClaimsTab();
+
+    const pill = await screen.findByText('Unknown');
+    expect(pill).toHaveAttribute('data-confidence', 'unknown');
+  });
+
+  it('no longer claims the feature is unwired when the person has no claims', async () => {
+    mockWithClaims([]);
+    await openClaimsTab();
+
+    expect(await screen.findByText(/No claims recorded for/i)).toBeInTheDocument();
+    expect(screen.queryByText(/not wired into this page yet/i)).not.toBeInTheDocument();
+  });
+});
+
+/* Issue #52, step 4. A claim has to be able to point at the passage that argues
+   it. The notes already open their paragraphs with a capitalised sentence, so
+   the headings are read off the prose rather than stored. */
+describe('PersonDetailPage research sections', () => {
+  const SECTIONED_NOTE = [
+    'Mother of Rowan Avery (Hadley) Marlow.',
+    "HER FATHER'S NAME WAS NEVER IN DOUBT AFTER ALL. Her own baptism says PRESTON.",
+    'HER BIRTH MOVED BY A DAY. Birth 25 June, baptism 26 June.',
+  ].join('\n\n');
+
+  const FATHER_SLUG = 'note-her-fathers-name-was-never-in-doubt-after-all';
+
+  function mockNote(notes: string) {
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/claims/subject/') || url.includes('/connected') || url.includes('/collections/for-object/'))
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+      if (url.includes('/relationships') || url.includes('/media') || url.includes('/sources'))
+        return Promise.resolve({ ok: true, json: async () => [] });
+      return Promise.resolve({ ok: true, json: async () => ({ ...stubPerson, notes }) });
+    });
+  }
+
+  async function openResearch(entry?: string) {
+    renderPage(entry);
+    await screen.findByRole('button', { name: /view in tree/i });
+    if (!entry) fireEvent.click(screen.getByRole('tab', { name: /research/i }));
+  }
+
+  it('renders each capitalised opening sentence as its own heading', async () => {
+    mockNote(SECTIONED_NOTE);
+    await openResearch();
+
+    expect(await screen.findByRole('heading', { name: "HER FATHER'S NAME WAS NEVER IN DOUBT AFTER ALL.", level: 3 })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'HER BIRTH MOVED BY A DAY.', level: 3 })).toBeInTheDocument();
+    // The unheaded opening paragraph is still prose, not a heading.
+    expect(screen.getByText('Mother of Rowan Avery (Hadley) Marlow.')).toBeInTheDocument();
+  });
+
+  it('lists the sections in a contents nav, shouting softened', async () => {
+    mockNote(SECTIONED_NOTE);
+    await openResearch();
+
+    const toc = await screen.findByRole('navigation', { name: /sections of this note/i });
+    /* A dozen capitalised lines is unreadable as a contents list, so the nav
+       softens them while the section itself keeps the original capitals. */
+    expect(within(toc).getByRole('link', { name: "Her father's name was never in doubt after all" })).toHaveAttribute('href', `#${FATHER_SLUG}`);
+    expect(within(toc).getByRole('link', { name: 'Her birth moved by a day' })).toBeInTheDocument();
+  });
+
+  it('switches to the Research tab and marks the section when arriving on its anchor', async () => {
+    mockNote(SECTIONED_NOTE);
+    await openResearch(`/people/per-1#${FATHER_SLUG}`);
+
+    /* Landing on Overview would hide the very passage the link was for. */
+    const flag = await screen.findByText(/linked from a claim/i);
+    expect(flag).toBeInTheDocument();
+
+    const marked = document.getElementById(FATHER_SLUG);
+    expect(marked).toHaveAttribute('data-linked', 'true');
+    expect(document.getElementById('note-her-birth-moved-by-a-day')).not.toHaveAttribute('data-linked');
+  });
+
+  it('says the passage is gone rather than scrolling to the wrong one', async () => {
+    mockNote(SECTIONED_NOTE);
+    await openResearch('/people/per-1#note-a-heading-that-was-rewritten-away');
+
+    expect(await screen.findByText(/no longer in this note/i)).toBeInTheDocument();
+    // The note is still shown in full underneath.
+    expect(screen.getByRole('heading', { name: 'HER BIRTH MOVED BY A DAY.', level: 3 })).toBeInTheDocument();
+    expect(screen.queryByText(/linked from a claim/i)).not.toBeInTheDocument();
+  });
+
+  it('offers no contents nav for a note with nothing to navigate', async () => {
+    mockNote('Just one plain paragraph of prose, with no headings in it at all.');
+    await openResearch();
+
+    await screen.findByRole('heading', { name: 'Research', level: 2 });
+    expect(screen.queryByRole('navigation', { name: /sections of this note/i })).not.toBeInTheDocument();
+  });
+});
+
+/* Issue #52. The card carries the conclusion and points at the argument; the
+   prose stays on the Research tab. These are the links that join the two. */
+describe('PersonDetailPage claim argument links', () => {
+  const NOTE = [
+    "HER FATHER'S NAME WAS NEVER IN DOUBT AFTER ALL. Her own baptism says PRESTON.",
+    'HER BIRTH MOVED BY A DAY. Birth 25 June, baptism 26 June.',
+  ].join('\n\n');
+
+  const FATHER_SLUG = 'note-her-fathers-name-was-never-in-doubt-after-all';
+
+  const baseClaim = {
+    id: 'claim-1',
+    statement: 'Her father is Preston, not Marlow.',
+    claim_type: 'parentage',
+    status: 'conflicted' as const,
+    confidence_level_id: 'confidence_confirmed',
+    confidence_level_name: 'Confirmed',
+    confidence_score: 95,
+    evidence_count: 5,
+    supporting_count: 4,
+    contradicting_count: 1,
+    research_section: null as string | null,
+  };
+
+  function mockClaim(research_section: string | null) {
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/claims/subject/'))
+        return Promise.resolve({ ok: true, json: async () => ({ data: [{ ...baseClaim, research_section }] }) });
+      if (url.includes('/connected') || url.includes('/collections/for-object/'))
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+      if (url.includes('/relationships') || url.includes('/media') || url.includes('/sources'))
+        return Promise.resolve({ ok: true, json: async () => [] });
+      return Promise.resolve({ ok: true, json: async () => ({ ...stubPerson, notes: NOTE }) });
+    });
+  }
+
+  async function openClaims() {
+    renderPage();
+    await screen.findByRole('button', { name: /view in tree/i });
+    fireEvent.click(screen.getByRole('tab', { name: /claims/i }));
+  }
+
+  it('links to the passage and names it', async () => {
+    mockClaim(FATHER_SLUG);
+    await openClaims();
+
+    const link = await screen.findByRole('link', { name: /read the argument/i });
+    // Resolved against the person's route, so the link survives being copied.
+    expect(link).toHaveAttribute('href', `/people/per-1#${FATHER_SLUG}`);
+    /* Named so the reader knows where it goes before clicking, and softened
+       out of the prose's capitals. */
+    expect(screen.getByText(/Her father's name was never in doubt after all/)).toBeInTheDocument();
+  });
+
+  it('carries the conclusion but never the argument itself', async () => {
+    mockClaim(FATHER_SLUG);
+    await openClaims();
+
+    await screen.findByRole('link', { name: /read the argument/i });
+    const card = screen.getByRole('heading', { name: 'Her father is Preston, not Marlow.' }).closest('article');
+    expect(card).not.toBeNull();
+    // The prose belongs to the Research tab, not to the card.
+    expect(card?.textContent).not.toContain('Her own baptism says PRESTON');
+  });
+
+  it('follows the link through to the marked passage', async () => {
+    mockClaim(FATHER_SLUG);
+    await openClaims();
+
+    fireEvent.click(await screen.findByRole('link', { name: /read the argument/i }));
+
+    /* The whole point of the round trip: the reader lands on the argument, not
+       at the top of a note running to thousands of characters. */
+    expect(await screen.findByText(/linked from a claim/i)).toBeInTheDocument();
+    expect(document.getElementById(FATHER_SLUG)).toHaveAttribute('data-linked', 'true');
+  });
+
+  it('offers the note top when no anchor is recorded, and says so', async () => {
+    mockClaim(null);
+    await openClaims();
+
+    expect(await screen.findByRole('button', { name: /open the research note/i })).toBeInTheDocument();
+    expect(screen.getByText(/no section anchor recorded/i)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /read the argument/i })).not.toBeInTheDocument();
+  });
+
+  it('admits on the card when the passage has been rewritten away', async () => {
+    mockClaim('note-a-heading-that-no-longer-exists');
+    await openClaims();
+
+    /* Better than discovering it only after the jump. */
+    expect(await screen.findByText(/passage no longer in this note/i)).toBeInTheDocument();
   });
 });

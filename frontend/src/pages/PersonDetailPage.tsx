@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
 import { EventSourceLink } from '@/components/EventSource';
 import Navbar from '@/components/Navbar/Navbar';
@@ -15,6 +15,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { useModal } from '@/components/modals/useModal';
 import type { FamilySummary } from '@/types/genealogy';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
+import { parseResearchSections, type ResearchSection } from '@/utils/researchSections';
 import {
   formatEventType,
   partitionByKind,
@@ -131,8 +132,30 @@ interface MediaItem {
   filename?: string;
   file_name?: string;
   media_type?: string;
+  mime_type?: string;
   url?: string;
   thumbnail_url?: string;
+  /** 1 on the one photograph the tree shows for this person, 0 on the rest. */
+  is_primary?: number;
+}
+
+/* Issue #52. The counts arrive split by role because "5 evidence links" cannot
+   say that one of the five disagrees, which is the case claims exist for. */
+interface PersonClaim {
+  id: string;
+  statement: string;
+  claim_type: string | null;
+  status: 'open' | 'supported' | 'conflicted' | 'rejected' | 'unknown';
+  confidence_level_id: string | null;
+  confidence_level_name: string | null;
+  confidence_score: number | null;
+  evidence_count: number;
+  supporting_count: number;
+  contradicting_count: number;
+  /* Slug of the research-note passage that argues this claim. Null is the
+     common case, not missing data: the reasoning may live on another person's
+     note, or not be written down yet. */
+  research_section: string | null;
 }
 
 interface ConnectedObject {
@@ -285,6 +308,65 @@ interface InfoRowProps {
   value: string | null;
 }
 
+/* ── Claims (#52) ──
+   Status is the state of the records; confidence is how settled the conclusion
+   is. They are separate on purpose: a claim can be Confirmed with conflicting
+   records, which is the normal shape of a settled argument. */
+const STATUS_LABELS: Record<PersonClaim['status'], string> = {
+  open: 'Open',
+  supported: 'Supported',
+  conflicted: 'Records conflict',
+  rejected: 'Rejected',
+  unknown: 'Unknown',
+};
+
+/* Drives the pill's fill via a data attribute, so the six confidence colours
+   live in the stylesheet with the rest of the tokens rather than inline. An
+   unrecognised or missing level falls back to the neutral "unknown" fill. */
+const CONFIDENCE_KEYS = ['confirmed', 'probable', 'disputed', 'possible', 'rejected'] as const;
+
+function confidenceKey(name: string | null): string {
+  const key = name?.trim().toLowerCase() ?? '';
+  return (CONFIDENCE_KEYS as readonly string[]).includes(key) ? key : 'unknown';
+}
+
+/* The number earns its place only when it is there: "Confirmed · 95" says more
+   than "Confirmed", but "Unknown · null" says less. */
+function confidenceLabel(claim: PersonClaim): string {
+  const name = claim.confidence_level_name?.trim() || 'Unknown';
+  const score = claim.confidence_score;
+  return score === null ? name : `${name} · ${score}`;
+}
+
+/* The headings are shouted in the prose, which is right in a plain-text note
+   and wrong in a contents list, where a dozen capitalised lines are unreadable.
+   The section itself keeps the original capitals. */
+function sentenceCase(heading: string): string {
+  const trimmed = heading.replace(/[.:!?]+$/, '');
+  return trimmed.charAt(0) + trimmed.slice(1).toLowerCase();
+}
+
+/* Names the passage under the link, so the reader knows where it goes before
+   clicking -- and so a claim whose passage has been rewritten away says so on
+   the card rather than only after the jump. */
+function sectionTitle(slug: string, sections: ResearchSection[]): string {
+  const match = sections.find(section => section.slug === slug);
+  return match?.heading ? sentenceCase(match.heading) : 'passage no longer in this note';
+}
+
+function evidenceTally(claim: PersonClaim): string {
+  if (claim.evidence_count === 0) return 'No evidence attached yet';
+  const parts = [`${claim.supporting_count} support`];
+  if (claim.contradicting_count > 0) {
+    parts.push(`${claim.contradicting_count} contradicts`);
+  }
+  /* Anything neither supporting nor contradicting -- mentions, uncertain --
+     would otherwise vanish from a tally that claims to total the evidence. */
+  const other = claim.evidence_count - claim.supporting_count - claim.contradicting_count;
+  if (other > 0) parts.push(`${other} other`);
+  return parts.join(' · ');
+}
+
 const InfoRow: React.FC<InfoRowProps> = ({ label, value }) => (
   <div className={styles.infoRow}>
     <span className={styles.infoLabel}>{label}</span>
@@ -313,12 +395,26 @@ const PersonDetailPage: React.FC = () => {
   // ── Media ──
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [mediaLoading, setMediaLoading] = useState(true);
+  /* The portrait request in flight, by media id, so one card can show "Saving"
+     without disabling the others. Null when nothing is pending. */
+  const [portraitSaving, setPortraitSaving] = useState<string | null>(null);
 
   // ── Archive connections ──
   const [connectedObjects, setConnectedObjects] = useState<ConnectedObject[]>([]);
   // Collection membership is collection_items, not a relationship (#26).
   const [memberOf, setMemberOf] = useState<CollectionMembership[]>([]);
   const [connectedObjectsLoading, setConnectedObjectsLoading] = useState(true);
+
+  // ── Claims (#52) ──
+  const [claims, setClaims] = useState<PersonClaim[]>([]);
+  const [claimsLoading, setClaimsLoading] = useState(true);
+
+  /* A claim links to one section of the research note by slug (#52). The hash
+     is the anchor; arriving with one switches to the Research tab and marks the
+     section, so the reader lands on the argument rather than at the top of a
+     note that runs to thousands of characters. */
+  const { hash } = useLocation();
+  const targetSection = hash.startsWith('#note-') ? hash.slice(1) : null;
 
   // ── Delete ──
   const [deleteConfirm, setDeleteConfirm] = useState(false);
@@ -387,6 +483,41 @@ const PersonDetailPage: React.FC = () => {
     }
   }, [id]);
 
+  /**
+   * Choose the photograph the tree shows for this person, or clear the choice
+   * by passing null.
+   *
+   * Nothing falls back: a person with no portrait chosen shows no face in the
+   * tree, which is intended. The first photograph on a person is as likely to
+   * be a census sheet or a death certificate as a likeness, and guessing is
+   * worse than leaving the node blank.
+   */
+  const handleSetPortrait = useCallback(
+    async (mediaId: string | null) => {
+      if (!id) return;
+      setPortraitSaving(mediaId ?? 'clear');
+      try {
+        const res = await fetch(`/api/v1/media/people/${id}/portrait`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ media_id: mediaId }),
+        });
+        if (res.ok) {
+          // Re-fetched rather than patched locally: is_primary is a property of
+          // the link, and the server has just moved it off whichever row used
+          // to hold it. Guessing which that was here would drift.
+          await fetchMedia();
+        }
+      } catch {
+        // Non-critical — the flag simply stays where it was.
+      } finally {
+        setPortraitSaving(null);
+      }
+    },
+    [id, fetchMedia],
+  );
+
   const fetchConnectedObjects = useCallback(async () => {
     if (!id) return;
     setConnectedObjectsLoading(true);
@@ -403,14 +534,56 @@ const PersonDetailPage: React.FC = () => {
     }
   }, [id]);
 
+  const fetchClaims = useCallback(async () => {
+    if (!id) return;
+    setClaimsLoading(true);
+    try {
+      const res = await fetch(`/api/v1/claims/subject/${id}`, { credentials: 'include' });
+      if (res.ok) {
+        const json = await res.json() as { data: PersonClaim[] };
+        setClaims(json.data ?? []);
+      }
+    } catch {
+      // Non-critical — the tab shows its empty state rather than an error.
+    } finally {
+      setClaimsLoading(false);
+    }
+  }, [id]);
+
   useEffect(() => {
     fetchPerson();
     fetchRelationships();
     fetchMedia();
     fetchConnectedObjects();
-  }, [fetchPerson, fetchRelationships, fetchMedia, fetchConnectedObjects]);
+    fetchClaims();
+  }, [fetchPerson, fetchRelationships, fetchMedia, fetchConnectedObjects, fetchClaims]);
 
   // ─── Context actions (registered in the global topbar Actions menu) ───────
+
+  /* Derived, never stored: a claim records only the slug, so re-ordering a note
+     cannot silently repoint an anchor the way a stored paragraph index would. */
+  const researchSections = React.useMemo(
+    () => parseResearchSections(person?.notes),
+    [person?.notes],
+  );
+  const headedSections = React.useMemo(
+    () => researchSections.filter(section => section.slug),
+    [researchSections],
+  );
+
+  /* Arriving on a section link lands on the Overview tab by default, which
+     hides the passage the link was for. */
+  useEffect(() => {
+    if (targetSection) setActiveTab('research');
+  }, [targetSection]);
+
+  /* The browser does its own hash scroll on load, before the Research tab has
+     rendered -- so the element it was looking for did not exist yet. Scroll
+     once the section is actually in the document. */
+  useEffect(() => {
+    if (!targetSection || activeTab !== 'research') return;
+    document.getElementById(targetSection)?.scrollIntoView?.({ block: 'start' });
+  }, [targetSection, activeTab, researchSections]);
 
   const primary = person ? primaryName(person.names) : null;
   const displayTitle = person
@@ -684,7 +857,12 @@ const PersonDetailPage: React.FC = () => {
             SEX_LABELS[person.sex],
             person.is_private === 1 ? 'Private' : null,
           ].filter(Boolean).join(' • ')}
-          summary={person.notes}
+          /* NOT person.notes -- see issue #51. The header renders its summary
+             unclamped, and research notes on this archive run to thousands of
+             characters (9,274 on the longest), which pushed the stats, the tabs
+             and every fact below the fold. The notes now live on the Research
+             tab, with a clamped preview on Overview. */
+          summary={null}
           avatar={<span>{initialsFromName(displayTitle)}</span>}
           headerAction={(
             <Button variant="secondary" onClick={() => navigate('/')}>View in Tree</Button>
@@ -704,7 +882,8 @@ const PersonDetailPage: React.FC = () => {
             { id: 'stories', label: 'Stories', count: connectedStories.length },
             { id: 'collections', label: 'Collections', count: memberOf.length },
             { id: 'family', label: 'Family', count: relationships.length },
-            { id: 'claims', label: 'Claims' },
+            { id: 'research', label: 'Research' },
+            { id: 'claims', label: 'Claims', count: claims.length },
           ]}
           activeTab={activeTab}
           onTabChange={setActiveTab}
@@ -872,13 +1051,21 @@ const PersonDetailPage: React.FC = () => {
               )}
             </section>
 
-            {/* ── Notes (read-only; shown when content exists) ── */}
+            {/* ── Research (preview; the full text is on the Research tab) ── */}
             {person.notes && (
               <section className={styles.section} aria-labelledby="notes-heading">
-                <h2 className={styles.sectionTitle} id="notes-heading">
-                  Notes
-                </h2>
-                <p className={styles.notesText}>{person.notes}</p>
+                <div className={styles.sectionHeader}>
+                  <h2 className={styles.sectionTitle} id="notes-heading">
+                    Research
+                  </h2>
+                  <Button variant="ghost" size="sm" onClick={() => setActiveTab('research')}>
+                    Read all
+                  </Button>
+                </div>
+                {/* Clamped to a few lines. The clamp is CSS, so the whole note
+                    is still in the DOM for find-in-page and for screen readers
+                    that ignore overflow. */}
+                <p className={`${styles.notesText} ${styles.notesPreview}`}>{person.notes}</p>
               </section>
             )}
             </div>
@@ -1129,20 +1316,51 @@ const PersonDetailPage: React.FC = () => {
                 <p className={styles.noInfo}>No artifacts connected to this person yet.</p>
               ) : (
                 <div className={styles.cardGrid}>
-                  {personArtifacts.map((artifact) => (
-                    <ArtifactCard
-                      key={artifact.id}
-                      href={`/artifacts/${artifact.id}`}
-                      title={artifact.title}
-                      subtitle={artifact.subtitle}
-                      typeName={artifact.typeName}
-                      /* The endpoint serves the generated thumbnail where one
-                         exists and the original where it does not. No
-                         thumbnail_url fallback: nothing in the backend has
-                         ever populated that field. */
-                      imageSrc={artifact.media ? `/api/v1/media/${artifact.media.id}/thumbnail` : null}
-                    />
-                  ))}
+                  {personArtifacts.map((artifact) => {
+                    /* The control is offered only on a photograph the tree
+                       could actually draw. A PDF is excluded deliberately:
+                       libvips here carries no poppler, so a PDF never gets a
+                       thumbnail, and choosing one as a portrait sets a flag
+                       that leaves the node as blank as before. That is the
+                       exact trap this control exists to close, not to
+                       reproduce. */
+                    const m = artifact.media;
+                    const canBePortrait = Boolean(m && m.mime_type?.startsWith('image/'));
+                    const isPortrait = Boolean(m?.is_primary);
+                    const saving = portraitSaving === m?.id || (isPortrait && portraitSaving === 'clear');
+
+                    return (
+                      <ArtifactCard
+                        key={artifact.id}
+                        href={`/artifacts/${artifact.id}`}
+                        title={artifact.title}
+                        subtitle={artifact.subtitle}
+                        typeName={artifact.typeName}
+                        /* The endpoint serves the generated thumbnail where one
+                           exists and the original where it does not. No
+                           thumbnail_url fallback: nothing in the backend has
+                           ever populated that field. */
+                        imageSrc={m ? `/api/v1/media/${m.id}/thumbnail` : null}
+                        action={
+                          canBePortrait && m ? (
+                            <button
+                              type="button"
+                              className={isPortrait ? styles.portraitButtonOn : styles.portraitButton}
+                              disabled={saving}
+                              aria-pressed={isPortrait}
+                              onClick={() => handleSetPortrait(isPortrait ? null : m.id)}
+                            >
+                              {saving
+                                ? 'Saving…'
+                                : isPortrait
+                                  ? '★ Portrait — click to clear'
+                                  : 'Set as portrait'}
+                            </button>
+                          ) : null
+                        }
+                      />
+                    );
+                  })}
                 </div>
               )}
             </section>
@@ -1194,10 +1412,141 @@ const PersonDetailPage: React.FC = () => {
             </section>
           )}
 
+          {activeTab === 'research' && (
+            <section className={styles.section} aria-labelledby="research-heading">
+              <h2 className={styles.sectionTitle} id="research-heading">Research</h2>
+              {!person.notes ? (
+                <p className={styles.noInfo}>
+                  No research notes recorded for {displayTitle} yet.
+                </p>
+              ) : (
+                <>
+                  {/* Promised by a claim link that no longer resolves. Saying so
+                      beats scrolling the reader to a passage that is not the
+                      one the claim meant. */}
+                  {targetSection && !researchSections.some(s => s.slug === targetSection) && (
+                    <p className={styles.anchorLost} role="status">
+                      The linked passage is no longer in this note — it may have been
+                      rewritten. The whole note is below.
+                    </p>
+                  )}
+
+                  {headedSections.length > 1 && (
+                    <nav className={styles.noteToc} aria-label="Sections of this note">
+                      <div className={styles.noteTocLabel}>In this note</div>
+                      <ul>
+                        {headedSections.map((section) => (
+                          <li key={section.slug}>
+                            <a href={`#${section.slug}`}>{sentenceCase(section.heading!)}</a>
+                          </li>
+                        ))}
+                      </ul>
+                    </nav>
+                  )}
+
+                  <div className={styles.noteBody}>
+                    {researchSections.map((section, index) => (
+                      <div
+                        key={section.slug ?? `prose-${index}`}
+                        id={section.slug ?? undefined}
+                        className={styles.noteSection}
+                        data-linked={section.slug && section.slug === targetSection ? 'true' : undefined}
+                      >
+                        {section.slug === targetSection && (
+                          <span className={styles.linkedFlag} role="status">Linked from a claim</span>
+                        )}
+                        {section.heading && (
+                          <h3 className={styles.noteHeading}>{section.heading}</h3>
+                        )}
+                        {section.body && <p className={styles.notesText}>{section.body}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </section>
+          )}
+
           {activeTab === 'claims' && (
             <section className={styles.section} aria-labelledby="claims-heading">
-              <h2 className={styles.sectionTitle} id="claims-heading">Claims</h2>
-              <p className={styles.noInfo}>Claim summaries for people are not wired into this page yet. Use the Actions menu to add or review claims as the claims UI is expanded.</p>
+              <h2 className={styles.sectionTitle} id="claims-heading">
+                Claims
+                {claims.length > 0 && <span className={styles.countBadge}>{claims.length}</span>}
+              </h2>
+
+              {claimsLoading ? (
+                <div className={styles.skeletonLine} aria-hidden="true" />
+              ) : claims.length === 0 ? (
+                <p className={styles.noInfo}>
+                  No claims recorded for {displayTitle} yet. A claim records one conclusion and how
+                  settled it is, with the records that bear on it.
+                </p>
+              ) : (
+                <>
+                  <p className={styles.claimsLede}>
+                    What this archive has concluded about {displayTitle}, and how settled each
+                    conclusion is. A filled pill is confidence; an outline chip is the state of the
+                    records. The reasoning stays on the Research tab.
+                  </p>
+                  <div className={styles.claimList}>
+                    {claims.map((claim) => (
+                      <article key={claim.id} className={styles.claimCard}>
+                        {claim.claim_type && (
+                          <div className={styles.claimType}>{claim.claim_type}</div>
+                        )}
+                        <h3 className={styles.claimStatement}>
+                          <Link to={`/claims/${claim.id}`}>{claim.statement}</Link>
+                        </h3>
+                        <div className={styles.claimMeta}>
+                          <span
+                            className={styles.confidencePill}
+                            data-confidence={confidenceKey(claim.confidence_level_name)}
+                          >
+                            {confidenceLabel(claim)}
+                          </span>
+                          <span className={styles.statusChip}>{STATUS_LABELS[claim.status]}</span>
+                          <span className={styles.evidenceTally}>{evidenceTally(claim)}</span>
+                        </div>
+
+                        {/* The claim carries the conclusion and points at the
+                            argument; it never carries the argument itself. With
+                            no anchor recorded it opens the note at the top and
+                            says so, rather than implying a precision it has
+                            not got. */}
+                        <div className={styles.claimFooter}>
+                          {claim.research_section ? (
+                            <>
+                              {/* A Link, not a bare <a href="#...">: an in-page
+                                  anchor fires hashchange, which useLocation does
+                                  not observe, so the tab would never switch. */}
+                              <Link
+                                className={styles.argumentLink}
+                                to={{ hash: claim.research_section }}
+                              >
+                                Read the argument →
+                              </Link>
+                              <span className={styles.argumentHint}>
+                                Research tab · {sectionTitle(claim.research_section, researchSections)}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                className={styles.argumentLinkButton}
+                                onClick={() => setActiveTab('research')}
+                              >
+                                Open the research note →
+                              </button>
+                              <span className={styles.argumentHint}>No section anchor recorded</span>
+                            </>
+                          )}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </>
+              )}
             </section>
           )}
         </ArchiveObjectLayout>

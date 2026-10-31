@@ -91,3 +91,21 @@
   margin-top: var(--space-1);
   line-height: 1.35;
 }
+
+/* A card that carries a control below it. The wrapper is the grid item in
+   place of the card itself, so the control travels with its card and the grid
+   keeps its columns. */
+.cardWithAction {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.cardWithAction .card {
+  flex: 1 1 auto;
+}
+
+.cardAction {
+  display: flex;
+  justify-content: center;
+}

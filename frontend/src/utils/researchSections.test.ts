@@ -3,18 +3,18 @@ import { firstSentenceEnd, parseResearchSections, slugifyHeading } from './resea
 
 describe('firstSentenceEnd', () => {
   it('ends the sentence at a real terminator', () => {
-    const text = 'AND SHE HAS A GRAVE. ST. JOHN\'S CEMETERY in Worcester.';
+    const text = 'AND SHE HAS A GRAVE. ST. BRENDAN\'S CEMETERY in Fairport.';
     expect(text.slice(0, firstSentenceEnd(text))).toBe('AND SHE HAS A GRAVE.');
   });
 
   /* The notes are full of these, and a naive split on the first period turns
      "AND SHE HAS A GRAVE. ST. JOHN'S..." into a heading ending at "ST.". */
   it('steps over an abbreviation and an initial', () => {
-    const initial = 'EMMA K. MOSER IS RIGHT. The 1910 census agrees.';
-    expect(initial.slice(0, firstSentenceEnd(initial))).toBe('EMMA K. MOSER IS RIGHT.');
+    const initial = 'MARLOW K. HADLEY IS RIGHT. The 1910 census agrees.';
+    expect(initial.slice(0, firstSentenceEnd(initial))).toBe('MARLOW K. HADLEY IS RIGHT.');
 
-    const saint = 'ST. DAMIEN IS THE PARISH. Her baptism is filed there.';
-    expect(saint.slice(0, firstSentenceEnd(saint))).toBe('ST. DAMIEN IS THE PARISH.');
+    const saint = 'ST. BRENDAN IS THE PARISH. Her baptism is filed there.';
+    expect(saint.slice(0, firstSentenceEnd(saint))).toBe('ST. BRENDAN IS THE PARISH.');
   });
 
   it('ignores the terminators inside an initialism', () => {
@@ -52,13 +52,13 @@ describe('parseResearchSections', () => {
 
   it('reads the heading off a capitalised opening sentence', () => {
     const notes = "HER FATHER'S NAME WAS NEVER IN DOUBT AFTER ALL. For one day in October 2026 "
-      + 'this archive was going to rename him Prosper.';
+      + 'this archive was going to rename him Marlow.';
 
     expect(parseResearchSections(notes)).toEqual([
       {
         slug: 'note-her-fathers-name-was-never-in-doubt-after-all',
         heading: "HER FATHER'S NAME WAS NEVER IN DOUBT AFTER ALL.",
-        body: 'For one day in October 2026 this archive was going to rename him Prosper.',
+        body: 'For one day in October 2026 this archive was going to rename him Marlow.',
       },
     ]);
   });
@@ -68,9 +68,9 @@ describe('parseResearchSections', () => {
      rather than being covered only in passing. */
   it('does not treat a sentence-case opening as a heading', () => {
     for (const notes of [
-      'Mother of Emma Kathrine (Moser) LeFort. Named in her 2003 obituary.',
-      'Her Father Was Joseph. Title case is not a heading either.',
-      'HER FATHER WAS JOSEPh. One lowercase letter disqualifies it.',
+      'Mother of Rowan Avery (Hadley) Marlow. Named in a 2003 obituary.',
+      'Her Father Was Preston. Title case is not a heading either.',
+      'HER FATHER WAS PRESTOn. One lowercase letter disqualifies it.',
     ]) {
       const [section] = parseResearchSections(notes);
       expect(section.heading).toBeNull();
@@ -80,14 +80,14 @@ describe('parseResearchSections', () => {
   });
 
   it('keeps an unheaded paragraph rather than dropping its prose', () => {
-    const notes = 'Mother of Emma Kathrine (Moser) LeFort.\n\nHER BIRTH MOVED BY A DAY. The act says so.';
+    const notes = 'Mother of Rowan Avery (Hadley) Marlow.\n\nHER BIRTH MOVED BY A DAY. The act says so.';
     const sections = parseResearchSections(notes);
 
     expect(sections).toHaveLength(2);
     expect(sections[0]).toEqual({
       slug: null,
       heading: null,
-      body: 'Mother of Emma Kathrine (Moser) LeFort.',
+      body: 'Mother of Rowan Avery (Hadley) Marlow.',
     });
     expect(sections[1].heading).toBe('HER BIRTH MOVED BY A DAY.');
   });
@@ -135,7 +135,7 @@ describe('parseResearchSections', () => {
       "HER FATHER'S NAME WAS NEVER IN DOUBT AFTER ALL. See her father's notes.",
       'TWO OPEN ITEMS IN THE PARAGRAPHS ABOVE ARE NOW CLOSED. It has been read.',
       'HER BIRTH MOVED BY A DAY. Birth 25 June, baptism 26 June.',
-      'AND HER SISTER JOSEPHINE IS CONFIRMED. She is still not entered as a person here.',
+      'AND HER SISTER IS CONFIRMED. She is still not entered as a person here.',
     ].join('\n\n');
 
     const sections = parseResearchSections(notes);
