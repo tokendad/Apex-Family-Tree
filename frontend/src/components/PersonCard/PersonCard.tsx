@@ -67,6 +67,9 @@ const PersonCard: React.FC<PersonCardProps> = ({ node, isHome = false }) => {
   const isSelected = selectedPersonId === person.id;
   const isHovered = hoveredPersonId === person.id;
   const highlightedIds = useCanvasStore((s) => s.highlightedPersonIds);
+  /* At least one claim about this person is not settled (#52). */
+  const unsettledIds = useCanvasStore((s) => s.unsettledPersonIds);
+  const hasUnsettledClaim = unsettledIds.has(person.id);
   const isHighlighted = highlightedIds.size > 0 && highlightedIds.has(person.id);
   const isDimmed = highlightedIds.size > 0 && !highlightedIds.has(person.id);
   const name = getPersonDisplayName(person);
@@ -171,9 +174,26 @@ const PersonCard: React.FC<PersonCardProps> = ({ node, isHome = false }) => {
           <span className={styles.name} title={name}>{name}</span>
           <span
             className={styles.dates}
+            data-unsettled={hasUnsettledClaim ? 'true' : undefined}
             style={dateLabel === null ? { visibility: 'hidden' } : undefined}
           >
             {dateLabel ?? ' '}
+            {/* An icon as well as the dotted underline, because red and green
+                both sit on the confidence ramp and a mark must never rest on
+                colour alone. The card says only THAT something is open; which
+                claim, and how open, is the person page's job. */}
+            {hasUnsettledClaim && (
+              <svg
+                className={styles.unsettledMark}
+                viewBox="0 0 12 12"
+                role="img"
+                aria-label="Has an unsettled claim"
+              >
+                <circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M6 3.4v3.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <circle cx="6" cy="8.7" r="0.8" fill="currentColor" />
+              </svg>
+            )}
           </span>
         </div>
       </div>

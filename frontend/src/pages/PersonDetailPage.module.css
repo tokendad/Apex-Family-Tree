@@ -1191,3 +1191,40 @@
   font-size: var(--font-size-xs);
   color: var(--color-text-tertiary);
 }
+
+/* ── Unsettled claims on the Overview (#52) ── */
+.unsettledList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.unsettledItem {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: baseline;
+}
+
+.unsettledStatement {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  text-decoration: none;
+  flex: 1 1 24ch;
+  min-width: 0;
+}
+
+.unsettledStatement:hover {
+  text-decoration: underline;
+}
+
+/* A date an unsettled claim governs. The dotted underline carries the same
+   meaning as the pill beside it, so the signal never rests on colour alone --
+   which matters here because red and green both sit on the confidence ramp. */
+.eventDate[data-unsettled='true'] {
+  border-bottom: 2px dotted var(--color-accent-600);
+  padding-bottom: 1px;
+}

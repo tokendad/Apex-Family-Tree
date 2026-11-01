@@ -67,6 +67,15 @@ claimsRouter.get('/evidence/:objectId', (req, res) => {
   }
 });
 
+claimsRouter.get('/unsettled-subjects', (_req, res) => {
+  try {
+    const repo = new ClaimRepository();
+    res.json({ data: repo.findUnsettledSubjectIds() });
+  } catch {
+    res.status(500).json({ error: 'Failed to list unsettled claim subjects' });
+  }
+});
+
 /* Registered above '/:id' so the two-segment path is not read as a claim id. */
 claimsRouter.get('/subject/:objectId', (req, res) => {
   try {

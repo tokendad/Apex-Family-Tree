@@ -587,6 +587,7 @@ describe('PersonDetailPage claims tab', () => {
       id: 'claim-1',
       statement: 'Her father is Preston, not Marlow.',
       claim_type: 'parentage',
+      date_text: null,
       status: 'conflicted' as const,
       confidence_level_id: 'confidence_confirmed',
       confidence_level_name: 'Confirmed',
@@ -600,6 +601,7 @@ describe('PersonDetailPage claims tab', () => {
       id: 'claim-2',
       statement: 'Her birth year is 1904.',
       claim_type: 'date',
+      date_text: '20 July 1904',
       status: 'open' as const,
       confidence_level_id: 'confidence_disputed',
       confidence_level_name: 'Disputed',
@@ -865,5 +867,95 @@ describe('PersonDetailPage claim argument links', () => {
 
     /* Better than discovering it only after the jump. */
     expect(await screen.findByText(/passage no longer in this note/i)).toBeInTheDocument();
+  });
+});
+
+/* Issue #52, step 5: a disputed date must not look like a settled one, and a
+   settled one must stay unmarked -- otherwise every date carries a badge and
+   none of them means anything. */
+describe('PersonDetailPage confidence markers', () => {
+  const dateClaim = {
+    id: 'claim-date',
+    statement: 'Her birth year is 1904.',
+    claim_type: 'date',
+    date_text: '20 July 1904',
+    status: 'open' as const,
+    confidence_level_id: 'confidence_disputed',
+    confidence_level_name: 'Disputed',
+    confidence_score: 40,
+    evidence_count: 0,
+    supporting_count: 0,
+    contradicting_count: 0,
+    research_section: null as string | null,
+  };
+
+  const events = [
+    { id: 'ev-b', event_type: 'birth', event_date: '20 JUL 1904', event_place: 'Cambridge', description: null },
+    { id: 'ev-d', event_type: 'death', event_date: '3 MAR 2003', event_place: null, description: null },
+  ];
+
+  function mock(claims: unknown[]) {
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/claims/subject/'))
+        return Promise.resolve({ ok: true, json: async () => ({ data: claims }) });
+      if (url.includes('/connected') || url.includes('/collections/for-object/'))
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+      if (url.includes('/relationships') || url.includes('/media') || url.includes('/sources'))
+        return Promise.resolve({ ok: true, json: async () => [] });
+      return Promise.resolve({ ok: true, json: async () => ({ ...stubPerson, events }) });
+    });
+  }
+
+  it('marks the date an unsettled claim governs, and leaves the other alone', async () => {
+    mock([dateClaim]);
+    renderPage();
+    await screen.findByRole('button', { name: /view in tree/i });
+
+    const marked = await screen.findByText('20 JUL 1904');
+    expect(marked).toHaveAttribute('data-unsettled', 'true');
+    /* The death date is governed by nothing and must stay plain. */
+    expect(screen.getByText('3 MAR 2003')).not.toHaveAttribute('data-unsettled');
+  });
+
+  it('adds no marker at all for a Confirmed claim', async () => {
+    mock([{ ...dateClaim, confidence_level_id: 'confidence_confirmed', confidence_level_name: 'Confirmed', confidence_score: 95 }]);
+    renderPage();
+    await screen.findByRole('button', { name: /view in tree/i });
+
+    expect(await screen.findByText('20 JUL 1904')).not.toHaveAttribute('data-unsettled');
+    // And the Overview band does not appear when nothing is open.
+    expect(screen.queryByRole('heading', { name: /not settled/i })).not.toBeInTheDocument();
+  });
+
+  it('treats Rejected as settled too', async () => {
+    mock([{ ...dateClaim, confidence_level_id: 'confidence_rejected', confidence_level_name: 'Rejected', confidence_score: 0 }]);
+    renderPage();
+    await screen.findByRole('button', { name: /view in tree/i });
+
+    /* Rejected has been looked into and ruled out. Marking the date would
+       suggest the question is still open. */
+    expect(await screen.findByText('20 JUL 1904')).not.toHaveAttribute('data-unsettled');
+  });
+
+  it('lists an unsettled claim that governs no date, rather than marking a date it does not own', async () => {
+    const medical = { ...dateClaim, id: 'claim-med', claim_type: 'medical', date_text: null, statement: 'He did not die of typhoid fever.' };
+    mock([medical]);
+    renderPage();
+    await screen.findByRole('button', { name: /view in tree/i });
+
+    // It surfaces in the band...
+    expect(await screen.findByRole('heading', { name: /not settled/i })).toBeInTheDocument();
+    expect(screen.getByText('He did not die of typhoid fever.')).toBeInTheDocument();
+    // ...and marks neither date, because it governs neither.
+    expect(screen.getByText('20 JUL 1904')).not.toHaveAttribute('data-unsettled');
+    expect(screen.getByText('3 MAR 2003')).not.toHaveAttribute('data-unsettled');
+  });
+
+  it('does not match a date claim to an event of a different year', async () => {
+    mock([{ ...dateClaim, date_text: '1890' }]);
+    renderPage();
+    await screen.findByRole('button', { name: /view in tree/i });
+
+    expect(await screen.findByText('20 JUL 1904')).not.toHaveAttribute('data-unsettled');
   });
 });

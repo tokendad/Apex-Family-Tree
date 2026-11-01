@@ -80,14 +80,21 @@ describe('useTreeData — which tree it asks for', () => {
     let releaseFirst: (value: unknown) => void = () => {};
     const slowFirst = new Promise((resolve) => { releaseFirst = resolve; });
 
-    global.fetch = vi.fn()
-      .mockImplementationOnce(async () => {
+    /* Dispatched on the URL rather than on call order: the hook also asks
+       which people have unsettled claims (#52), and a positional mock would
+       hand that request one of the tree responses. */
+    let treeCall = 0;
+    global.fetch = vi.fn(async (url: string) => {
+      if (String(url).includes('/claims/unsettled-subjects')) {
+        return { ok: true, json: async () => ({ data: [] }) };
+      }
+      treeCall += 1;
+      if (treeCall === 1) {
         await slowFirst;
         return { ok: true, json: async () => ({ persons: [person('stale')], families: [], home_person_id: 'home-person' }) };
-      })
-      .mockImplementationOnce(async () => ({
-        ok: true, json: async () => ({ persons: [person('fresh')], families: [], home_person_id: 'fresh' }),
-      })) as unknown as typeof fetch;
+      }
+      return { ok: true, json: async () => ({ persons: [person('fresh')], families: [], home_person_id: 'fresh' }) };
+    }) as unknown as typeof fetch;
 
     renderHook(() => useTreeData());
     act(() => useCanvasStore.getState().setTreeRootId('fresh'));

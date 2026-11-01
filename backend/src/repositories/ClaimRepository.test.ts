@@ -241,6 +241,46 @@ describe('ClaimRepository', () => {
     });
   });
 
+  describe('findUnsettledSubjectIds (#52)', () => {
+    it('returns subjects of claims that are not settled', () => {
+      const repo = new ClaimRepository();
+      repo.create({ statement: 'Unsettled.', subject_object_id: 'person-1', confidence_level_id: 'confidence_unknown' });
+
+      expect(repo.findUnsettledSubjectIds()).toEqual(['person-1']);
+    });
+
+    it('treats Confirmed as settled, so it marks nothing', () => {
+      const repo = new ClaimRepository();
+      repo.create({ statement: 'Settled.', subject_object_id: 'person-1', confidence_level_id: 'confidence_confirmed' });
+
+      expect(repo.findUnsettledSubjectIds()).toEqual([]);
+    });
+
+    it('finds a subject reached only through claim_subjects', () => {
+      const repo = new ClaimRepository();
+      const claim = repo.create({ statement: 'About a place.', subject_object_id: 'place-1', confidence_level_id: 'confidence_unknown' });
+      repo.addSubject(claim.id, 'person-1', 'subject');
+
+      expect(repo.findUnsettledSubjectIds().sort()).toEqual(['person-1', 'place-1']);
+    });
+
+    it('drops a deleted claim', () => {
+      const repo = new ClaimRepository();
+      const claim = repo.create({ statement: 'Unsettled.', subject_object_id: 'person-1', confidence_level_id: 'confidence_unknown' });
+      repo.delete(claim.id);
+
+      expect(repo.findUnsettledSubjectIds()).toEqual([]);
+    });
+
+    it('reports each subject once however many unsettled claims it has', () => {
+      const repo = new ClaimRepository();
+      repo.create({ statement: 'One.', subject_object_id: 'person-1', confidence_level_id: 'confidence_unknown' });
+      repo.create({ statement: 'Two.', subject_object_id: 'person-1', confidence_level_id: 'confidence_unknown' });
+
+      expect(repo.findUnsettledSubjectIds()).toEqual(['person-1']);
+    });
+  });
+
   describe('findClaimsForSubject', () => {
     it('splits the evidence tally by role', () => {
       const repo = new ClaimRepository();

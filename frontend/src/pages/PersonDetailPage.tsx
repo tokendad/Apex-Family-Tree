@@ -145,6 +145,7 @@ interface PersonClaim {
   id: string;
   statement: string;
   claim_type: string | null;
+  date_text: string | null;
   status: 'open' | 'supported' | 'conflicted' | 'rejected' | 'unknown';
   confidence_level_id: string | null;
   confidence_level_name: string | null;
@@ -344,6 +345,47 @@ function confidenceLabel(claim: PersonClaim): string {
 function sentenceCase(heading: string): string {
   const trimmed = heading.replace(/[.:!?]+$/, '');
   return trimmed.charAt(0) + trimmed.slice(1).toLowerCase();
+}
+
+/* A Confirmed conclusion adds no marker anywhere (#52): if every settled date
+   carried a badge, none of them would mean anything. Rejected is settled too --
+   it has been looked into and ruled out -- so it marks nothing either. What is
+   left is the genuinely open middle, plus the ungraded. */
+const SETTLED_CONFIDENCE = new Set(['confirmed', 'rejected']);
+
+function isUnsettled(claim: PersonClaim): boolean {
+  return !SETTLED_CONFIDENCE.has(confidenceKey(claim.confidence_level_name));
+}
+
+/* A claim's date_text is free prose ("20 July 1904") and an event's date is
+   GEDCOM-ish ("20 JUL 1904"), so they are compared by year. */
+function yearOf(text: string | null | undefined): string | null {
+  return text?.match(/\b(1[0-9]{3}|20[0-9]{2})\b/)?.[1] ?? null;
+}
+
+/**
+ * The unsettled claim governing an event's date, if there is one.
+ *
+ * This is a heuristic and not a stored link: a claim records its claim_type and
+ * its date_text, and nothing yet says which event it is about. Matching a date
+ * claim to an event by year is enough to mark a disputed birth differently from
+ * a settled one, which is what issue #52 asks for, and it needs no schema
+ * change. Step 6's drawer is where someone picks the fact a claim governs, and
+ * that is when an exact link can be recorded.
+ *
+ * Deliberately narrow: only `date` claims, only against a date, and only when
+ * the years match. A `medical` or `other` claim governs no displayed fact and
+ * must not be made to mark one -- those appear in the summary above instead.
+ */
+function claimGoverningDate(
+  event: { event_date: string | null },
+  claims: PersonClaim[],
+): PersonClaim | null {
+  const eventYear = yearOf(event.event_date);
+  if (!eventYear) return null;
+  return claims.find(
+    claim => claim.claim_type === 'date' && isUnsettled(claim) && yearOf(claim.date_text) === eventYear,
+  ) ?? null;
 }
 
 /* Names the passage under the link, so the reader knows where it goes before
@@ -570,6 +612,9 @@ const PersonDetailPage: React.FC = () => {
     () => researchSections.filter(section => section.slug),
     [researchSections],
   );
+
+  /* Confirmed and Rejected are both settled, so neither surfaces here (#52). */
+  const unsettledClaims = React.useMemo(() => claims.filter(isUnsettled), [claims]);
 
   /* Arriving on a section link lands on the Overview tab by default, which
      hides the passage the link was for. */
@@ -928,6 +973,41 @@ const PersonDetailPage: React.FC = () => {
               )}
             </section>
 
+            {/* ── What is not settled (#52) ──
+                Every unsettled claim, including the ones that govern no fact
+                shown on this page -- a cause of death or a kinship has nowhere
+                else to surface, and inventing a vital for it to mark would be
+                worse than listing it here. Confirmed claims are absent on
+                purpose; this band appears only when something is open. */}
+            {unsettledClaims.length > 0 && (
+              <section className={styles.section} aria-labelledby="unsettled-heading">
+                <div className={styles.sectionHeader}>
+                  <h2 className={styles.sectionTitle} id="unsettled-heading">
+                    Not Settled
+                    <span className={styles.countBadge}>{unsettledClaims.length}</span>
+                  </h2>
+                  <Button variant="ghost" size="sm" onClick={() => setActiveTab('claims')}>
+                    All claims
+                  </Button>
+                </div>
+                <ul className={styles.unsettledList}>
+                  {unsettledClaims.map((claim) => (
+                    <li key={claim.id} className={styles.unsettledItem}>
+                      <span
+                        className={styles.confidencePill}
+                        data-confidence={confidenceKey(claim.confidence_level_name)}
+                      >
+                        {confidenceLabel(claim)}
+                      </span>
+                      <Link to={`/claims/${claim.id}`} className={styles.unsettledStatement}>
+                        {claim.statement}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             {/* ── Key Life Context ── */}
             <section className={styles.section} aria-labelledby="life-context-heading">
               <div className={styles.sectionHeader}>
@@ -955,9 +1035,33 @@ const PersonDetailPage: React.FC = () => {
                             {formatEventType(event.event_type)}
                           </Link>
                           <div className={styles.eventHeaderRight}>
-                            {event.event_date && (
-                              <span className={styles.eventDate}>{event.event_date}</span>
-                            )}
+                            {event.event_date && (() => {
+                              /* A disputed date must not look like a settled
+                                 one -- here or on the Timeline. The marker is a
+                                 dotted underline plus the level's own pill, so
+                                 it never rests on colour alone. */
+                              const governing = claimGoverningDate(event, claims);
+                              return (
+                                <>
+                                  <span
+                                    className={styles.eventDate}
+                                    data-unsettled={governing ? 'true' : undefined}
+                                  >
+                                    {event.event_date}
+                                  </span>
+                                  {governing && (
+                                    <Link
+                                      to={`/claims/${governing.id}`}
+                                      className={styles.confidencePill}
+                                      data-confidence={confidenceKey(governing.confidence_level_name)}
+                                      title={governing.statement}
+                                    >
+                                      {confidenceLabel(governing)}
+                                    </Link>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                         {(event.event_place || event.plot) && (
@@ -1097,9 +1201,33 @@ const PersonDetailPage: React.FC = () => {
                             {formatEventType(event.event_type)}
                           </Link>
                           <div className={styles.eventHeaderRight}>
-                            {event.event_date && (
-                              <span className={styles.eventDate}>{event.event_date}</span>
-                            )}
+                            {event.event_date && (() => {
+                              /* A disputed date must not look like a settled
+                                 one -- here or on the Timeline. The marker is a
+                                 dotted underline plus the level's own pill, so
+                                 it never rests on colour alone. */
+                              const governing = claimGoverningDate(event, claims);
+                              return (
+                                <>
+                                  <span
+                                    className={styles.eventDate}
+                                    data-unsettled={governing ? 'true' : undefined}
+                                  >
+                                    {event.event_date}
+                                  </span>
+                                  {governing && (
+                                    <Link
+                                      to={`/claims/${governing.id}`}
+                                      className={styles.confidencePill}
+                                      data-confidence={confidenceKey(governing.confidence_level_name)}
+                                      title={governing.statement}
+                                    >
+                                      {confidenceLabel(governing)}
+                                    </Link>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                         {(event.event_place || event.plot) && (

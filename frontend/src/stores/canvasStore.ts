@@ -69,9 +69,16 @@ interface CanvasState {
   isLoading: boolean;
   generations: number;
   highlightedPersonIds: Set<string>;
+  /**
+   * People with at least one claim that is not settled (#52). Held here rather
+   * than on each node because it comes from its own query: the tree payload is
+   * about descent, and a card can be marked without the walk knowing why.
+   */
+  unsettledPersonIds: Set<string>;
 
   // Actions
   setNodes: (nodes: TreeNode[]) => void;
+  setUnsettledPersonIds: (ids: Set<string>) => void;
   setFamilies: (families: TreeFamily[]) => void;
   setConnectors: (connectors: ConnectorLine[]) => void;
   setZoom: (zoom: number) => void;
@@ -111,8 +118,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
      payload too thin for it and only widen once somebody touched a control. */
   generations: 6,
   highlightedPersonIds: new Set<string>(),
+  unsettledPersonIds: new Set<string>(),
 
   setNodes: (nodes) => set({ nodes }),
+  setUnsettledPersonIds: (unsettledPersonIds) => set({ unsettledPersonIds }),
   setFamilies: (families) => set({ families }),
   setConnectors: (connectors) => set({ connectors }),
   setZoom: (zoom) => set({ zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)) }),

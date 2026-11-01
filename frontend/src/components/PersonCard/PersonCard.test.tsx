@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import PersonCard from './PersonCard';
+import { useCanvasStore } from '@/stores/canvasStore';
 import type { TreeNode } from '@/stores/canvasStore';
 import { CARD_WIDTH, CARD_HEIGHT } from '@/constants/card';
 
@@ -18,6 +19,9 @@ vi.mock('@/stores/canvasStore', () => ({
       selectedPersonId: null,
       hoveredPersonId: null,
       highlightedPersonIds: new Set<string>(),
+      /* Mirrors the real store's initial value (#52). The store has no persist
+         middleware, so this is always a Set in the running app. */
+      unsettledPersonIds: new Set<string>(),
       setSelectedPerson: vi.fn(),
       setHoveredPerson: vi.fn(),
       setContextMenu: vi.fn(),
@@ -307,5 +311,60 @@ describe('Double-click navigation', () => {
 
     // Verify navigation was called
     expect(mockNavigate).toHaveBeenCalledWith('/people/p99');
+  });
+});
+
+/* Issue #52, step 5: a card whose person has an open question should not look
+   like one whose facts are all settled. */
+describe('PersonCard unsettled-claim mark', () => {
+  const node = {
+    person: {
+      id: 'p-wallis', given_name: 'Wallis', surname: 'Warfield', sex: 'F' as const,
+      birth_date: '19 JUN 1896', death_date: '24 APR 1986', is_living: false,
+      is_private: false, photo_url: null,
+    },
+    x: 0, y: 0, generation: 0,
+  };
+
+  function withUnsettled(ids: string[]) {
+    (useCanvasStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      (selector?: (s: unknown) => unknown) => {
+        const state = {
+          selectedPersonId: null,
+          hoveredPersonId: null,
+          highlightedPersonIds: new Set<string>(),
+          unsettledPersonIds: new Set<string>(ids),
+          setSelectedPerson: vi.fn(),
+          setHoveredPerson: vi.fn(),
+          setContextMenu: vi.fn(),
+        };
+        return selector ? selector(state) : state;
+      },
+    );
+  }
+
+  it('marks the card and labels the mark for assistive tech', () => {
+    withUnsettled(['p-wallis']);
+    const { container } = render(<svg><PersonCard node={node} /></svg>);
+
+    expect(container.querySelector('[data-unsettled="true"]')).not.toBeNull();
+    /* The glyph carries the meaning alongside the dotted underline, so the
+       signal does not rest on colour -- red and green are both on the ramp. */
+    expect(container.querySelector('[aria-label="Has an unsettled claim"]')).not.toBeNull();
+  });
+
+  it('leaves a settled person unmarked', () => {
+    withUnsettled([]);
+    const { container } = render(<svg><PersonCard node={node} /></svg>);
+
+    expect(container.querySelector('[data-unsettled="true"]')).toBeNull();
+    expect(container.querySelector('[aria-label="Has an unsettled claim"]')).toBeNull();
+  });
+
+  it('marks only the person the claim is about', () => {
+    withUnsettled(['someone-else']);
+    const { container } = render(<svg><PersonCard node={node} /></svg>);
+
+    expect(container.querySelector('[data-unsettled="true"]')).toBeNull();
   });
 });

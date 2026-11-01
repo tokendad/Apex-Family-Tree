@@ -235,6 +235,32 @@ export class ClaimRepository extends BaseRepository {
     ).all(subjectObjectId, subjectObjectId) as ClaimForSubjectRecord[];
   }
 
+  /* The subjects of every claim that is not settled, for marking tree cards
+     (#52). Confirmed and Rejected are both settled -- one is established, the
+     other has been ruled out -- so neither puts a mark on a card. A claim with
+     no confidence level yet counts as unsettled: ungraded is not the same as
+     agreed.
+
+     Returns ids rather than claims because the caller only needs to know which
+     people to mark, and a tree can hold hundreds of cards. */
+  findUnsettledSubjectIds(): string[] {
+    const rows = this.db.prepare(
+      `SELECT DISTINCT s.subject_object_id AS id
+         FROM (
+           SELECT c.id AS claim_id, c.subject_object_id
+             FROM claims c WHERE c.subject_object_id IS NOT NULL
+           UNION
+           SELECT cs.claim_id, cs.subject_object_id FROM claim_subjects cs
+         ) s
+         JOIN claims c ON c.id = s.claim_id
+         JOIN archive_objects ao ON ao.id = c.id AND ao.is_deleted = 0
+         LEFT JOIN confidence_levels cl ON cl.id = c.confidence_level_id
+        WHERE cl.id IS NULL
+           OR cl.id NOT IN ('confidence_confirmed', 'confidence_rejected')`,
+    ).all() as { id: string }[];
+    return rows.map(row => row.id);
+  }
+
   addEvidence(claimId: string, data: AddClaimEvidenceInput): ClaimEvidenceRecord {
     if (!this.findById(claimId)) throw new Error('Claim not found');
     const evidence = this.archiveObjects.findById(data.evidence_object_id);

@@ -131,3 +131,21 @@
   opacity: 0.35;
   transition: opacity var(--transition-fast);
 }
+
+/* ── Unsettled claim mark (#52) ──
+   The dotted underline and the glyph carry the same meaning, so the signal
+   survives for anyone who cannot separate the confidence colours. */
+.dates[data-unsettled='true'] {
+  color: var(--color-accent-800);
+  border-bottom: 2px dotted var(--color-accent-600);
+  padding-bottom: 1px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.unsettledMark {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+}

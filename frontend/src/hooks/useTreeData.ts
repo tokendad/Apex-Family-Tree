@@ -66,6 +66,18 @@ export function useTreeData() {
 
       const store = useCanvasStore.getState();
 
+      /* Which cards carry an unsettled-claim mark (#52). Its own request,
+         because the tree walk is about descent and knows nothing about claims.
+         Failing is not fatal: the tree draws and the marks are simply absent,
+         which is the honest outcome when we cannot tell. */
+      fetch('/api/v1/claims/unsettled-subjects', { credentials: 'include' })
+        .then(response => (response.ok ? response.json() : null))
+        .then((json: { data: string[] } | null) => {
+          if (!isCurrent() || !json) return;
+          store.setUnsettledPersonIds(new Set(json.data ?? []));
+        })
+        .catch(() => { /* marks stay absent */ });
+
       /* Only an unrooted response carries the real home person. GET
          /tree/:personId echoes the id it was given back as home_person_id, so
          trusting it on a rooted request would quietly reassign home to
