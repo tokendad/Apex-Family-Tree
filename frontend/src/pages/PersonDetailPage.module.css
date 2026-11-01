@@ -669,25 +669,6 @@
   align-items: center;
 }
 
-/* A filled pill is the confidence level. The fills are deliberately not text
-   colours: at these saturations none of them is legible as text, but all six
-   clear WCAG AA under --color-confidence-ink. The level's name and number are
-   always inside the pill, so colour is never the only signal. */
-.confidencePill {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-confidence-ink);
-  background-color: var(--color-confidence-unknown);
-  border-radius: var(--radius-full);
-  padding: var(--space-1) var(--space-3);
-  white-space: nowrap;
-}
-
-.confidencePill[data-confidence='confirmed'] { background-color: var(--color-confidence-confirmed); }
-.confidencePill[data-confidence='probable'] { background-color: var(--color-confidence-probable); }
-.confidencePill[data-confidence='disputed'] { background-color: var(--color-confidence-disputed); }
-.confidencePill[data-confidence='possible'] { background-color: var(--color-confidence-possible); }
-.confidencePill[data-confidence='rejected'] { background-color: var(--color-confidence-rejected); }
 
 /* An outline chip is the state of the records, not of the conclusion. Outline
    rather than filled so it cannot be mistaken for a confidence grade -- yellow

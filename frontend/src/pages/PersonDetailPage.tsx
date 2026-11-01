@@ -12,6 +12,8 @@ import { type ContextActionItem } from '@/components/archive-object/ContextActio
 import { Label, Input, Select, Textarea, HelperText } from '@/components/Form';
 import PersonPicker from '@/components/entity-pickers/PersonPicker';
 import ObjectPicker, { type ArchiveObjectResult } from '@/components/entity-pickers/ObjectPicker';
+import ConfidencePill from '@/components/ConfidencePill/ConfidencePill';
+import { isUnsettledConfidence } from '@/utils/confidence';
 import { usePageActions } from '@/contexts/PageActionsContext';
 import ObjectCollections, { CollectionMembership } from '@/components/ObjectCollections/ObjectCollections';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -324,24 +326,6 @@ const STATUS_LABELS: Record<PersonClaim['status'], string> = {
   unknown: 'Unknown',
 };
 
-/* Drives the pill's fill via a data attribute, so the six confidence colours
-   live in the stylesheet with the rest of the tokens rather than inline. An
-   unrecognised or missing level falls back to the neutral "unknown" fill. */
-const CONFIDENCE_KEYS = ['confirmed', 'probable', 'disputed', 'possible', 'rejected'] as const;
-
-function confidenceKey(name: string | null): string {
-  const key = name?.trim().toLowerCase() ?? '';
-  return (CONFIDENCE_KEYS as readonly string[]).includes(key) ? key : 'unknown';
-}
-
-/* The number earns its place only when it is there: "Confirmed · 95" says more
-   than "Confirmed", but "Unknown · null" says less. */
-function confidenceLabel(claim: PersonClaim): string {
-  const name = claim.confidence_level_name?.trim() || 'Unknown';
-  const score = claim.confidence_score;
-  return score === null ? name : `${name} · ${score}`;
-}
-
 /* The headings are shouted in the prose, which is right in a plain-text note
    and wrong in a contents list, where a dozen capitalised lines are unreadable.
    The section itself keeps the original capitals. */
@@ -350,14 +334,8 @@ function sentenceCase(heading: string): string {
   return trimmed.charAt(0) + trimmed.slice(1).toLowerCase();
 }
 
-/* A Confirmed conclusion adds no marker anywhere (#52): if every settled date
-   carried a badge, none of them would mean anything. Rejected is settled too --
-   it has been looked into and ruled out -- so it marks nothing either. What is
-   left is the genuinely open middle, plus the ungraded. */
-const SETTLED_CONFIDENCE = new Set(['confirmed', 'rejected']);
-
 function isUnsettled(claim: PersonClaim): boolean {
-  return !SETTLED_CONFIDENCE.has(confidenceKey(claim.confidence_level_name));
+  return isUnsettledConfidence(claim.confidence_level_name);
 }
 
 /* A claim's date_text is free prose ("20 July 1904") and an event's date is
@@ -1244,12 +1222,10 @@ const PersonDetailPage: React.FC = () => {
                 <ul className={styles.unsettledList}>
                   {unsettledClaims.map((claim) => (
                     <li key={claim.id} className={styles.unsettledItem}>
-                      <span
-                        className={styles.confidencePill}
-                        data-confidence={confidenceKey(claim.confidence_level_name)}
-                      >
-                        {confidenceLabel(claim)}
-                      </span>
+                      <ConfidencePill
+                        name={claim.confidence_level_name}
+                        score={claim.confidence_score}
+                      />
                       <Link to={`/claims/${claim.id}`} className={styles.unsettledStatement}>
                         {claim.statement}
                       </Link>
@@ -1301,14 +1277,12 @@ const PersonDetailPage: React.FC = () => {
                                     {event.event_date}
                                   </span>
                                   {governing && (
-                                    <Link
+                                    <ConfidencePill
                                       to={`/claims/${governing.id}`}
-                                      className={styles.confidencePill}
-                                      data-confidence={confidenceKey(governing.confidence_level_name)}
+                                      name={governing.confidence_level_name}
+                                      score={governing.confidence_score}
                                       title={governing.statement}
-                                    >
-                                      {confidenceLabel(governing)}
-                                    </Link>
+                                    />
                                   )}
                                 </>
                               );
@@ -1467,14 +1441,12 @@ const PersonDetailPage: React.FC = () => {
                                     {event.event_date}
                                   </span>
                                   {governing && (
-                                    <Link
+                                    <ConfidencePill
                                       to={`/claims/${governing.id}`}
-                                      className={styles.confidencePill}
-                                      data-confidence={confidenceKey(governing.confidence_level_name)}
+                                      name={governing.confidence_level_name}
+                                      score={governing.confidence_score}
                                       title={governing.statement}
-                                    >
-                                      {confidenceLabel(governing)}
-                                    </Link>
+                                    />
                                   )}
                                 </>
                               );
@@ -1884,12 +1856,10 @@ const PersonDetailPage: React.FC = () => {
                           <Link to={`/claims/${claim.id}`}>{claim.statement}</Link>
                         </h3>
                         <div className={styles.claimMeta}>
-                          <span
-                            className={styles.confidencePill}
-                            data-confidence={confidenceKey(claim.confidence_level_name)}
-                          >
-                            {confidenceLabel(claim)}
-                          </span>
+                          <ConfidencePill
+                            name={claim.confidence_level_name}
+                            score={claim.confidence_score}
+                          />
                           <span className={styles.statusChip}>{STATUS_LABELS[claim.status]}</span>
                           <span className={styles.evidenceTally}>{evidenceTally(claim)}</span>
                         </div>

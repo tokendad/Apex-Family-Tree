@@ -6,9 +6,11 @@ import Navbar from '@/components/Navbar/Navbar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import { usePermissions } from '@/hooks/usePermissions';
+import ObjectPicker, { type ArchiveObjectResult } from '@/components/entity-pickers/ObjectPicker';
+import ConfidencePill from '@/components/ConfidencePill/ConfidencePill';
 import styles from './ArtifactsPage.module.css';
 
-interface ConfidenceLevel { id: string; name: string }
+interface ConfidenceLevel { id: string; name: string; numeric_value: number | null }
 interface ClaimSubject { id: string; subject_object_id: string; object_type: string; title: string; role: string }
 interface ClaimEvidence { id: string; evidence_object_id: string; evidence_role: string; title: string; evidence_classification_name: string | null; weight_score: number | null; notes: string | null }
 interface ClaimRecord {
@@ -48,7 +50,9 @@ const ClaimDetailPage: React.FC = () => {
   const [claim, setClaim] = useState<ClaimRecord | null>(null);
   const [confidenceLevels, setConfidenceLevels] = useState<ConfidenceLevel[]>([]);
   const [form, setForm] = useState<ReturnType<typeof formFromClaim> | null>(null);
-  const [artifactId, setArtifactId] = useState('');
+  /* Both of these were raw archive-object ids typed into text boxes. */
+  const [subject, setSubject] = useState<ArchiveObjectResult | null>(null);
+  const [evidenceObject, setEvidenceObject] = useState<ArchiveObjectResult | null>(null);
   const [evidenceRole, setEvidenceRole] = useState('supports');
   const [evidenceNotes, setEvidenceNotes] = useState('');
   const [editMode, setEditMode] = useState(false);
@@ -70,6 +74,20 @@ const ClaimDetailPage: React.FC = () => {
       const confidenceJson = await confidenceRes.json() as { data: ConfidenceLevel[] };
       setClaim(claimJson);
       setForm(formFromClaim(claimJson));
+      /* Show the subject the claim already has rather than an empty picker.
+         claim_subjects carries the title; subject_object_id alone would leave
+         the control looking unset on a claim that has one. */
+      const primarySubject = claimJson.subjects.find(
+        (candidate) => candidate.subject_object_id === claimJson.subject_object_id,
+      ) ?? claimJson.subjects[0] ?? null;
+      setSubject(primarySubject
+        ? {
+            id: primarySubject.subject_object_id,
+            object_type: primarySubject.object_type as ArchiveObjectResult['object_type'],
+            title: primarySubject.title,
+            summary: null,
+          }
+        : null);
       setConfidenceLevels(confidenceJson.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load claim');
@@ -88,7 +106,7 @@ const ClaimDetailPage: React.FC = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         statement: form.statement.trim(),
-        subject_object_id: form.subject_object_id.trim() || null,
+        subject_object_id: subject?.id ?? form.subject_object_id ?? null,
         date_text: form.date_text.trim() || null,
         confidence_level_id: form.confidence_level_id || null,
         confidence_score: form.confidence_score.trim() ? Number(form.confidence_score) : null,
@@ -110,14 +128,14 @@ const ClaimDetailPage: React.FC = () => {
   };
 
   const handleAddEvidence = async () => {
-    if (!id || !artifactId.trim()) return;
+    if (!id || !evidenceObject) return;
     const res = await fetch(`/api/v1/claims/${id}/evidence`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ evidence_object_id: artifactId.trim(), evidence_role: evidenceRole, notes: evidenceNotes.trim() || null }),
+      body: JSON.stringify({ evidence_object_id: evidenceObject.id, evidence_role: evidenceRole, notes: evidenceNotes.trim() || null }),
     });
     if (res.ok) {
-      setArtifactId('');
+      setEvidenceObject(null);
       setEvidenceNotes('');
       await loadClaim();
     }
@@ -128,14 +146,14 @@ const ClaimDetailPage: React.FC = () => {
       <div className={styles.page}>
         <Link className={styles.backLink} to="/claims">Back to claims</Link>
         {isLoading ? <div className={styles.empty}>Loading claim...</div> : error || !claim || !form ? <div className={styles.error}>{error ?? 'Claim not found'}</div> : <>
-          <header className={styles.header}><div><p className={styles.eyebrow}>{claim.status}</p><h1>{claim.statement}</h1>{claim.confidence_level_name && <p className={styles.subtitle}>Confidence: {claim.confidence_level_name}</p>}</div><div className={styles.actions}>{canEdit && <Button variant="ghost" onClick={() => setEditMode((value) => !value)}>{editMode ? 'Cancel' : 'Edit'}</Button>}{canDelete && <Button variant="danger" onClick={handleDelete}>Delete</Button>}</div></header>
+          <header className={styles.header}><div><p className={styles.eyebrow}>{claim.status}</p><h1>{claim.statement}</h1><p className={styles.subtitle}><ConfidencePill name={claim.confidence_level_name} score={claim.confidence_score} /></p></div><div className={styles.actions}>{canEdit && <Button variant="ghost" onClick={() => setEditMode((value) => !value)}>{editMode ? 'Cancel' : 'Edit'}</Button>}{canDelete && <Button variant="danger" onClick={handleDelete}>Delete</Button>}</div></header>
 
           {editMode ? <form className={styles.formCard} onSubmit={handleSave}>
             <div className={styles.formGrid}>
               <label className={styles.field}><span>Statement</span><Input value={form.statement} onChange={(e) => setForm({ ...form, statement: e.target.value })} required /></label>
-              <label className={styles.field}><span>Subject Object ID</span><Input value={form.subject_object_id} onChange={(e) => setForm({ ...form, subject_object_id: e.target.value })} /></label>
+              <div className={styles.field}><ObjectPicker label="Subject" value={subject} onSelect={setSubject} onClear={() => setSubject(null)} /></div>
               <label className={styles.field}><span>Date</span><Input value={form.date_text} onChange={(e) => setForm({ ...form, date_text: e.target.value })} /></label>
-              <label className={styles.field}><span>Confidence</span><select value={form.confidence_level_id} onChange={(e) => setForm({ ...form, confidence_level_id: e.target.value })}>{confidenceLevels.map((level) => <option key={level.id} value={level.id}>{level.name}</option>)}</select></label>
+              <label className={styles.field}><span>Confidence</span><select value={form.confidence_level_id} onChange={(e) => setForm({ ...form, confidence_level_id: e.target.value })}>{confidenceLevels.map((level) => <option key={level.id} value={level.id}>{level.numeric_value === null ? level.name : `${level.name} · ${level.numeric_value}`}</option>)}</select></label>
               <label className={styles.field}><span>Confidence Score</span><Input type="number" min="0" max="100" value={form.confidence_score} onChange={(e) => setForm({ ...form, confidence_score: e.target.value })} /></label>
               <label className={styles.field}><span>Status</span><select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as ClaimRecord['status'] })}><option value="open">Open</option><option value="supported">Supported</option><option value="conflicted">Conflicted</option><option value="rejected">Rejected</option><option value="unknown">Unknown</option></select></label>
             </div>
@@ -151,7 +169,24 @@ const ClaimDetailPage: React.FC = () => {
           <section className={styles.detailCard}>
             <div className={styles.sectionTitleRow}><h2>Evidence</h2></div>
             {claim.evidence.length === 0 ? <p className={styles.muted}>No artifact evidence connected yet.</p> : <div className={styles.connectedList}>{claim.evidence.map((evidence) => <Link key={evidence.id} className={styles.connectedItem} to={`/artifacts/${evidence.evidence_object_id}`}><strong>{evidence.title}</strong><span>{evidence.evidence_role}{evidence.weight_score !== null ? `, weight ${evidence.weight_score}` : ''}</span></Link>)}</div>}
-            {canEdit && <div className={styles.connectBox}><Input placeholder="Artifact archive object ID" value={artifactId} onChange={(event) => setArtifactId(event.target.value)} /><select value={evidenceRole} onChange={(event) => setEvidenceRole(event.target.value)}><option value="supports">Supports</option><option value="contradicts">Contradicts</option><option value="mentions">Mentions</option><option value="uncertain">Uncertain</option></select><Input placeholder="Evidence notes" value={evidenceNotes} onChange={(event) => setEvidenceNotes(event.target.value)} /><Button onClick={handleAddEvidence}>Add Evidence</Button></div>}
+            {canEdit && <div className={styles.connectBox}>
+              <ObjectPicker
+                label="Attach a record"
+                objectTypes={['artifact']}
+                excludeIds={claim.evidence.map((row) => row.evidence_object_id)}
+                value={evidenceObject}
+                onSelect={setEvidenceObject}
+                onClear={() => setEvidenceObject(null)}
+              />
+              <select value={evidenceRole} onChange={(event) => setEvidenceRole(event.target.value)}>
+                <option value="supports">Supports</option>
+                <option value="contradicts">Contradicts</option>
+                <option value="mentions">Mentions</option>
+                <option value="uncertain">Uncertain</option>
+              </select>
+              <Input placeholder="Evidence notes" value={evidenceNotes} onChange={(event) => setEvidenceNotes(event.target.value)} />
+              <Button disabled={!evidenceObject} onClick={handleAddEvidence}>Attach Record</Button>
+            </div>}
           </section>
         </>}
       </div>

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
+import ConfidencePill from '@/components/ConfidencePill/ConfidencePill';
 import styles from './FaqPage.module.css';
 
 const SECTIONS = [
@@ -255,27 +256,27 @@ export default function FaqPage() {
 
             <ul className={styles.confidenceKey}>
               <li>
-                <span className={styles.confidencePill} data-confidence="confirmed">Confirmed &middot; 95</span>
+                <ConfidencePill name="Confirmed" score={95} />
                 <span>Settled. Several independent records agree.</span>
               </li>
               <li>
-                <span className={styles.confidencePill} data-confidence="probable">Probable &middot; 65</span>
+                <ConfidencePill name="Probable" score={65} />
                 <span>Good evidence, nothing against it, but not proved.</span>
               </li>
               <li>
-                <span className={styles.confidencePill} data-confidence="disputed">Disputed &middot; 40</span>
+                <ConfidencePill name="Disputed" score={40} />
                 <span>Records genuinely disagree and the question is open.</span>
               </li>
               <li>
-                <span className={styles.confidencePill} data-confidence="possible">Possible &middot; 25</span>
+                <ConfidencePill name="Possible" score={25} />
                 <span>One weak or compiled source, nothing confirming it.</span>
               </li>
               <li>
-                <span className={styles.confidencePill} data-confidence="rejected">Rejected &middot; 0</span>
+                <ConfidencePill name="Rejected" score={0} />
                 <span>Looked into and ruled out. Kept so it is not proposed again.</span>
               </li>
               <li>
-                <span className={styles.confidencePill} data-confidence="unknown">Unknown</span>
+                <ConfidencePill name="Unknown" />
                 <span>Not yet graded.</span>
               </li>
             </ul>

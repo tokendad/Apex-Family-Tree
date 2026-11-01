@@ -199,22 +199,3 @@
   flex: 1 1 24ch;
 }
 
-/* Fills, never text colours: at these saturations none of them is legible as
-   text, but all six clear WCAG AA under near-black ink. */
-.confidencePill {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-confidence-ink);
-  background-color: var(--color-confidence-unknown);
-  border-radius: var(--radius-full);
-  padding: var(--space-1) var(--space-3);
-  white-space: nowrap;
-  min-width: 11ch;
-  text-align: center;
-}
-
-.confidencePill[data-confidence='confirmed'] { background-color: var(--color-confidence-confirmed); }
-.confidencePill[data-confidence='probable'] { background-color: var(--color-confidence-probable); }
-.confidencePill[data-confidence='disputed'] { background-color: var(--color-confidence-disputed); }
-.confidencePill[data-confidence='possible'] { background-color: var(--color-confidence-possible); }
-.confidencePill[data-confidence='rejected'] { background-color: var(--color-confidence-rejected); }

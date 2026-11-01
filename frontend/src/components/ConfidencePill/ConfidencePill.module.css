@@ -1,0 +1,27 @@
+/* The confidence pill (#52). Fills from tokens.css, ink near-black.
+
+   Deliberately not teal: teal is this app's link and button colour, so a teal
+   pill would read as clickable even where it is not. */
+.pill {
+  display: inline-block;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  color: var(--color-confidence-ink);
+  background-color: var(--color-confidence-unknown);
+  border-radius: var(--radius-full);
+  padding: var(--space-1) var(--space-3);
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.pill[data-confidence='confirmed'] { background-color: var(--color-confidence-confirmed); }
+.pill[data-confidence='probable'] { background-color: var(--color-confidence-probable); }
+.pill[data-confidence='disputed'] { background-color: var(--color-confidence-disputed); }
+.pill[data-confidence='possible'] { background-color: var(--color-confidence-possible); }
+.pill[data-confidence='rejected'] { background-color: var(--color-confidence-rejected); }
+
+/* A linked pill is still a pill; only the cursor and the underline change. */
+a.pill:hover {
+  text-decoration: underline;
+}
