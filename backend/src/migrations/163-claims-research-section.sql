@@ -1,12 +1,12 @@
 -- Add claims.research_section: the slug of the research-note passage that
 -- argues this claim.
 --
--- Issue #52. A claim row can record THAT Celanire's father is Joseph with
--- confidence 95. It cannot record WHY -- that four independent records say
--- Joseph and the single act saying Prosper is wrong in two separate fields.
--- That argument is the most valuable content in this archive and it does not
--- survive being flattened into an enum, so the claim points at the prose
--- instead of replacing it. This column is the pointer.
+-- Issue #52. A claim row can record THAT a person's father was one man rather
+-- than another, with confidence 95. It cannot record WHY -- that four
+-- independent records agree and the single act against them is wrong in two
+-- separate fields. That argument is the most valuable content in an archive
+-- and it does not survive being flattened into an enum, so the claim points at
+-- the prose instead of replacing it. This column is the pointer.
 --
 -- It holds a SLUG, not an offset and not a copy of the text. The slugs are
 -- derived at read time from the note's own capitalised opening sentences --
