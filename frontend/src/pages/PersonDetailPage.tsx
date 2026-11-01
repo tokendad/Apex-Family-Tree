@@ -11,6 +11,7 @@ import ArtifactCard from '@/components/archive-object/ArtifactCard';
 import { type ContextActionItem } from '@/components/archive-object/ContextActionsMenu';
 import { Label, Input, Select, Textarea, HelperText } from '@/components/Form';
 import PersonPicker from '@/components/entity-pickers/PersonPicker';
+import ObjectPicker, { type ArchiveObjectResult } from '@/components/entity-pickers/ObjectPicker';
 import { usePageActions } from '@/contexts/PageActionsContext';
 import ObjectCollections, { CollectionMembership } from '@/components/ObjectCollections/ObjectCollections';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -396,6 +397,24 @@ const CLAIM_TYPES = ['parentage', 'name', 'date', 'place', 'relationship', 'medi
 
 const CLAIM_STATUSES: PersonClaim['status'][] = ['open', 'supported', 'conflicted', 'rejected', 'unknown'];
 
+type EvidenceRole = 'supports' | 'contradicts' | 'mentions' | 'uncertain';
+
+const EVIDENCE_ROLES: { value: EvidenceRole; label: string; hint: string }[] = [
+  { value: 'supports', label: 'Supports', hint: 'A record that bears this out.' },
+  { value: 'contradicts', label: 'Contradicts', hint: 'A record that says otherwise. Filing it is the point.' },
+  { value: 'mentions', label: 'Mentions', hint: 'Touches the subject without deciding it — or is the same document twice.' },
+  { value: 'uncertain', label: 'Uncertain', hint: 'Read, but not trusted enough to count either way.' },
+];
+
+interface ClaimEvidenceRow {
+  id: string;
+  evidence_object_id: string;
+  evidence_role: EvidenceRole;
+  excerpt: string | null;
+  locator: string | null;
+  title: string;
+}
+
 interface ConfidenceLevelOption {
   id: string;
   name: string;
@@ -495,6 +514,16 @@ const PersonDetailPage: React.FC = () => {
   const [confidenceLevels, setConfidenceLevels] = useState<ConfidenceLevelOption[]>([]);
   const [claimSaving, setClaimSaving] = useState(false);
   const [claimError, setClaimError] = useState<string | null>(null);
+
+  /* Evidence can only hang off a claim that exists, so this is populated once
+     the drawer is editing one -- including a claim just created, which the
+     drawer stays open on for exactly this reason. */
+  const [claimEvidence, setClaimEvidence] = useState<ClaimEvidenceRow[]>([]);
+  const [evidenceObject, setEvidenceObject] = useState<ArchiveObjectResult | null>(null);
+  const [evidenceRole, setEvidenceRole] = useState<EvidenceRole>('supports');
+  const [evidenceExcerpt, setEvidenceExcerpt] = useState('');
+  const [evidenceLocator, setEvidenceLocator] = useState('');
+  const [evidenceBusy, setEvidenceBusy] = useState(false);
 
   /* A claim links to one section of the research note by slug (#52). The hash
      is the anchor; arriving with one switches to the Research tab and marks the
@@ -660,6 +689,7 @@ const PersonDetailPage: React.FC = () => {
       notes: '',
     });
     setClaimDrawerOpen(true);
+    setClaimEvidence([]);
     void fetchConfidenceLevels();
   }, [id, fetchConfidenceLevels]);
 
@@ -678,6 +708,76 @@ const PersonDetailPage: React.FC = () => {
       setClaimsLoading(false);
     }
   }, [id]);
+
+  const fetchClaimEvidence = useCallback(async (claimId: string) => {
+    try {
+      const res = await fetch(`/api/v1/claims/${claimId}`, { credentials: 'include' });
+      if (!res.ok) return;
+      const json = await res.json() as { evidence?: ClaimEvidenceRow[] };
+      setClaimEvidence(json.evidence ?? []);
+    } catch {
+      // The list stays as it was rather than emptying on a hiccup.
+    }
+  }, []);
+
+  /* Driven by the id rather than by the opener, so it covers both ways the
+     drawer comes to be editing a claim: Edit on a card, and a create that has
+     just turned into an edit. */
+  useEffect(() => {
+    if (claimDrawerOpen && claimDrawerId) void fetchClaimEvidence(claimDrawerId);
+  }, [claimDrawerOpen, claimDrawerId, fetchClaimEvidence]);
+
+  const addEvidence = useCallback(async () => {
+    if (!claimDrawerId || !evidenceObject) return;
+    setEvidenceBusy(true);
+    setClaimError(null);
+    try {
+      const res = await fetch(`/api/v1/claims/${claimDrawerId}/evidence`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          evidence_object_id: evidenceObject.id,
+          evidence_role: evidenceRole,
+          excerpt: evidenceExcerpt.trim(),
+          locator: evidenceLocator.trim(),
+        }),
+      });
+      if (!res.ok) {
+        /* The table has a UNIQUE (claim_id, evidence_object_id, evidence_role),
+           so the same record in the same role twice is the likely refusal. */
+        throw new Error('Could not attach that record. It may already be attached in this role.');
+      }
+      setEvidenceObject(null);
+      setEvidenceExcerpt('');
+      setEvidenceLocator('');
+      await fetchClaimEvidence(claimDrawerId);
+      await fetchClaims();
+    } catch (error) {
+      setClaimError(error instanceof Error ? error.message : 'Could not attach that record.');
+    } finally {
+      setEvidenceBusy(false);
+    }
+  }, [claimDrawerId, evidenceObject, evidenceRole, evidenceExcerpt, evidenceLocator, fetchClaimEvidence, fetchClaims]);
+
+  const removeEvidence = useCallback(async (evidenceId: string) => {
+    if (!claimDrawerId) return;
+    setEvidenceBusy(true);
+    try {
+      const res = await fetch(`/api/v1/claims/${claimDrawerId}/evidence/${evidenceId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        await fetchClaimEvidence(claimDrawerId);
+        await fetchClaims();
+      }
+    } catch {
+      setClaimError('Could not detach that record.');
+    } finally {
+      setEvidenceBusy(false);
+    }
+  }, [claimDrawerId, fetchClaimEvidence, fetchClaims]);
 
   const submitClaim = useCallback(async (event: React.FormEvent) => {
     event.preventDefault();
@@ -718,11 +818,24 @@ const PersonDetailPage: React.FC = () => {
       );
       if (!res.ok) throw new Error(claimDrawerId ? 'Failed to save the claim.' : 'Failed to create the claim.');
 
-      /* Back to the Claims tab with the card visible, rather than away to
-         /claims/:id -- the reader is on this person and stays there. */
-      setClaimDrawerOpen(false);
       setActiveTab('claims');
       await fetchClaims();
+
+      if (claimDrawerId) {
+        /* Editing: the work is done, so close. */
+        setClaimDrawerOpen(false);
+      } else {
+        /* Creating: evidence cannot hang off a claim that does not exist yet,
+           so rather than closing and making the reader find the card and press
+           Edit, the drawer stays open on the claim it just made. */
+        const created = await res.json() as { id?: string };
+        if (created.id) {
+          setClaimDrawerId(created.id);
+          setClaimEvidence([]);
+        } else {
+          setClaimDrawerOpen(false);
+        }
+      }
     } catch (error) {
       setClaimError(error instanceof Error ? error.message : 'Failed to save the claim.');
     } finally {
@@ -1961,12 +2074,127 @@ const PersonDetailPage: React.FC = () => {
           </div>
 
           <div className={styles.claimFormActions}>
-            <Button variant="secondary" type="button" onClick={() => setClaimDrawerOpen(false)}>Cancel</Button>
+            <Button variant="secondary" type="button" onClick={() => setClaimDrawerOpen(false)}>
+              {claimDrawerId ? 'Close' : 'Cancel'}
+            </Button>
             <Button type="submit" loading={claimSaving}>
               {claimDrawerId ? 'Save Claim' : 'Create Claim'}
             </Button>
           </div>
         </form>
+
+        {/* ── Evidence ──
+            Only once the claim exists, because evidence hangs off a claim id.
+            A create turns into an edit on save for exactly this reason, so the
+            reader can attach records without hunting for the card again. */}
+        {claimDrawerId ? (
+          <section className={styles.evidenceSection} aria-labelledby="claim-evidence-heading">
+            <div className={styles.sectionHeader}>
+              <h3 className={styles.sectionTitle} id="claim-evidence-heading">
+                Evidence
+                {claimEvidence.length > 0 && (
+                  <span className={styles.countBadge}>{claimEvidence.length}</span>
+                )}
+              </h3>
+            </div>
+            <HelperText>
+              Records already in the archive. Nothing is uploaded here, and a record that
+              contradicts the claim belongs here as much as one that supports it.
+            </HelperText>
+
+            {claimEvidence.length > 0 && (
+              <ul className={styles.evidenceList}>
+                {claimEvidence.map((row) => (
+                  <li key={row.id} className={styles.evidenceRow}>
+                    <div className={styles.evidenceMain}>
+                      <Link to={`/artifacts/${row.evidence_object_id}`} className={styles.evidenceTitle}>
+                        {row.title}
+                      </Link>
+                      <span className={styles.evidenceRoleChip} data-role={row.evidence_role}>
+                        {EVIDENCE_ROLES.find(r => r.value === row.evidence_role)?.label ?? row.evidence_role}
+                      </span>
+                    </div>
+                    {(row.excerpt || row.locator) && (
+                      <div className={styles.evidenceMeta}>
+                        {row.locator && <span>{row.locator}</span>}
+                        {row.excerpt && <span className={styles.evidenceExcerpt}>&ldquo;{row.excerpt}&rdquo;</span>}
+                      </div>
+                    )}
+                    {canDelete && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={evidenceBusy}
+                        onClick={() => removeEvidence(row.id)}
+                      >
+                        Detach
+                      </Button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {canEdit && (
+              <div className={styles.evidenceAdd}>
+                <ObjectPicker
+                  label="Attach a record"
+                  objectTypes={['artifact']}
+                  excludeIds={claimEvidence.map(row => row.evidence_object_id)}
+                  value={evidenceObject}
+                  onSelect={setEvidenceObject}
+                  onClear={() => setEvidenceObject(null)}
+                />
+                <div className={styles.claimFieldRow}>
+                  <div className={styles.claimField}>
+                    <Label htmlFor="evidence-role">Role</Label>
+                    <Select
+                      id="evidence-role"
+                      value={evidenceRole}
+                      onChange={(e) => setEvidenceRole(e.target.value as EvidenceRole)}
+                    >
+                      {EVIDENCE_ROLES.map((role) => (
+                        <option key={role.value} value={role.value}>{role.label}</option>
+                      ))}
+                    </Select>
+                    <HelperText>{EVIDENCE_ROLES.find(r => r.value === evidenceRole)?.hint}</HelperText>
+                  </div>
+                  <div className={styles.claimField}>
+                    <Label htmlFor="evidence-locator">Locator</Label>
+                    <Input
+                      id="evidence-locator"
+                      value={evidenceLocator}
+                      placeholder="e.g. page 89, entry 33"
+                      onChange={(e) => setEvidenceLocator(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className={styles.claimField}>
+                  <Label htmlFor="evidence-excerpt">Excerpt</Label>
+                  <Textarea
+                    id="evidence-excerpt"
+                    rows={2}
+                    value={evidenceExcerpt}
+                    placeholder="What the record actually says, in its own words"
+                    onChange={(e) => setEvidenceExcerpt(e.target.value)}
+                  />
+                </div>
+                <div className={styles.claimFormActions}>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={!evidenceObject || evidenceBusy}
+                    onClick={addEvidence}
+                  >
+                    Attach Record
+                  </Button>
+                </div>
+              </div>
+            )}
+          </section>
+        ) : (
+          <HelperText>Evidence can be attached once the claim is created.</HelperText>
+        )}
       </ActionDrawer>
 
       <ActionDrawer

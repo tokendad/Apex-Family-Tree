@@ -1080,3 +1080,124 @@ describe('PersonDetailPage claim drawer', () => {
     expect(posted).toHaveLength(0);
   });
 });
+
+/* Issue #52, the rest of scope item 2: attaching records already in the
+   archive. Evidence hangs off a claim id, so the interesting cases are the two
+   ways the drawer comes to have one. */
+describe('PersonDetailPage claim evidence', () => {
+  const claim = {
+    id: 'claim-1',
+    statement: 'Her father is Preston, not Marlow.',
+    claim_type: 'parentage',
+    date_text: null,
+    status: 'conflicted' as const,
+    confidence_level_id: 'confidence_confirmed',
+    confidence_level_name: 'Confirmed',
+    confidence_score: 95,
+    evidence_count: 1,
+    supporting_count: 1,
+    contradicting_count: 0,
+    research_section: null as string | null,
+  };
+
+  const evidence = [{
+    id: 'ev-1',
+    evidence_object_id: 'art-1',
+    evidence_role: 'supports' as const,
+    excerpt: 'Preston Hadley, father',
+    locator: 'page 59, entry 2357',
+    title: 'Register of births, 1889',
+  }];
+
+  let calls: { url: string; method: string; body?: Record<string, unknown> }[] = [];
+
+  function mock(opts: { evidence: typeof evidence }) {
+    calls = [];
+    global.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      if (method !== 'GET') {
+        calls.push({ url, method, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+        return Promise.resolve({ ok: true, json: async () => ({ id: 'claim-1' }) });
+      }
+      if (url.includes('/claims/confidence-levels'))
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+      if (url.includes('/claims/subject/'))
+        return Promise.resolve({ ok: true, json: async () => ({ data: [claim] }) });
+      if (url.match(/\/claims\/claim-1$/))
+        return Promise.resolve({ ok: true, json: async () => ({ ...claim, subjects: [], evidence: opts.evidence }) });
+      if (url.includes('/connected') || url.includes('/collections/for-object/'))
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+      if (url.includes('/relationships') || url.includes('/media') || url.includes('/sources'))
+        return Promise.resolve({ ok: true, json: async () => [] });
+      return Promise.resolve({ ok: true, json: async () => stubPerson });
+    });
+  }
+
+  async function openEditDrawer() {
+    perms.canEdit = true;
+    perms.canDelete = true;
+    renderPage();
+    await screen.findByRole('button', { name: /view in tree/i });
+    fireEvent.click(screen.getByRole('tab', { name: /claims/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^edit$/i }));
+  }
+
+  it('lists the records already attached, with role, locator and excerpt', async () => {
+    mock({ evidence });
+    await openEditDrawer();
+
+    const title = await screen.findByText('Register of births, 1889');
+    /* Scoped to the row: "Supports" is also an option in the Role select below,
+       so a bare text query matches two things. */
+    const row = title.closest('li')!;
+    expect(row.querySelector('[data-role="supports"]')?.textContent).toBe('Supports');
+    expect(within(row).getByText('page 59, entry 2357')).toBeInTheDocument();
+    expect(within(row).getByText(/Preston Hadley, father/)).toBeInTheDocument();
+  });
+
+  it('detaches a record', async () => {
+    mock({ evidence });
+    await openEditDrawer();
+    await screen.findByText('Register of births, 1889');
+
+    fireEvent.click(screen.getByRole('button', { name: /detach/i }));
+
+    await waitFor(() => expect(calls.some(c => c.method === 'DELETE')).toBe(true));
+    const del = calls.find(c => c.method === 'DELETE')!;
+    expect(del.url).toBe('/api/v1/claims/claim-1/evidence/ev-1');
+  });
+
+  it('says evidence waits for the claim to exist when creating one', async () => {
+    mock({ evidence: [] });
+    perms.canEdit = false;
+    renderPage();
+    await screen.findByRole('button', { name: /view in tree/i });
+    fireEvent.click(screen.getByRole('tab', { name: /claims/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /new claim/i }));
+
+    /* Evidence hangs off a claim id, so there is nothing honest to offer yet.
+       Saying so beats an attach control that cannot work. */
+    expect(await screen.findByText(/once the claim is created/i)).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /^evidence/i })).not.toBeInTheDocument();
+  });
+
+  it('keeps the drawer open on the new claim after creating it, so evidence can be attached', async () => {
+    mock({ evidence: [] });
+    perms.canEdit = true;
+    renderPage();
+    await screen.findByRole('button', { name: /view in tree/i });
+    fireEvent.click(screen.getByRole('tab', { name: /claims/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /new claim/i }));
+
+    fireEvent.change(await screen.findByLabelText(/statement/i), {
+      target: { value: 'Her father is Preston, not Marlow.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /create claim/i }));
+
+    /* The POST returns the id, and the drawer turns into an edit of it rather
+       than closing and making the reader find the card again. */
+    await waitFor(() => expect(calls.some(c => c.method === 'POST')).toBe(true));
+    expect(await screen.findByRole('heading', { name: /^evidence/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /save claim/i })).toBeInTheDocument();
+  });
+});
