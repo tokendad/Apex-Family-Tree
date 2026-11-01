@@ -109,3 +109,55 @@ describe('FaqPage', () => {
     expect(screen.queryByText(/coming soon/i)).not.toBeInTheDocument();
   });
 });
+
+/* Issue #52, step 7. This page says in its own header comment that every
+   answer "was checked against the running code before being written here",
+   which is why these entries were held back until claims actually rendered and
+   a person could create one. These tests are what keeps that true. */
+describe('FaqPage claims entries', () => {
+  it('documents all six confidence levels with their numbers', () => {
+    renderPage();
+
+    /* The numbers are the ones in confidence_levels, not prose: a reader who
+       sees "Disputed · 40" on a claim should find the same thing here. */
+    for (const label of [
+      'Confirmed · 95', 'Probable · 65', 'Disputed · 40',
+      'Possible · 25', 'Rejected · 0', 'Unknown',
+    ]) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+  });
+
+  it('colours each pill from the shared confidence tokens', () => {
+    const { container } = renderPage();
+
+    /* Driven by data-confidence so the FAQ cannot drift from the app: both read
+       the same --color-confidence-* custom properties. */
+    for (const key of ['confirmed', 'probable', 'disputed', 'possible', 'rejected', 'unknown']) {
+      expect(container.querySelector(`[data-confidence="${key}"]`)).not.toBeNull();
+    }
+  });
+
+  it('says a Confirmed claim adds no marker', () => {
+    renderPage();
+    /* The design rule the rest of the feature depends on. If it were ever
+       dropped from the UI this sentence would become a lie. */
+    expect(screen.getByText(/Confirmed claim adds no marker/i)).toBeInTheDocument();
+  });
+
+  it('explains that confidence and status can disagree', () => {
+    renderPage();
+    expect(screen.getByText(/normal shape of a settled argument/i)).toBeInTheDocument();
+  });
+
+  it('tells the reader how to link a claim to the passage that argues it', () => {
+    renderPage();
+    expect(screen.getByText(/Linked research section/i)).toBeInTheDocument();
+    expect(screen.getByText(/Read the argument/i)).toBeInTheDocument();
+  });
+
+  it('says a contradicting record belongs with the evidence', () => {
+    renderPage();
+    expect(screen.getByText(/as much as one that supports it/i)).toBeInTheDocument();
+  });
+});

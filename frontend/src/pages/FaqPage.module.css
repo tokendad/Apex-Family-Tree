@@ -172,3 +172,49 @@
 .formats td:first-child {
   white-space: nowrap;
 }
+
+/* ── Confidence key (#52) ──
+   Real pills rather than a description of them, drawn from the same
+   --color-confidence-* tokens the app uses, so this page cannot drift from
+   what a reader actually sees on a claim. */
+.confidenceKey {
+  list-style: none;
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.confidenceKey li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: baseline;
+}
+
+.confidenceKey li > span:last-child {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  flex: 1 1 24ch;
+}
+
+/* Fills, never text colours: at these saturations none of them is legible as
+   text, but all six clear WCAG AA under near-black ink. */
+.confidencePill {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-confidence-ink);
+  background-color: var(--color-confidence-unknown);
+  border-radius: var(--radius-full);
+  padding: var(--space-1) var(--space-3);
+  white-space: nowrap;
+  min-width: 11ch;
+  text-align: center;
+}
+
+.confidencePill[data-confidence='confirmed'] { background-color: var(--color-confidence-confirmed); }
+.confidencePill[data-confidence='probable'] { background-color: var(--color-confidence-probable); }
+.confidencePill[data-confidence='disputed'] { background-color: var(--color-confidence-disputed); }
+.confidencePill[data-confidence='possible'] { background-color: var(--color-confidence-possible); }
+.confidencePill[data-confidence='rejected'] { background-color: var(--color-confidence-rejected); }

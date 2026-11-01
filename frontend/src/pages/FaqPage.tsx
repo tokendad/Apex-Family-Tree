@@ -222,6 +222,83 @@ export default function FaqPage() {
             </p>
           </Qa>
 
+          <Qa id="faq-claims-how" q="How do I actually record a claim?">
+            <p>
+              On the person&rsquo;s page, open the <strong>Claims</strong> tab and press{' '}
+              <strong>New Claim</strong>. A claim needs a statement &mdash; one conclusion, in a
+              sentence &mdash; and a confidence level. Everything else is optional.
+            </p>
+            <p>
+              The <strong>subject</strong> is filled in with the person whose page you are on. The{' '}
+              <strong>type</strong> says what kind of conclusion it is; a date claim also asks for
+              the date, which is what lets the archive mark that date wherever it is read.
+            </p>
+            <p>
+              <strong>Linked research section</strong> is the useful one. It lists the headings of
+              that person&rsquo;s research note and attaches the claim to one of them, so the card
+              gets a &ldquo;Read the argument&rdquo; link straight to the passage. A claim carries
+              the conclusion; the note keeps the reasoning.
+            </p>
+            <p>
+              Once the claim is saved you can attach <strong>evidence</strong>: records already in
+              the archive, each with a role, a locator and an excerpt. A record that{' '}
+              <em>contradicts</em> the claim belongs there as much as one that supports it &mdash;
+              that is the whole point of recording the conflict instead of hiding it.
+            </p>
+          </Qa>
+
+          <Qa id="faq-confidence-colours" q="What do the colours on a claim mean?">
+            <p>
+              The filled pill is the claim&rsquo;s <strong>confidence level</strong> &mdash; how
+              settled the conclusion is. Six levels, strongest first:
+            </p>
+
+            <ul className={styles.confidenceKey}>
+              <li>
+                <span className={styles.confidencePill} data-confidence="confirmed">Confirmed &middot; 95</span>
+                <span>Settled. Several independent records agree.</span>
+              </li>
+              <li>
+                <span className={styles.confidencePill} data-confidence="probable">Probable &middot; 65</span>
+                <span>Good evidence, nothing against it, but not proved.</span>
+              </li>
+              <li>
+                <span className={styles.confidencePill} data-confidence="disputed">Disputed &middot; 40</span>
+                <span>Records genuinely disagree and the question is open.</span>
+              </li>
+              <li>
+                <span className={styles.confidencePill} data-confidence="possible">Possible &middot; 25</span>
+                <span>One weak or compiled source, nothing confirming it.</span>
+              </li>
+              <li>
+                <span className={styles.confidencePill} data-confidence="rejected">Rejected &middot; 0</span>
+                <span>Looked into and ruled out. Kept so it is not proposed again.</span>
+              </li>
+              <li>
+                <span className={styles.confidencePill} data-confidence="unknown">Unknown</span>
+                <span>Not yet graded.</span>
+              </li>
+            </ul>
+
+            <p>
+              An <strong>outline chip</strong> beside it is something different: the state of the
+              records, not of the conclusion. A claim can read <em>Confirmed</em> and{' '}
+              <em>Records conflict</em> at once &mdash; four registers agree and one index page
+              does not. That is the normal shape of a settled argument, not a problem.
+            </p>
+            <p>
+              You will see the same pills on a person&rsquo;s Claims tab, next to any date an
+              unsettled claim governs, and on tree cards. A Confirmed claim adds no marker
+              anywhere: if every settled date carried a badge, none of them would mean anything.
+              Rejected adds none either &mdash; it has been decided.
+            </p>
+            <p className={styles.aside}>
+              The colour is never the only signal. The level&rsquo;s name and number travel with
+              it, and a marked date also carries a dotted underline and an icon. For what a claim{' '}
+              <em>is</em>, see the <Link to="/glossary">Glossary</Link>.
+            </p>
+          </Qa>
+
           <Qa id="faq-event-url" q="Where do I put a link to the record I found online?">
             <p>
               Events have a <strong>source URL</strong> field with a &ldquo;last checked&rdquo;

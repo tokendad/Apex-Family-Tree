@@ -275,6 +275,69 @@ The edit wizard uses the same four-step layout as the creation wizard, with all 
 
 ---
 
+## Recording Something You Are Not Sure About
+
+Most genealogy software gives you one field for a date and no way to say "probably, and here is why". This archive has **claims** for that: a claim records one conclusion and how settled it is, so an unsettled question can be kept without either discarding it or presenting it as fact.
+
+### Creating a claim
+
+Open the person's page, go to the **Claims** tab and press **New Claim**.
+
+- **Statement** — the conclusion, in one sentence. Not the argument for it.
+- **Subject** — filled in with the person whose page you are on.
+- **Type** — parentage, name, date, place, relationship, medical or other.
+- **Date** — shown for a date claim only. This is what lets the archive mark that date wherever it is read.
+- **Confidence** — how settled the conclusion is.
+- **Status** — the state of the records.
+- **Linked research section** — the passage in the person's research note that argues the claim. See below.
+- **Notes** — anything else.
+
+### Confidence and status are different things
+
+Confidence is about the conclusion. Status is about the records. They are set separately because they genuinely differ: a claim can be **Confirmed** and still carry a **Records conflict** chip, when four registers agree and one index page does not. That is the ordinary shape of a resolved argument, not a problem to be tidied away.
+
+| Confidence | Meaning |
+| --- | --- |
+| Confirmed (95) | Settled. Several independent records agree. |
+| Probable (65) | Good evidence, nothing against it, but not proved. |
+| Disputed (40) | Records genuinely disagree and the question is open. |
+| Possible (25) | One weak or compiled source, nothing confirming it. |
+| Rejected (0) | Looked into and ruled out. Kept so it is not proposed again. |
+| Unknown | Not yet graded. |
+
+Each level has its own colour, shown as a filled pill wherever a claim appears. A **Confirmed** claim adds no marker to the facts it governs, and neither does **Rejected** — if every settled date carried a badge, none of them would mean anything. The other levels mark the date they govern on the Overview and the Timeline, and put a mark on the person's tree card.
+
+### Linking a claim to the reasoning
+
+A claim row can record *that* a conclusion holds. It cannot record *why* — that four independent records agree and the one against them is wrong in two separate fields. That argument is usually the most valuable thing you will write, and it does not survive being flattened into a confidence level.
+
+So the argument stays in the person's **research note**, and the claim points at it. Write the note in paragraphs separated by a blank line, and open a paragraph with a sentence in capitals:
+
+```
+HER FATHER'S NAME WAS NEVER IN DOUBT AFTER ALL. For one day this archive was
+going to rename him; her own baptism, her sister's marriage and her own death
+certificate all say otherwise.
+```
+
+The Research tab turns each capitalised opening sentence into its own section with a contents list, and those sections are what the **Linked research section** dropdown offers. Pick one and the claim's card gets a "Read the argument" link straight to that passage.
+
+If a claim has no section linked, the link opens the note at the top instead and says so. If the passage is later rewritten away, the card says the passage is no longer in the note rather than sending you to the wrong paragraph.
+
+### Attaching evidence
+
+Once a claim is saved, attach the records that bear on it. Each one takes a **role**:
+
+- **Supports** — a record that bears the claim out.
+- **Contradicts** — a record that says otherwise. Filing it is the point; a conflict you have recorded is worth more than one you have hidden.
+- **Mentions** — touches the subject without deciding it, or is the same document filed twice.
+- **Uncertain** — read, but not trusted enough to count either way.
+
+Add a **locator** ("page 89, entry 33") and an **excerpt** — what the record actually says, in its own words. The claim's card then shows the tally as "4 support · 1 contradicts", which says something a single count cannot.
+
+Evidence is picked from records already in the archive; nothing is uploaded here. A claim must exist before evidence can hang off it, so the drawer stays open on a claim you have just created for exactly that reason.
+
+---
+
 ## Using the Context Menu
 
 Right-click (or long-press on mobile) on any person card to open the context menu:
