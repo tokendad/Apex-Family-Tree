@@ -160,3 +160,40 @@ describe('applyRetentionPolicy', () => {
     expect(() => applyRetentionPolicy(logger, 3)).not.toThrow();
   });
 });
+
+/* The very first boot of a new install: createStartupBackup runs before
+   runMigrations, so backup_log -- which migration 027 creates -- is not there
+   yet. This used to throw SQLITE_ERROR out of logBackup, and because
+   createBackup's catch called logBackup again before reaching its logger, the
+   second throw escaped uncaught and the process exited. AFT could not start on
+   an empty database at all, which every new user would have hit on install. */
+describe('createBackup before migrations have run', () => {
+  beforeEach(() => {
+    db.exec('DROP TABLE backup_log');
+  });
+
+  it('still takes the backup when backup_log does not exist yet', () => {
+    const dest = createBackup('startup', logger);
+
+    expect(dest).not.toBeNull();
+    expect(fs.existsSync(dest!)).toBe(true);
+    // The file is what matters; the audit row is not worth a boot.
+    expect(logger.error).not.toHaveBeenCalled();
+    expect(listBackups()).toHaveLength(1);
+  });
+
+  it('does not throw, so startup survives it', () => {
+    expect(() => createBackup('startup', logger)).not.toThrow();
+    expect(() => createPreImportBackup(logger)).not.toThrow();
+  });
+
+  it('reports a genuine failure even with no table to record it in', () => {
+    // Make the copy itself fail: the backup directory is gone.
+    fs.rmSync(path.join(dataDir, 'backups'), { recursive: true, force: true });
+
+    expect(createBackup('startup', logger)).toBeNull();
+    /* The log line used to sit behind a logBackup call that threw, which is
+       why the first-boot crash was silent. It must come first now. */
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('Backup failed'));
+  });
+});
