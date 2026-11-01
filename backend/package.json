@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "seed:dev": "NODE_ENV=development DATA_DIR=${DATA_DIR:-../dev-data} tsx src/scripts/seedDevUser.ts",
+    "seed:monarchy": "tsx src/scripts/seedMonarchy.ts",
     "curate": "tsx src/scripts/curate.ts"
   },
   "dependencies": {
