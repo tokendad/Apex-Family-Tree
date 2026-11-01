@@ -1074,3 +1074,33 @@ SELECT 'mon-cs-cousins-2', 'mon-cl-cousins', 'mon-albert', 'subject'
  WHERE NOT EXISTS (SELECT 1 FROM claim_subjects WHERE id = 'mon-cs-cousins-2')
    AND EXISTS (SELECT 1 FROM claims WHERE id = 'mon-cl-cousins')
    AND EXISTS (SELECT 1 FROM archive_objects WHERE id = 'mon-albert');
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- ARCHIVE OBJECTS FOR THE EVENTS
+--
+-- EventRepository.create writes an archive_objects row for every event it
+-- makes, so an event in this app is an archive object like anything else --
+-- that is what lets a relationship, a collection or a claim point at one. The
+-- events above were inserted as raw SQL and so had no such row, which left the
+-- seeded tree subtly unlike anything the application itself would produce: the
+-- marriage events the startup backfill creates had archive objects and these
+-- did not.
+--
+-- Derived from the events themselves rather than written out per event, so it
+-- stays correct if the list above changes, and guarded so it adds only what is
+-- missing.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+INSERT INTO archive_objects (id, object_type, title, privacy_level, is_deleted, created_at, updated_at)
+SELECT e.id, 'event',
+       CASE e.event_type
+         WHEN 'birth'  THEN 'Birth of '  || ao.title
+         WHEN 'death'  THEN 'Death of '  || ao.title
+         WHEN 'burial' THEN 'Burial of ' || ao.title
+         ELSE e.event_type || ' of ' || ao.title
+       END,
+       'public', 0, datetime('now'), datetime('now')
+  FROM events e
+  JOIN archive_objects ao ON ao.id = e.person_id
+ WHERE e.id LIKE 'mon-%'
+   AND NOT EXISTS (SELECT 1 FROM archive_objects a2 WHERE a2.id = e.id);
