@@ -9,6 +9,8 @@ import ActionDrawer from '@/components/archive-object/ActionDrawer';
 import ArchiveObjectLayout from '@/components/archive-object/ArchiveObjectLayout';
 import ArtifactCard from '@/components/archive-object/ArtifactCard';
 import { type ContextActionItem } from '@/components/archive-object/ContextActionsMenu';
+import { Label, Input, Select, Textarea, HelperText } from '@/components/Form';
+import PersonPicker from '@/components/entity-pickers/PersonPicker';
 import { usePageActions } from '@/contexts/PageActionsContext';
 import ObjectCollections, { CollectionMembership } from '@/components/ObjectCollections/ObjectCollections';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -388,6 +390,40 @@ function claimGoverningDate(
   ) ?? null;
 }
 
+/* The claim types this archive actually uses. Deliberately not a longer list:
+   these are the ones the card's eyebrow renders and the ones already in use. */
+const CLAIM_TYPES = ['parentage', 'name', 'date', 'place', 'relationship', 'medical', 'other'] as const;
+
+const CLAIM_STATUSES: PersonClaim['status'][] = ['open', 'supported', 'conflicted', 'rejected', 'unknown'];
+
+interface ConfidenceLevelOption {
+  id: string;
+  name: string;
+  numeric_value: number | null;
+}
+
+interface ClaimFormState {
+  statement: string;
+  subject_object_id: string;
+  claim_type: string;
+  date_text: string;
+  confidence_level_id: string;
+  status: PersonClaim['status'];
+  research_section: string;
+  notes: string;
+}
+
+const EMPTY_CLAIM_FORM: ClaimFormState = {
+  statement: '',
+  subject_object_id: '',
+  claim_type: 'parentage',
+  date_text: '',
+  confidence_level_id: 'confidence_unknown',
+  status: 'open',
+  research_section: '',
+  notes: '',
+};
+
 /* Names the passage under the link, so the reader knows where it goes before
    clicking -- and so a claim whose passage has been rewritten away says so on
    the card rather than only after the jump. */
@@ -450,6 +486,15 @@ const PersonDetailPage: React.FC = () => {
   // ── Claims (#52) ──
   const [claims, setClaims] = useState<PersonClaim[]>([]);
   const [claimsLoading, setClaimsLoading] = useState(true);
+
+  /* The claim drawer (#52). claimDrawerId is null for a new claim and the
+     claim's id when editing one, so the same form serves both. */
+  const [claimDrawerOpen, setClaimDrawerOpen] = useState(false);
+  const [claimDrawerId, setClaimDrawerId] = useState<string | null>(null);
+  const [claimForm, setClaimForm] = useState<ClaimFormState>(EMPTY_CLAIM_FORM);
+  const [confidenceLevels, setConfidenceLevels] = useState<ConfidenceLevelOption[]>([]);
+  const [claimSaving, setClaimSaving] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
 
   /* A claim links to one section of the research note by slug (#52). The hash
      is the anchor; arriving with one switches to the Research tab and marks the
@@ -576,6 +621,48 @@ const PersonDetailPage: React.FC = () => {
     }
   }, [id]);
 
+  /* Loaded once the drawer is first opened rather than on page load: the list
+     never changes and most visits never open the drawer. */
+  const fetchConfidenceLevels = useCallback(async () => {
+    try {
+      const res = await fetch('/api/v1/claims/confidence-levels', { credentials: 'include' });
+      if (res.ok) {
+        const json = await res.json() as { data: ConfidenceLevelOption[] };
+        setConfidenceLevels(json.data ?? []);
+      }
+    } catch {
+      // The select falls back to the ids it already has.
+    }
+  }, []);
+
+  const openNewClaim = useCallback(() => {
+    setClaimDrawerId(null);
+    setClaimError(null);
+    setClaimForm({
+      ...EMPTY_CLAIM_FORM,
+      subject_object_id: id ?? '',
+    });
+    setClaimDrawerOpen(true);
+    void fetchConfidenceLevels();
+  }, [id, fetchConfidenceLevels]);
+
+  const openEditClaim = useCallback((claim: PersonClaim) => {
+    setClaimDrawerId(claim.id);
+    setClaimError(null);
+    setClaimForm({
+      statement: claim.statement,
+      subject_object_id: id ?? '',
+      claim_type: claim.claim_type ?? 'other',
+      date_text: claim.date_text ?? '',
+      confidence_level_id: claim.confidence_level_id ?? 'confidence_unknown',
+      status: claim.status,
+      research_section: claim.research_section ?? '',
+      notes: '',
+    });
+    setClaimDrawerOpen(true);
+    void fetchConfidenceLevels();
+  }, [id, fetchConfidenceLevels]);
+
   const fetchClaims = useCallback(async () => {
     if (!id) return;
     setClaimsLoading(true);
@@ -591,6 +678,57 @@ const PersonDetailPage: React.FC = () => {
       setClaimsLoading(false);
     }
   }, [id]);
+
+  const submitClaim = useCallback(async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!claimForm.statement.trim()) {
+      setClaimError('A claim needs a statement.');
+      return;
+    }
+    /* subject_object_id is how findClaimsForSubject finds a claim at all, so a
+       claim with no subject would save and then be invisible. */
+    if (!claimForm.subject_object_id) {
+      setClaimError('A claim needs a subject.');
+      return;
+    }
+
+    setClaimSaving(true);
+    setClaimError(null);
+    try {
+      const body = {
+        statement: claimForm.statement.trim(),
+        subject_object_id: claimForm.subject_object_id,
+        claim_type: claimForm.claim_type,
+        /* Only carried for a date claim: it is what matches a claim to the
+           date it governs, and on any other type it would be noise. */
+        date_text: claimForm.claim_type === 'date' ? claimForm.date_text.trim() : '',
+        confidence_level_id: claimForm.confidence_level_id,
+        status: claimForm.status,
+        research_section: claimForm.research_section,
+        notes: claimForm.notes.trim(),
+      };
+      const res = await fetch(
+        claimDrawerId ? `/api/v1/claims/${claimDrawerId}` : '/api/v1/claims',
+        {
+          method: claimDrawerId ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(body),
+        },
+      );
+      if (!res.ok) throw new Error(claimDrawerId ? 'Failed to save the claim.' : 'Failed to create the claim.');
+
+      /* Back to the Claims tab with the card visible, rather than away to
+         /claims/:id -- the reader is on this person and stays there. */
+      setClaimDrawerOpen(false);
+      setActiveTab('claims');
+      await fetchClaims();
+    } catch (error) {
+      setClaimError(error instanceof Error ? error.message : 'Failed to save the claim.');
+    } finally {
+      setClaimSaving(false);
+    }
+  }, [claimForm, claimDrawerId, fetchClaims]);
 
   useEffect(() => {
     fetchPerson();
@@ -1597,10 +1735,17 @@ const PersonDetailPage: React.FC = () => {
 
           {activeTab === 'claims' && (
             <section className={styles.section} aria-labelledby="claims-heading">
-              <h2 className={styles.sectionTitle} id="claims-heading">
+              <div className={styles.sectionHeader}>
+                <h2 className={styles.sectionTitle} id="claims-heading">
                 Claims
                 {claims.length > 0 && <span className={styles.countBadge}>{claims.length}</span>}
-              </h2>
+                </h2>
+                {canCreate && (
+                  <Button variant="secondary" size="sm" onClick={openNewClaim}>
+                    New Claim
+                  </Button>
+                )}
+              </div>
 
               {claimsLoading ? (
                 <div className={styles.skeletonLine} aria-hidden="true" />
@@ -1642,6 +1787,11 @@ const PersonDetailPage: React.FC = () => {
                             says so, rather than implying a precision it has
                             not got. */}
                         <div className={styles.claimFooter}>
+                          {canEdit && (
+                            <Button variant="ghost" size="sm" onClick={() => openEditClaim(claim)}>
+                              Edit
+                            </Button>
+                          )}
                           {claim.research_section ? (
                             <>
                               {/* A Link, not a bare <a href="#...">: an in-page
@@ -1680,6 +1830,144 @@ const PersonDetailPage: React.FC = () => {
         </ArchiveObjectLayout>
         </div>
       </div>
+
+      {/* ── Claim drawer (#52) ──
+          One form for both: claimDrawerId is null when creating and the
+          claim's id when editing, and the submit path picks POST or PUT from
+          that. The research-section select is what makes "Read the argument"
+          work for a claim somebody enters by hand rather than one a migration
+          wrote. */}
+      <ActionDrawer
+        open={claimDrawerOpen}
+        title={claimDrawerId ? 'Edit Claim' : 'New Claim'}
+        description="A claim records one conclusion and how settled it is. The reasoning stays in the research note; the claim points at it."
+        onClose={() => setClaimDrawerOpen(false)}
+      >
+        <form className={styles.claimForm} onSubmit={submitClaim}>
+          {claimError && <div className={styles.errorBanner} role="alert">{claimError}</div>}
+
+          <div className={styles.claimField}>
+            <Label htmlFor="claim-statement">Statement</Label>
+            <Textarea
+              id="claim-statement"
+              rows={3}
+              value={claimForm.statement}
+              onChange={(e) => setClaimForm({ ...claimForm, statement: e.target.value })}
+            />
+            <HelperText>One conclusion, in a sentence. Not the argument for it.</HelperText>
+          </div>
+
+          <div className={styles.claimField}>
+            <PersonPicker
+              label="Subject"
+              value={claimForm.subject_object_id || null}
+              onSelect={(selected) => setClaimForm({ ...claimForm, subject_object_id: selected.id })}
+              onClear={() => setClaimForm({ ...claimForm, subject_object_id: '' })}
+            />
+            <HelperText>Prefilled with the person whose page this is.</HelperText>
+          </div>
+
+          <div className={styles.claimFieldRow}>
+            <div className={styles.claimField}>
+              <Label htmlFor="claim-type">Type</Label>
+              <Select
+                id="claim-type"
+                value={claimForm.claim_type}
+                onChange={(e) => setClaimForm({ ...claimForm, claim_type: e.target.value })}
+              >
+                {CLAIM_TYPES.map((type) => (
+                  <option key={type} value={type}>{type.charAt(0).toUpperCase() + type.slice(1)}</option>
+                ))}
+              </Select>
+            </div>
+            <div className={styles.claimField}>
+              <Label htmlFor="claim-status">Status</Label>
+              <Select
+                id="claim-status"
+                value={claimForm.status}
+                onChange={(e) => setClaimForm({ ...claimForm, status: e.target.value as PersonClaim['status'] })}
+              >
+                {CLAIM_STATUSES.map((status) => (
+                  <option key={status} value={status}>{STATUS_LABELS[status]}</option>
+                ))}
+              </Select>
+            </div>
+          </div>
+
+          {/* Only a date claim carries a date, and it is what matches the claim
+              to the date it governs on the Overview and the Timeline. */}
+          {claimForm.claim_type === 'date' && (
+            <div className={styles.claimField}>
+              <Label htmlFor="claim-date">Date</Label>
+              <Input
+                id="claim-date"
+                value={claimForm.date_text}
+                placeholder="e.g. 20 July 1904"
+                onChange={(e) => setClaimForm({ ...claimForm, date_text: e.target.value })}
+              />
+              <HelperText>What this claim says the date is. Marks the matching date where it is read.</HelperText>
+            </div>
+          )}
+
+          <div className={styles.claimField}>
+            <Label htmlFor="claim-confidence">Confidence</Label>
+            <Select
+              id="claim-confidence"
+              value={claimForm.confidence_level_id}
+              onChange={(e) => setClaimForm({ ...claimForm, confidence_level_id: e.target.value })}
+            >
+              {confidenceLevels.length === 0 ? (
+                <option value={claimForm.confidence_level_id}>Unknown</option>
+              ) : (
+                confidenceLevels.map((level) => (
+                  <option key={level.id} value={level.id}>
+                    {level.numeric_value === null ? level.name : `${level.name} · ${level.numeric_value}`}
+                  </option>
+                ))
+              )}
+            </Select>
+            <HelperText>How settled the conclusion is. Status above is the state of the records; the two can disagree.</HelperText>
+          </div>
+
+          <div className={styles.claimField}>
+            <Label htmlFor="claim-section">Linked research section</Label>
+            <Select
+              id="claim-section"
+              value={claimForm.research_section}
+              onChange={(e) => setClaimForm({ ...claimForm, research_section: e.target.value })}
+            >
+              <option value="">— no section (opens the note at the top) —</option>
+              {headedSections.map((section) => (
+                <option key={section.slug} value={section.slug ?? ''}>
+                  {sentenceCase(section.heading!)}
+                </option>
+              ))}
+            </Select>
+            <HelperText>
+              {headedSections.length === 0
+                ? 'This note has no capitalised headings, so there is no section to point at.'
+                : 'The passage that argues this claim. Read off the research note\u2019s own headings.'}
+            </HelperText>
+          </div>
+
+          <div className={styles.claimField}>
+            <Label htmlFor="claim-notes">Notes</Label>
+            <Textarea
+              id="claim-notes"
+              rows={3}
+              value={claimForm.notes}
+              onChange={(e) => setClaimForm({ ...claimForm, notes: e.target.value })}
+            />
+          </div>
+
+          <div className={styles.claimFormActions}>
+            <Button variant="secondary" type="button" onClick={() => setClaimDrawerOpen(false)}>Cancel</Button>
+            <Button type="submit" loading={claimSaving}>
+              {claimDrawerId ? 'Save Claim' : 'Create Claim'}
+            </Button>
+          </div>
+        </form>
+      </ActionDrawer>
 
       <ActionDrawer
         open={drawerMode !== null}

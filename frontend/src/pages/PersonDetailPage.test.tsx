@@ -14,8 +14,11 @@ vi.mock('@/components/Avatar/Avatar', () => ({
   default: () => null,
 }));
 
+/* Hoisted so a test can flip a permission: the claim drawer's Edit affordance
+   is gated on canEdit, which the rest of this file deliberately leaves off. */
+const perms = vi.hoisted(() => ({ canCreate: true, canEdit: false, canDelete: false }));
 vi.mock('@/hooks/usePermissions', () => ({
-  usePermissions: () => ({ canCreate: true, canEdit: false, canDelete: false }),
+  usePermissions: () => perms,
 }));
 
 // Minimal person fixture
@@ -957,5 +960,123 @@ describe('PersonDetailPage confidence markers', () => {
     await screen.findByRole('button', { name: /view in tree/i });
 
     expect(await screen.findByText('20 JUL 1904')).not.toHaveAttribute('data-unsettled');
+  });
+});
+
+/* Issue #52, step 6: the drawer. Two tests for the two round trips -- create
+   and edit -- because that is what matters; the fields themselves are plumbing. */
+describe('PersonDetailPage claim drawer', () => {
+  const NOTE = "HER BIRTH MOVED BY A DAY. The act says she was born the day before.";
+
+  const existing = {
+    id: 'claim-1',
+    statement: 'She was born 25 June 1868.',
+    claim_type: 'date',
+    date_text: '25 June 1868',
+    status: 'supported' as const,
+    confidence_level_id: 'confidence_probable',
+    confidence_level_name: 'Probable',
+    confidence_score: 65,
+    evidence_count: 0,
+    supporting_count: 0,
+    contradicting_count: 0,
+    research_section: null as string | null,
+  };
+
+  let posted: { url: string; method: string; body: Record<string, unknown> }[] = [];
+
+  function mock(claims: unknown[]) {
+    posted = [];
+    global.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (init?.method === 'POST' || init?.method === 'PUT') {
+        posted.push({ url, method: init.method, body: JSON.parse(String(init.body)) });
+        return Promise.resolve({ ok: true, json: async () => ({ id: 'new-claim' }) });
+      }
+      if (url.includes('/claims/confidence-levels'))
+        return Promise.resolve({ ok: true, json: async () => ({ data: [
+          { id: 'confidence_confirmed', name: 'Confirmed', numeric_value: 95 },
+          { id: 'confidence_disputed', name: 'Disputed', numeric_value: 40 },
+          { id: 'confidence_unknown', name: 'Unknown', numeric_value: null },
+        ] }) });
+      if (url.includes('/claims/subject/'))
+        return Promise.resolve({ ok: true, json: async () => ({ data: claims }) });
+      if (url.includes('/connected') || url.includes('/collections/for-object/'))
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+      /* Before the person branch: the relationships URL contains the person
+         path, so checking the person first would hand it an object. */
+      if (url.includes('/relationships') || url.includes('/media') || url.includes('/sources'))
+        return Promise.resolve({ ok: true, json: async () => [] });
+      if (url.includes('/people/per-1'))
+        return Promise.resolve({ ok: true, json: async () => ({ ...stubPerson, notes: NOTE }) });
+      return Promise.resolve({ ok: true, json: async () => ({ ...stubPerson, notes: NOTE }) });
+    });
+  }
+
+  async function openClaimsTab() {
+    renderPage();
+    await screen.findByRole('button', { name: /view in tree/i });
+    fireEvent.click(screen.getByRole('tab', { name: /claims/i }));
+  }
+
+  it('creates a claim with the subject prefilled and a research section attached', async () => {
+    mock([]);
+    await openClaimsTab();
+
+    fireEvent.click(await screen.findByRole('button', { name: /new claim/i }));
+
+    const statement = await screen.findByLabelText(/statement/i);
+    fireEvent.change(statement, { target: { value: 'She was born 25 June 1868.' } });
+    fireEvent.change(screen.getByLabelText(/^confidence$/i), { target: { value: 'confidence_disputed' } });
+    /* The section select is built from the note's own headings, which is what
+       makes "Read the argument" work for a hand-entered claim. */
+    fireEvent.change(screen.getByLabelText(/linked research section/i), {
+      target: { value: 'note-her-birth-moved-by-a-day' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /create claim/i }));
+
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0].method).toBe('POST');
+    expect(posted[0].url).toBe('/api/v1/claims');
+    expect(posted[0].body).toMatchObject({
+      statement: 'She was born 25 June 1868.',
+      // Prefilled from the page, not typed.
+      subject_object_id: 'per-1',
+      confidence_level_id: 'confidence_disputed',
+      research_section: 'note-her-birth-moved-by-a-day',
+    });
+  });
+
+  it('edits an existing claim through the same form', async () => {
+    perms.canEdit = true;
+    mock([existing]);
+    await openClaimsTab();
+
+    fireEvent.click(await screen.findByRole('button', { name: /^edit$/i }));
+
+    // The form opens populated from the claim rather than empty.
+    expect((await screen.findByLabelText(/statement/i) as HTMLTextAreaElement).value)
+      .toBe('She was born 25 June 1868.');
+    expect((screen.getByLabelText(/^date$/i) as HTMLInputElement).value).toBe('25 June 1868');
+
+    fireEvent.change(screen.getByLabelText(/^confidence$/i), { target: { value: 'confidence_confirmed' } });
+    fireEvent.click(screen.getByRole('button', { name: /save claim/i }));
+
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0].method).toBe('PUT');
+    expect(posted[0].url).toBe('/api/v1/claims/claim-1');
+    expect(posted[0].body).toMatchObject({ confidence_level_id: 'confidence_confirmed' });
+  });
+
+  it('refuses to save a claim with no statement', async () => {
+    perms.canEdit = false;
+    mock([]);
+    await openClaimsTab();
+    fireEvent.click(await screen.findByRole('button', { name: /new claim/i }));
+
+    fireEvent.click(screen.getByRole('button', { name: /create claim/i }));
+
+    expect(await screen.findByText(/needs a statement/i)).toBeInTheDocument();
+    expect(posted).toHaveLength(0);
   });
 });
