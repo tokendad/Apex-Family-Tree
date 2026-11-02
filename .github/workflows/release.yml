@@ -132,16 +132,42 @@ jobs:
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
           NEW_VERSION="${{ steps.bump.outputs.new_version }}"
 
+          # Most of a long release is uncategorized, so the list is capped and
+          # the remainder is counted rather than dropped.
+          OTHER_LIMIT=50
+
           RANGE="${LAST_TAG:+${LAST_TAG}..HEAD}"
           [ -z "$RANGE" ] && RANGE="HEAD"
 
+          ALL=$(git log $RANGE --format="- %s" 2>/dev/null || true)
+
           # Categorize commits
-          BREAKING=$(git log $RANGE --format="- %s" 2>/dev/null \
+          BREAKING=$(printf '%s\n' "$ALL" \
             | grep -iE "^- (feat|fix)(\(.+\))?!:|BREAKING CHANGE" || true)
-          FEATURES=$(git log $RANGE --format="- %s" 2>/dev/null \
+          FEATURES=$(printf '%s\n' "$ALL" \
             | grep -iE "^- feat(\(.+\))?:" | grep -v "!" || true)
-          FIXES=$(git log $RANGE --format="- %s" 2>/dev/null \
+          FIXES=$(printf '%s\n' "$ALL" \
             | grep -iE "^- fix(\(.+\))?:" | grep -v "!" || true)
+
+          # Everything the three buckets above did not print. The old notes
+          # only listed these when all three were empty, so a commit with no
+          # conventional-commit prefix was dropped from any release that also
+          # held a prefixed one -- and dropped for good, since the next release
+          # starts its range at this one's tag.
+          #
+          # Subtracted by exact line rather than by re-matching the patterns:
+          # FEATURES and FIXES exclude anything containing "!", so a subject
+          # like "feat: support the ! operator" is in neither bucket and would
+          # fall through a pattern-based subtraction as well.
+          CATEGORIZED=$(printf '%s\n%s\n%s\n' "$BREAKING" "$FEATURES" "$FIXES" | grep -v '^$' || true)
+          if [ -n "$CATEGORIZED" ]; then
+            OTHER=$(printf '%s\n' "$ALL" \
+              | grep -vxF -f <(printf '%s\n' "$CATEGORIZED") | grep -v '^$' || true)
+            OTHER_HEADING="## 🔧 Other Changes"
+          else
+            OTHER=$(printf '%s\n' "$ALL" | grep -v '^$' || true)
+            OTHER_HEADING="## 🔧 Changes"
+          fi
 
           {
             if [ -n "${{ github.event.inputs.release_reason }}" ]; then
@@ -167,9 +193,19 @@ jobs:
               echo ""
             fi
 
-            if [ -z "$BREAKING" ] && [ -z "$FEATURES" ] && [ -z "$FIXES" ]; then
-              echo "## 🔧 Changes"
-              git log $RANGE --format="- %s" 2>/dev/null | head -20 || true
+            if [ -n "$OTHER" ]; then
+              echo "$OTHER_HEADING"
+              printf '%s\n' "$OTHER" | head -"$OTHER_LIMIT"
+              OVERFLOW=$(( $(printf '%s\n' "$OTHER" | wc -l) - OTHER_LIMIT ))
+              if [ "$OVERFLOW" -gt 0 ]; then
+                echo "- …and $OVERFLOW more."
+              fi
+              echo ""
+            fi
+
+            # So nothing is only ever a count.
+            if [ -n "$LAST_TAG" ]; then
+              echo "**Full commit list:** https://github.com/${{ github.repository }}/compare/${LAST_TAG}...v${NEW_VERSION}"
             fi
           } > release_notes.md
 
