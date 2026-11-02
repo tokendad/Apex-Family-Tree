@@ -36,6 +36,7 @@ const artifact = {
   original_date_text: '1910',
   creator_text: 'Ada',
   physical_location: 'Archive box',
+  transcription: null,
   notes: null,
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
@@ -367,5 +368,106 @@ describe('ArtifactDetailPage — the artifact\'s own file (#22)', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Family Letter' })).toBeInTheDocument());
 
     expect(await screen.findByText(/primary\.jpg/)).toBeInTheDocument();
+  });
+  /* ── Transcript ──
+     The field existed in the schema, the API and the search index, and had no
+     field in the UI: "Add Transcript" opened a drawer that saved nothing, so
+     transcripts were typed into Notes instead. */
+  describe('transcript', () => {
+    const transcribed = {
+      ...artifact,
+      transcription: 'Dear auntie,\n\nI am seven years old.\n\nLove from me',
+    };
+
+    it('shows the transcript with the line breaks it was typed with', async () => {
+      fetchMock.mockImplementation((url: string) =>
+        url === '/api/v1/artifacts/artifact-1'
+          ? Promise.resolve({ ok: true, json: async () => transcribed })
+          : baseFetch(url));
+
+      renderPage();
+      await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Family Letter' })).toBeInTheDocument());
+
+      fireEvent.click(await screen.findByRole('tab', { name: /transcript/i }));
+
+      // Asserted as one string rather than per line: the whitespace is the
+      // point, and `pre-wrap` is what keeps it.
+      const body = await screen.findByText(/I am seven years old/);
+      expect(body.textContent).toBe(transcribed.transcription);
+    });
+
+    it('offers to start one when there is none', async () => {
+      renderPage();
+      await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Family Letter' })).toBeInTheDocument());
+
+      fireEvent.click(await screen.findByRole('tab', { name: /transcript/i }));
+
+      expect(await screen.findByText(/no transcript yet/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /add transcript/i })).toBeInTheDocument();
+    });
+
+    /* The Actions entry used to open a drawer that explained what transcript
+       editing would one day do. It now puts the caret in the editor. */
+    it('saves what is typed to the transcription field', async () => {
+      renderPage();
+      await waitFor(() => expect(screen.getByRole('button', { name: /actions/i })).toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole('button', { name: /actions/i }));
+      fireEvent.click(screen.getByRole('menuitem', { name: /add transcript/i }));
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+      const box = await screen.findByLabelText(/transcript/i);
+      fireEvent.change(box, { target: { value: 'Dear auntie,\n\nLove from me' } });
+
+      fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+        if (url === '/api/v1/artifacts/artifact-1' && init?.method === 'PUT') {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ ...artifact, transcription: 'Dear auntie,\n\nLove from me' }),
+          });
+        }
+        return baseFetch(url);
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /save transcript/i }));
+
+      await waitFor(() => {
+        const put = fetchMock.mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === 'PUT');
+        expect(put).toBeTruthy();
+        expect(JSON.parse((put![1] as RequestInit).body as string)).toMatchObject({
+          transcription: 'Dear auntie,\n\nLove from me',
+        });
+      });
+
+      /* Asserted by what the editor leaves behind rather than by the text:
+         React mirrors a controlled textarea's value into its defaultValue, so
+         a findByText for the transcript matches the textarea itself and passes
+         whether or not the editor closed. */
+      await waitFor(() => expect(screen.queryByRole('button', { name: /save transcript/i })).toBeNull());
+      expect(screen.getByRole('button', { name: /^edit$/i })).toBeInTheDocument();
+    });
+
+    /* The draft lives in the same form object the Details tab saves from, so
+       an abandoned transcript must not ride along with the next edit there. */
+    it('drops an abandoned draft instead of carrying it into the next save', async () => {
+      renderPage();
+      await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Family Letter' })).toBeInTheDocument());
+
+      fireEvent.click(await screen.findByRole('tab', { name: /transcript/i }));
+      fireEvent.click(await screen.findByRole('button', { name: /add transcript/i }));
+      fireEvent.change(await screen.findByLabelText(/transcript/i), { target: { value: 'half a letter' } });
+      fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+
+      fireEvent.click(screen.getByRole('button', { name: /actions/i }));
+      fireEvent.click(screen.getByRole('menuitem', { name: /edit artifact/i }));
+      fireEvent.click(await screen.findByRole('button', { name: /save artifact/i }));
+
+      await waitFor(() => {
+        const put = fetchMock.mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === 'PUT');
+        expect(put).toBeTruthy();
+        expect(JSON.parse((put![1] as RequestInit).body as string).transcription).toBeNull();
+      });
+    });
   });
 });

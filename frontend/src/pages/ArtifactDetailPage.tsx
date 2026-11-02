@@ -27,6 +27,7 @@ interface ArtifactRecord {
   original_date_text: string | null;
   creator_text: string | null;
   physical_location: string | null;
+  transcription: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -126,6 +127,7 @@ interface ArtifactForm {
   original_date_text: string;
   creator_text: string;
   physical_location: string;
+  transcription: string;
   notes: string;
   privacy_level: ArtifactRecord['privacy_level'];
 }
@@ -139,6 +141,7 @@ function formFromArtifact(artifact: ArtifactRecord): ArtifactForm {
     original_date_text: artifact.original_date_text ?? '',
     creator_text: artifact.creator_text ?? '',
     physical_location: artifact.physical_location ?? '',
+    transcription: artifact.transcription ?? '',
     notes: artifact.notes ?? '',
     privacy_level: artifact.privacy_level,
   };
@@ -153,6 +156,10 @@ function cleanPayload(form: ArtifactForm) {
     original_date_text: form.original_date_text.trim() || null,
     creator_text: form.creator_text.trim() || null,
     physical_location: form.physical_location.trim() || null,
+    /* Trailing whitespace is trimmed but the shape inside is kept: a letter's
+       line breaks and the blank line before "Love from Judy" are part of what
+       was transcribed. */
+    transcription: form.transcription.trim() || null,
     notes: form.notes.trim() || null,
     privacy_level: form.privacy_level,
   };
@@ -267,7 +274,10 @@ const ArtifactDetailPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [activeTab, setActiveTab] = useState('details');
-  const [drawerMode, setDrawerMode] = useState<'connect' | 'add-claim' | 'add-transcript' | 'record-provenance' | null>(null);
+  const [drawerMode, setDrawerMode] = useState<'connect' | 'add-claim' | 'record-provenance' | null>(null);
+  /* The Transcript tab edits in place rather than in a drawer: a letter is
+     several hundred words and wants the width of the page. */
+  const [transcriptEditing, setTranscriptEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -353,6 +363,10 @@ const ArtifactDetailPage: React.FC = () => {
       setArtifact(updated);
       setForm(formFromArtifact(updated));
       setEditMode(false);
+      // Both tabs save through here, so both leave edit mode on success.
+      // Without this a saved transcript stayed in the textarea, which reads
+      // as the save not having taken.
+      setTranscriptEditing(false);
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Failed to save artifact');
     } finally {
@@ -426,9 +440,7 @@ const ArtifactDetailPage: React.FC = () => {
     ? 'Connect Person'
     : drawerMode === 'add-claim'
       ? 'Add Claim'
-      : drawerMode === 'add-transcript'
-        ? 'Add Transcript'
-        : 'Record Provenance';
+      : 'Record Provenance';
 
   const contextActions: ContextActionItem[] = [
     {
@@ -458,10 +470,13 @@ const ArtifactDetailPage: React.FC = () => {
     },
     {
       id: 'add-transcript',
-      label: 'Add Transcript',
-      description: 'Capture artifact text',
+      label: artifact?.transcription ? 'Edit Transcript' : 'Add Transcript',
+      description: 'Capture the text of this artifact word for word',
       disabled: !canEdit,
-      onSelect: () => setDrawerMode('add-transcript'),
+      onSelect: () => {
+        setActiveTab('transcript');
+        setTranscriptEditing(true);
+      },
     },
     {
       id: 'record-provenance',
@@ -507,6 +522,7 @@ const ArtifactDetailPage: React.FC = () => {
               ]}
               tabs={[
                 { id: 'details', label: 'Details' },
+                { id: 'transcript', label: 'Transcript' },
                 { id: 'connections', label: 'Connections', count: connectedObjects.length },
                 { id: 'collections', label: 'Collections', count: memberOf.length },
                 { id: 'claims', label: 'Claims', count: relatedClaims.length },
@@ -515,6 +531,14 @@ const ArtifactDetailPage: React.FC = () => {
               onTabChange={(tabId) => {
                 setActiveTab(tabId);
                 if (tabId !== 'details') setEditMode(false);
+                /* Leaving the tab abandons the edit, and the draft goes with
+                   it -- form is shared with the Details form, so a stale
+                   transcript left in it would be saved by the next edit
+                   there. */
+                if (tabId !== 'transcript' && transcriptEditing) {
+                  setTranscriptEditing(false);
+                  setForm(formFromArtifact(artifact));
+                }
               }}
             >
               {activeTab === 'details' && (editMode ? (
@@ -579,6 +603,70 @@ const ArtifactDetailPage: React.FC = () => {
                 </section>
                 </>
               ))}
+
+              {/* ── Transcript ──
+                  The artifact's text, word for word, as distinct from Notes,
+                  which is what somebody made of it. Both are searched, but
+                  only this one claims to be what the page says. It had no
+                  field in the UI until now: "Add Transcript" opened a drawer
+                  that saved nothing, so anything already transcribed went into
+                  Notes, which was the only box there was. */}
+              {activeTab === 'transcript' && (
+                transcriptEditing ? (
+                  <form className={styles.formCard} onSubmit={handleSave}>
+                    <label className={styles.field}>
+                      <span>Transcript</span>
+                      <textarea
+                        className={styles.transcriptInput}
+                        rows={22}
+                        value={form.transcription}
+                        onChange={(e) => setForm({ ...form, transcription: e.target.value })}
+                        placeholder={'Type what the artifact says, keeping its spelling and line breaks.\n\nSquare brackets for anything that is not the writer\u2019s own hand \u2014 [Envelope], [Postmark], a word you had to guess[?].'}
+                        autoFocus
+                      />
+                      <span className={styles.fieldHint}>
+                        Kept as written: original spelling, line breaks and all. What you make of it
+                        belongs in Notes, on the Details tab.
+                      </span>
+                    </label>
+                    {saveError && <div className={styles.error}>{saveError}</div>}
+                    <div className={styles.actions}>
+                      <Button type="submit" loading={isSaving}>Save Transcript</Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={isSaving}
+                        onClick={() => {
+                          setTranscriptEditing(false);
+                          setForm(formFromArtifact(artifact));
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
+                  <section className={styles.detailCard}>
+                    <div className={styles.sectionTitleRow}>
+                      <h2>Transcript</h2>
+                      {canEdit && (
+                        <Button variant="ghost" size="sm" onClick={() => setTranscriptEditing(true)}>
+                          {artifact.transcription ? 'Edit' : 'Add Transcript'}
+                        </Button>
+                      )}
+                    </div>
+
+                    {artifact.transcription ? (
+                      <p className={styles.transcriptBody}>{artifact.transcription}</p>
+                    ) : (
+                      <p className={styles.muted}>
+                        No transcript yet. Typing out a letter or a certificate makes its words
+                        searchable, and readable by anyone who cannot make out the hand.
+                      </p>
+                    )}
+                  </section>
+                )
+              )}
 
               {activeTab === 'connections' && (
                 <section className={styles.detailCard}>
@@ -734,9 +822,7 @@ const ArtifactDetailPage: React.FC = () => {
             <p className={styles.muted}>
               {drawerMode === 'add-claim'
                 ? 'Claim creation from an artifact will open the claims workflow with this artifact preselected as evidence.'
-                : drawerMode === 'add-transcript'
-                  ? 'Transcript editing will attach searchable artifact text to this record.'
-                  : 'Provenance recording will capture creator, owner, donor, scanner, and identifier relationships.'}
+                : 'Provenance recording will capture creator, owner, donor, scanner, and identifier relationships.'}
             </p>
             <Button onClick={() => {
               if (drawerMode === 'add-claim') navigate('/claims');

@@ -622,3 +622,24 @@
 .fieldHint a {
   color: var(--color-primary-600);
 }
+
+/* ── Transcript ───────────────────────────────────────────────────────────── */
+
+/* The artifact's own words, so the line breaks the transcriber made are kept
+   and the measure is held near 70 characters: a 1954 letter read across the
+   full width of a desktop card loses the reader between lines. Body face, not
+   monospace -- this is a child's handwriting transcribed, not code. */
+.transcriptBody {
+  margin: 0;
+  max-width: 66ch;
+  white-space: pre-wrap;
+  color: var(--color-text-primary);
+  line-height: var(--line-height-relaxed);
+}
+
+/* Matches the reading view's measure and rhythm, so a transcript does not
+   reflow when it is saved. */
+.transcriptInput {
+  max-width: 66ch;
+  line-height: var(--line-height-relaxed);
+}
