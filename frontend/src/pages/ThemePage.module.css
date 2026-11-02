@@ -1,0 +1,72 @@
+.choices {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--color-gray-300);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.choice:hover:not(:disabled) {
+  border-color: var(--color-primary-500);
+}
+
+.choice:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.choiceSelected {
+  border-color: var(--color-primary-600);
+  background: var(--color-primary-50);
+}
+
+.choiceText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.choiceText strong {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+.choiceText span {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+/* A two-tone square standing in for the palette each choice selects: page
+   surface on one half, top bar on the other. The system swatch is split
+   light/dark because that choice could resolve either way. */
+.swatch {
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid var(--color-gray-300);
+  border-radius: var(--radius-sm);
+}
+
+.swatch[data-variant='light'] {
+  background: linear-gradient(135deg, #ffffff 0 50%, #143236 50% 100%);
+}
+
+.swatch[data-variant='dark'] {
+  background: linear-gradient(135deg, #0f1720 0 50%, #0c1f22 50% 100%);
+}
+
+.swatch[data-variant='system'] {
+  background: linear-gradient(135deg, #ffffff 0 50%, #0f1720 50% 100%);
+}
