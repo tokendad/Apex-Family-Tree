@@ -11,6 +11,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import ObjectPicker, { type ArchiveObjectResult } from '@/components/entity-pickers/ObjectPicker';
 import { useModal } from '@/components/modals/useModal';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
+import { objectPath } from '@/utils/objectPath';
 import { formatEventType, isAttributeType, payloadLabel } from '@/utils/eventTypes';
 import { EventSourceFields, EventSourceLink, EMPTY_EVENT_SOURCE } from '@/components/EventSource';
 import styles from '@/components/archive-object/ArchiveDetailPage.module.css';
@@ -61,6 +62,24 @@ interface ConnectedObject {
   object_type: string;
   title: string;
   summary: string | null;
+}
+
+/**
+ * Route for one of an event's connected objects.
+ *
+ * objectPath covers every archive object that has a page of its own. The
+ * exception is an event whose subject is a family: the family is held in the
+ * graph as its family union, an archive object of type 'relationship' whose id
+ * is the family id, and the page for that is /families/:id. Only the subject
+ * edge produces such a member, so the mapping is scoped to it rather than
+ * added to objectPath, where it would send every relationship object -- place
+ * edges included -- to a family page that does not exist.
+ */
+function connectedPath(object: ConnectedObject): string {
+  if (object.relationship_type_code === 'event_subject' && object.object_type === 'relationship') {
+    return `/families/${object.object_id}`;
+  }
+  return objectPath(object.object_type, object.object_id);
 }
 
 const InfoRow: React.FC<{ label: string; value: string | null }> = ({ label, value }) => (
@@ -375,7 +394,7 @@ const EventDetailPage: React.FC = () => {
                   ) : (
                     <div className={styles.linkList}>
                       {connected.map((object) => (
-                        <Link key={`${object.relationship_id}-${object.object_id}`} className={styles.linkItem} to={`/${object.object_type}s/${object.object_id}`}>
+                        <Link key={`${object.relationship_id}-${object.object_id}`} className={styles.linkItem} to={connectedPath(object)}>
                           <strong>{object.title}</strong>
                           <span>{object.relationship_type_code.replace(/_/g, ' ')}</span>
                         </Link>

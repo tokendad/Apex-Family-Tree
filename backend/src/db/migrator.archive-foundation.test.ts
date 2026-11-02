@@ -79,7 +79,8 @@ describe('archive foundation migration', () => {
         .toEqual({ id: 'artifact_type_uncategorized' });
       expect(db.prepare('SELECT COUNT(*) AS count FROM evidence_classifications').get()).toEqual({ count: 8 });
       expect(db.prepare('SELECT COUNT(*) AS count FROM confidence_levels').get()).toEqual({ count: 6 });
-      expect(db.prepare('SELECT COUNT(*) AS count FROM relationship_types').get()).toEqual({ count: 23 });
+      // 23 seeded by 042, plus event_subject from 165.
+      expect(db.prepare('SELECT COUNT(*) AS count FROM relationship_types').get()).toEqual({ count: 24 });
 
       expect(db.prepare('SELECT is_tree_relevant FROM relationship_types WHERE code = ?').get('family_union')).toEqual({
         is_tree_relevant: 1,

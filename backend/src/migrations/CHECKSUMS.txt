@@ -99,3 +99,5 @@ e1f727fa17918005fb7df129fa17e528cab0e70e944a20396e76909085388e5a  075-events-wak
 d6efdc8d4052f48a8175405ec7d07920d4d76927c555af686dc739d4adbf641b  076-recompute-iso-date-sort-keys.sql
 7b0c586e3dd3836b5a729e8e3002401a585237a3f91783a993ae29d7ee16d3da  163-claims-research-section-down.sql
 2e8d95ca0b4204459e9e173bd1cd15c86d2c4b82e96c6b113c4282c7bd4ad1c7  163-claims-research-section.sql
+0bc8fbdf5ce1272328f2cd7fa6e842ed84fb348cb44d692f03708fb5e2ca8be7  165-events-subject-edge-down.sql
+d1759c1e5a5b16c6dcb1581aa7b2d12d6aba49e4ae5400dacc4e829e482f9f92  165-events-subject-edge.sql
