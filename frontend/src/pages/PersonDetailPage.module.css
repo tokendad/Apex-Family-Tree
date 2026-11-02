@@ -1173,6 +1173,14 @@
   color: var(--color-text-tertiary);
 }
 
+/* The fact a claim governs, named on the card (#52). Quiet: it says where the
+   claim is read, not what the claim concluded. */
+.claimGoverns {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  margin-top: var(--space-2);
+}
+
 /* ── Unsettled claims on the Overview (#52) ── */
 .unsettledList {
   margin: 0;

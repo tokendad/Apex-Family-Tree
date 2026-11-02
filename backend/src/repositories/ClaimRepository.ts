@@ -117,6 +117,10 @@ export class ClaimRepository extends BaseRepository {
         this.addSubject(archiveObject.id, data.subject_object_id, 'subject');
       }
 
+      if (data.governs_object_id !== undefined) {
+        this.setGovernedObject(archiveObject.id, data.governs_object_id);
+      }
+
       return archiveObject.id;
     });
 
@@ -155,6 +159,10 @@ export class ClaimRepository extends BaseRepository {
         this.db.prepare('DELETE FROM claim_subjects WHERE claim_id = ? AND role = ?').run(id, 'subject');
         if (data.subject_object_id) this.addSubject(id, data.subject_object_id, 'subject');
       }
+
+      if (data.governs_object_id !== undefined) {
+        this.setGovernedObject(id, data.governs_object_id);
+      }
     });
 
     updateClaim();
@@ -170,7 +178,7 @@ export class ClaimRepository extends BaseRepository {
       `SELECT cs.*, ao.object_type, ao.title, ao.summary
        FROM claim_subjects cs
        INNER JOIN archive_objects ao ON ao.id = cs.subject_object_id
-       WHERE cs.claim_id = ? AND ao.is_deleted = 0
+       WHERE cs.claim_id = ? AND ao.is_deleted = 0 AND cs.role <> 'governs'
        ORDER BY cs.role ASC, ao.title ASC`,
     ).all(claimId) as ClaimSubjectRecord[];
   }
@@ -183,6 +191,48 @@ export class ClaimRepository extends BaseRepository {
     this.db.prepare('INSERT INTO claim_subjects (id, claim_id, subject_object_id, role) VALUES (?, ?, ?, ?)')
       .run(id, claimId, subjectObjectId, role);
     return this.findSubjects(claimId).find(row => row.id === id)!;
+  }
+
+  /**
+   * Says which event's displayed fact this claim governs (#52).
+   *
+   * Stored as a claim_subjects row with role = 'governs' rather than a column
+   * of its own: the table already joins a claim to an archive object with a
+   * role, role is unconstrained text, and a claim governs at most one fact --
+   * so this replaces every governs row rather than adding one. Passing null
+   * clears the link, which is what "match it by year again" means.
+   *
+   * A governs row is a pointer and not an assertion about the event, so
+   * findClaimsForSubject and findUnsettledSubjectIds both skip this role. An
+   * event must not start listing a person's claims as its own, and must not put
+   * an unsettled mark on a tree card.
+   */
+  setGovernedObject(claimId: string, objectId: string | null): void {
+    if (!this.findById(claimId)) throw new Error('Claim not found');
+
+    this.db.prepare('DELETE FROM claim_subjects WHERE claim_id = ? AND role = ?')
+      .run(claimId, 'governs');
+    if (!objectId) return;
+
+    const target = this.archiveObjects.findById(objectId);
+    if (!target) throw new Error('Governed archive object not found');
+    /* Only an event has a date displayed on the person page, which is the fact
+       this link marks. Allowing anything else would store a link nothing reads. */
+    if (target.object_type !== 'event') throw new Error('A claim can only govern an event');
+
+    this.db.prepare('INSERT INTO claim_subjects (id, claim_id, subject_object_id, role) VALUES (?, ?, ?, ?)')
+      .run(this.generateId(), claimId, objectId, 'governs');
+  }
+
+  /** The event this claim governs, or null if there is none or it is deleted. */
+  findGovernedObjectId(claimId: string): string | null {
+    const row = this.db.prepare(
+      `SELECT cs.subject_object_id AS id
+         FROM claim_subjects cs
+         INNER JOIN archive_objects ao ON ao.id = cs.subject_object_id
+        WHERE cs.claim_id = ? AND cs.role = 'governs' AND ao.is_deleted = 0`,
+    ).get(claimId) as { id: string } | undefined;
+    return row?.id ?? null;
   }
 
   findEvidence(claimId: string): ClaimEvidenceRecord[] {
@@ -220,7 +270,12 @@ export class ClaimRepository extends BaseRepository {
       `SELECT ao.*, c.*, cl.name AS confidence_level_name, subj.title AS subject_title,
               COUNT(ce.id) AS evidence_count,
               SUM(CASE WHEN ce.evidence_role = 'supports' THEN 1 ELSE 0 END) AS supporting_count,
-              SUM(CASE WHEN ce.evidence_role = 'contradicts' THEN 1 ELSE 0 END) AS contradicting_count
+              SUM(CASE WHEN ce.evidence_role = 'contradicts' THEN 1 ELSE 0 END) AS contradicting_count,
+              (SELECT gs.subject_object_id
+                 FROM claim_subjects gs
+                 INNER JOIN archive_objects gao ON gao.id = gs.subject_object_id
+                WHERE gs.claim_id = c.id AND gs.role = 'governs' AND gao.is_deleted = 0
+                LIMIT 1) AS governs_object_id
        FROM claims c
        INNER JOIN archive_objects ao ON ao.id = c.id
        LEFT JOIN confidence_levels cl ON cl.id = c.confidence_level_id
@@ -229,7 +284,8 @@ export class ClaimRepository extends BaseRepository {
        WHERE ao.is_deleted = 0
          AND (c.subject_object_id = ?
               OR EXISTS (SELECT 1 FROM claim_subjects cs
-                          WHERE cs.claim_id = c.id AND cs.subject_object_id = ?))
+                          WHERE cs.claim_id = c.id AND cs.subject_object_id = ?
+                            AND cs.role <> 'governs'))
        GROUP BY c.id
        ORDER BY ao.updated_at DESC, ao.id ASC`,
     ).all(subjectObjectId, subjectObjectId) as ClaimForSubjectRecord[];
@@ -251,6 +307,7 @@ export class ClaimRepository extends BaseRepository {
              FROM claims c WHERE c.subject_object_id IS NOT NULL
            UNION
            SELECT cs.claim_id, cs.subject_object_id FROM claim_subjects cs
+            WHERE cs.role <> 'governs'
          ) s
          JOIN claims c ON c.id = s.claim_id
          JOIN archive_objects ao ON ao.id = c.id AND ao.is_deleted = 0

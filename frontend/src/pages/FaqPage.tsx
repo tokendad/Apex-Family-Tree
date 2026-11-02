@@ -232,7 +232,13 @@ export default function FaqPage() {
             <p>
               The <strong>subject</strong> is filled in with the person whose page you are on. The{' '}
               <strong>type</strong> says what kind of conclusion it is; a date claim also asks for
-              the date, which is what lets the archive mark that date wherever it is read.
+              the date, and for which of that person&rsquo;s events the date belongs to.
+            </p>
+            <p>
+              That second question has a default &mdash; <em>match by year</em> &mdash; and it is
+              usually right: a date claim marks the event whose year agrees with it. Pick the event
+              yourself when the person has two dates in the same year, since a birth on 20 July and
+              a baptism four days later are both 1904, and only one of them is in doubt.
             </p>
             <p>
               <strong>Linked research section</strong> is the useful one. It lists the headings of

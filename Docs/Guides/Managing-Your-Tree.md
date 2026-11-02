@@ -286,7 +286,8 @@ Open the person's page, go to the **Claims** tab and press **New Claim**.
 - **Statement** — the conclusion, in one sentence. Not the argument for it.
 - **Subject** — filled in with the person whose page you are on.
 - **Type** — parentage, name, date, place, relationship, medical or other.
-- **Date** — shown for a date claim only. This is what lets the archive mark that date wherever it is read.
+- **Date** — shown for a date claim only. What this claim says the date is.
+- **Fact it governs** — shown for a date claim only. Which of this person's dated events the claim is about. See below.
 - **Confidence** — how settled the conclusion is.
 - **Status** — the state of the records.
 - **Linked research section** — the passage in the person's research note that argues the claim. See below.
@@ -306,6 +307,22 @@ Confidence is about the conclusion. Status is about the records. They are set se
 | Unknown | Not yet graded. |
 
 Each level has its own colour, shown as a filled pill wherever a claim appears. A **Confirmed** claim adds no marker to the facts it governs, and neither does **Rejected** — if every settled date carried a badge, none of them would mean anything. The other levels mark the date they govern on the Overview and the Timeline, and put a mark on the person's tree card.
+
+### Saying which date a claim is about
+
+An unsettled date claim marks the date it governs, which raises the question of which date that is. Leave **Fact it governs** on *match by year* and the archive works it out: a date claim marks the event whose year agrees with the claim's own date. That is enough most of the time, and it is what every claim written before this field existed still does.
+
+It is not enough when a person has two dates in the same year. A birth on 20 July and a baptism on 24 July are both 1904, and a claim about the birth would mark whichever of them the page reached first — possibly the baptism, which nobody was arguing about.
+
+So pick the event instead. The dropdown lists each of this person's dated events; choose one and that date is the only one the claim marks. An event with no date is not offered, because there is nothing there to mark.
+
+Three things worth knowing:
+
+- A claim that names an event is **not** also matched by year. That is the point: pointing a claim at the birth stops it marking the baptism.
+- Changing the claim's type away from **date** clears the link. Only a date claim marks a date, so the pointer would be read by nothing.
+- If the event is later deleted, the claim falls back to matching by year rather than pointing at something that is no longer there.
+
+Once an event is chosen, the claim's card names it — "Governs Birth · 20 JUL 1904" — and links to the event. A claim left on *match by year* says nothing there, because a guess is not a decision you made.
 
 ### Linking a claim to the reasoning
 

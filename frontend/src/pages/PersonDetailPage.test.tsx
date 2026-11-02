@@ -961,6 +961,72 @@ describe('PersonDetailPage confidence markers', () => {
 
     expect(await screen.findByText('20 JUL 1904')).not.toHaveAttribute('data-unsettled');
   });
+
+  /* Two events four days apart is the case the year heuristic cannot settle,
+     and the reason a claim can now name the event it governs. */
+  const sameYearEvents = [
+    { id: 'ev-b', event_type: 'birth', event_date: '20 JUL 1904', event_place: 'Cambridge', description: null },
+    { id: 'ev-bap', event_type: 'baptism', event_date: '24 JUL 1904', event_place: null, description: null },
+  ];
+
+  function mockSameYear(claims: unknown[]) {
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/claims/subject/'))
+        return Promise.resolve({ ok: true, json: async () => ({ data: claims }) });
+      if (url.includes('/connected') || url.includes('/collections/for-object/'))
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+      if (url.includes('/relationships') || url.includes('/media') || url.includes('/sources'))
+        return Promise.resolve({ ok: true, json: async () => [] });
+      return Promise.resolve({ ok: true, json: async () => ({ ...stubPerson, events: sameYearEvents }) });
+    });
+  }
+
+  it('marks the one event a linked claim names, and not its neighbour', async () => {
+    mockSameYear([{ ...dateClaim, governs_object_id: 'ev-bap' }]);
+    renderPage();
+    await screen.findByRole('button', { name: /view in tree/i });
+
+    expect(await screen.findByText('24 JUL 1904')).toHaveAttribute('data-unsettled', 'true');
+    /* The birth is four days earlier in the same year, so the heuristic would
+       have marked it -- and marked it instead, since it comes first. */
+    expect(screen.getByText('20 JUL 1904')).not.toHaveAttribute('data-unsettled');
+  });
+
+  it('still matches by year when the claim names nothing', async () => {
+    /* The eleven claims a migration backfilled are all like this, so the old
+       behaviour has to survive unchanged. */
+    mockSameYear([{ ...dateClaim, governs_object_id: null }]);
+    renderPage();
+    await screen.findByRole('button', { name: /view in tree/i });
+
+    expect(await screen.findByText('20 JUL 1904')).toHaveAttribute('data-unsettled', 'true');
+  });
+
+  it('marks nothing for a link to an event the person no longer has', async () => {
+    mockSameYear([{ ...dateClaim, governs_object_id: 'ev-deleted' }]);
+    renderPage();
+    await screen.findByRole('button', { name: /view in tree/i });
+
+    /* A claim that names an event is not guessed at as well. Falling back would
+       mark a date nobody pointed it at. */
+    expect(await screen.findByText('20 JUL 1904')).not.toHaveAttribute('data-unsettled');
+    expect(screen.getByText('24 JUL 1904')).not.toHaveAttribute('data-unsettled');
+  });
+
+  it('keeps a settled claim off the date it names', async () => {
+    mockSameYear([{
+      ...dateClaim,
+      governs_object_id: 'ev-bap',
+      confidence_level_id: 'confidence_confirmed',
+      confidence_level_name: 'Confirmed',
+      confidence_score: 95,
+    }]);
+    renderPage();
+    await screen.findByRole('button', { name: /view in tree/i });
+
+    /* An explicit link says which fact, not that the fact is in doubt. */
+    expect(await screen.findByText('24 JUL 1904')).not.toHaveAttribute('data-unsettled');
+  });
 });
 
 /* Issue #52, step 6: the drawer. Two tests for the two round trips -- create
@@ -1066,6 +1132,110 @@ describe('PersonDetailPage claim drawer', () => {
     expect(posted[0].method).toBe('PUT');
     expect(posted[0].url).toBe('/api/v1/claims/claim-1');
     expect(posted[0].body).toMatchObject({ confidence_level_id: 'confidence_confirmed' });
+  });
+
+  /* Step 5 guessed which event a date claim was about by matching years. The
+     drawer is where that guess becomes a decision. */
+  describe('the fact a claim governs', () => {
+    const drawerEvents = [
+      { id: 'ev-b', event_type: 'birth', event_date: '25 JUN 1868', event_place: null, description: null },
+      { id: 'ev-bap', event_type: 'baptism', event_date: '28 JUN 1868', event_place: null, description: null },
+      { id: 'ev-undated', event_type: 'census', event_date: null, event_place: null, description: null },
+    ];
+
+    function mockWithEvents(claims: unknown[]) {
+      mock(claims);
+      const inner = global.fetch as unknown as (url: string, init?: RequestInit) => Promise<unknown>;
+      global.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+        if (!init?.method && !url.includes('/claims') && !url.includes('/connected')
+          && !url.includes('/collections/') && !url.includes('/relationships')
+          && !url.includes('/media') && !url.includes('/sources')) {
+          return Promise.resolve({ ok: true, json: async () => ({ ...stubPerson, notes: NOTE, events: drawerEvents }) });
+        }
+        return inner(url, init);
+      }) as unknown as typeof fetch;
+    }
+
+    it('offers each dated event, and match-by-year as the default', async () => {
+      mockWithEvents([]);
+      await openClaimsTab();
+      fireEvent.click(await screen.findByRole('button', { name: /new claim/i }));
+      /* A new claim starts as parentage, which governs no displayed fact. */
+      expect(screen.queryByLabelText(/fact it governs/i)).not.toBeInTheDocument();
+      fireEvent.change(await screen.findByLabelText(/^type$/i), { target: { value: 'date' } });
+
+      const select = await screen.findByLabelText(/fact it governs/i) as HTMLSelectElement;
+      /* Nothing is chosen for a new claim: the page carries on matching by
+         year until somebody decides, rather than writing its own guess down. */
+      expect(select.value).toBe('');
+      expect(screen.getByRole('option', { name: /match by year/i })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: /Birth · 25 JUN 1868/ })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: /Baptism · 28 JUN 1868/ })).toBeInTheDocument();
+      /* An undated event displays no date, so there is nothing to mark. */
+      expect(screen.queryByRole('option', { name: /Census/i })).not.toBeInTheDocument();
+    });
+
+    it('sends the chosen event on create', async () => {
+      mockWithEvents([]);
+      await openClaimsTab();
+      fireEvent.click(await screen.findByRole('button', { name: /new claim/i }));
+
+      fireEvent.change(await screen.findByLabelText(/statement/i), { target: { value: 'She was baptised 28 June.' } });
+      fireEvent.change(screen.getByLabelText(/^type$/i), { target: { value: 'date' } });
+      fireEvent.change(screen.getByLabelText(/fact it governs/i), { target: { value: 'ev-bap' } });
+      fireEvent.click(screen.getByRole('button', { name: /create claim/i }));
+
+      await waitFor(() => expect(posted).toHaveLength(1));
+      expect(posted[0].body).toMatchObject({ governs_object_id: 'ev-bap' });
+    });
+
+    it('opens an existing claim on the event it already names', async () => {
+      perms.canEdit = true;
+      mockWithEvents([{ ...existing, governs_object_id: 'ev-bap' }]);
+      await openClaimsTab();
+
+      fireEvent.click(await screen.findByRole('button', { name: /^edit$/i }));
+
+      expect((await screen.findByLabelText(/fact it governs/i) as HTMLSelectElement).value).toBe('ev-bap');
+    });
+
+    it('clears the link when the claim stops being about a date', async () => {
+      perms.canEdit = true;
+      mockWithEvents([{ ...existing, governs_object_id: 'ev-bap' }]);
+      await openClaimsTab();
+      fireEvent.click(await screen.findByRole('button', { name: /^edit$/i }));
+
+      await screen.findByLabelText(/fact it governs/i);
+      fireEvent.change(screen.getByLabelText(/^type$/i), { target: { value: 'medical' } });
+
+      /* The control goes with the date field: a medical claim marks no
+         displayed fact, so a pointer nothing reads would be left behind. */
+      expect(screen.queryByLabelText(/fact it governs/i)).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /save claim/i }));
+      await waitFor(() => expect(posted).toHaveLength(1));
+      expect(posted[0].body).toMatchObject({ claim_type: 'medical', governs_object_id: '' });
+    });
+
+    it('names the governed fact on the card', async () => {
+      perms.canEdit = true;
+      mockWithEvents([{ ...existing, governs_object_id: 'ev-bap' }]);
+      await openClaimsTab();
+
+      const link = await screen.findByRole('link', { name: /Baptism · 28 JUN 1868/ });
+      expect(link).toHaveAttribute('href', '/events/ev-bap');
+    });
+
+    it('says nothing on the card when no event was chosen', async () => {
+      perms.canEdit = true;
+      mockWithEvents([{ ...existing, governs_object_id: null }]);
+      await openClaimsTab();
+
+      await screen.findByText('She was born 25 June 1868.');
+      /* The year-matching guess is not a decision, and a card that announced
+         it would read like one. */
+      expect(screen.queryByText(/^Governs/)).not.toBeInTheDocument();
+    });
   });
 
   it('refuses to save a claim with no statement', async () => {

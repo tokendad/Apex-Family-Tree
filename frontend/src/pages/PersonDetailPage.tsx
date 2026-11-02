@@ -162,6 +162,10 @@ interface PersonClaim {
      common case, not missing data: the reasoning may live on another person's
      note, or not be written down yet. */
   research_section: string | null;
+  /* The event whose date this claim governs, once somebody has said which.
+     Null means nobody has -- the eleven claims a migration backfilled are all
+     null -- and those fall back to being matched by year. */
+  governs_object_id: string | null;
 }
 
 interface ConnectedObject {
@@ -347,25 +351,39 @@ function yearOf(text: string | null | undefined): string | null {
 /**
  * The unsettled claim governing an event's date, if there is one.
  *
- * This is a heuristic and not a stored link: a claim records its claim_type and
- * its date_text, and nothing yet says which event it is about. Matching a date
- * claim to an event by year is enough to mark a disputed birth differently from
- * a settled one, which is what issue #52 asks for, and it needs no schema
- * change. Step 6's drawer is where someone picks the fact a claim governs, and
- * that is when an exact link can be recorded.
+ * Two ways round, in this order:
  *
- * Deliberately narrow: only `date` claims, only against a date, and only when
- * the years match. A `medical` or `other` claim governs no displayed fact and
- * must not be made to mark one -- those appear in the summary above instead.
+ * 1. The claim says so. A claim can now name the event it governs, which is
+ *    what the drawer's "Fact it governs" picker records, and an answer
+ *    somebody chose beats one the page worked out.
+ * 2. Nobody said, so match by year. This is how it worked before anything
+ *    could be linked, and it has to keep working: the eleven claims a
+ *    migration backfilled name no event, and neither do the seed's.
+ *
+ * The second arm only considers claims with no link at all. A claim pointed at
+ * the birth must not also mark the baptism four days later just because the
+ * years agree -- that was the whole reason for storing the link.
+ *
+ * Deliberately narrow on both arms: only `date` claims, only against a date,
+ * and only while unsettled. A `medical` or `other` claim governs no displayed
+ * fact and must not be made to mark one -- those appear in the summary above.
  */
 function claimGoverningDate(
-  event: { event_date: string | null },
+  event: { id: string; event_date: string | null },
   claims: PersonClaim[],
 ): PersonClaim | null {
+  const dateClaims = claims.filter(claim => claim.claim_type === 'date' && isUnsettled(claim));
+
+  const linked = dateClaims.find(claim => claim.governs_object_id === event.id);
+  if (linked) return linked;
+
   const eventYear = yearOf(event.event_date);
   if (!eventYear) return null;
-  return claims.find(
-    claim => claim.claim_type === 'date' && isUnsettled(claim) && yearOf(claim.date_text) === eventYear,
+  /* Falsy rather than === null: the API sends null, but an older client cache
+     or a caller that omits the field must land in the fallback and not in a
+     third state that marks nothing. */
+  return dateClaims.find(
+    claim => !claim.governs_object_id && yearOf(claim.date_text) === eventYear,
   ) ?? null;
 }
 
@@ -407,6 +425,8 @@ interface ClaimFormState {
   confidence_level_id: string;
   status: PersonClaim['status'];
   research_section: string;
+  /** Archive-object id of the event this claim governs; '' for match-by-year. */
+  governs_object_id: string;
   notes: string;
 }
 
@@ -418,6 +438,7 @@ const EMPTY_CLAIM_FORM: ClaimFormState = {
   confidence_level_id: 'confidence_unknown',
   status: 'open',
   research_section: '',
+  governs_object_id: '',
   notes: '',
 };
 
@@ -427,6 +448,14 @@ const EMPTY_CLAIM_FORM: ClaimFormState = {
 function sectionTitle(slug: string, sections: ResearchSection[]): string {
   const match = sections.find(section => section.slug === slug);
   return match?.heading ? sentenceCase(match.heading) : 'passage no longer in this note';
+}
+
+/* The event a claim names, if it names one that is still on the page. A link
+   whose event has been deleted resolves to nothing and says nothing, which is
+   the same thing the Overview does with it. */
+function governedEvent(claim: PersonClaim, events: PersonEvent[]): PersonEvent | undefined {
+  if (!claim.governs_object_id) return undefined;
+  return events.find(event => event.id === claim.governs_object_id);
 }
 
 function evidenceTally(claim: PersonClaim): string {
@@ -664,6 +693,7 @@ const PersonDetailPage: React.FC = () => {
       confidence_level_id: claim.confidence_level_id ?? 'confidence_unknown',
       status: claim.status,
       research_section: claim.research_section ?? '',
+      governs_object_id: claim.governs_object_id ?? '',
       notes: '',
     });
     setClaimDrawerOpen(true);
@@ -780,6 +810,11 @@ const PersonDetailPage: React.FC = () => {
         /* Only carried for a date claim: it is what matches a claim to the
            date it governs, and on any other type it would be noise. */
         date_text: claimForm.claim_type === 'date' ? claimForm.date_text.trim() : '',
+        /* Same reasoning as date_text: only a date claim marks a displayed
+           fact, so changing the type to anything else clears the link rather
+           than leaving a pointer nothing reads. Never written from the
+           year-matching guess -- a link is only ever one somebody chose. */
+        governs_object_id: claimForm.claim_type === 'date' ? claimForm.governs_object_id : '',
         confidence_level_id: claimForm.confidence_level_id,
         status: claimForm.status,
         research_section: claimForm.research_section,
@@ -1016,6 +1051,9 @@ const PersonDetailPage: React.FC = () => {
   // Attributes describe the person rather than occurring at a moment, so they
   // are listed separately instead of interleaved into the timeline (#32).
   const { events: timelineEvents, attributes } = partitionByKind(sortedEventsList);
+  /* What a date claim can be pointed at: an event with no date displays none,
+     so there is nothing there for a claim to mark. */
+  const datedEvents = sortedEventsList.filter((event) => event.event_date);
   const childFamilies = relationships.filter((r) => r.type === 'child_family');
   const parentFamilies = relationships.filter((r) => r.type === 'parent_family');
 
@@ -1864,6 +1902,22 @@ const PersonDetailPage: React.FC = () => {
                           <span className={styles.evidenceTally}>{evidenceTally(claim)}</span>
                         </div>
 
+                        {/* Which fact this claim marks, named rather than left
+                            to be inferred from the date in the statement. Only
+                            shown when somebody chose it: a card that announced
+                            the year-matching guess would make it look like a
+                            decision that had been taken. */}
+                        {governedEvent(claim, datedEvents) && (
+                          <div className={styles.claimGoverns}>
+                            Governs{' '}
+                            <Link to={`/events/${claim.governs_object_id}`}>
+                              {formatEventType(governedEvent(claim, datedEvents)!.event_type)}
+                              {' \u00b7 '}
+                              {governedEvent(claim, datedEvents)!.event_date}
+                            </Link>
+                          </div>
+                        )}
+
                         {/* The claim carries the conclusion and points at the
                             argument; it never carries the argument itself. With
                             no anchor recorded it opens the note at the top and
@@ -1988,7 +2042,36 @@ const PersonDetailPage: React.FC = () => {
                 placeholder="e.g. 20 July 1904"
                 onChange={(e) => setClaimForm({ ...claimForm, date_text: e.target.value })}
               />
-              <HelperText>What this claim says the date is. Marks the matching date where it is read.</HelperText>
+              <HelperText>What this claim says the date is.</HelperText>
+            </div>
+          )}
+
+          {/* Which of this person's dates the claim is about. Before this, the
+              page matched a date claim to an event by year, which cannot tell a
+              birth from a baptism four days later and silently marks whichever
+              came first. The guess is still the fallback, and still the only
+              thing the backfilled claims have, so "match by year" stays an
+              option rather than being replaced. */}
+          {claimForm.claim_type === 'date' && (
+            <div className={styles.claimField}>
+              <Label htmlFor="claim-governs">Fact it governs</Label>
+              <Select
+                id="claim-governs"
+                value={claimForm.governs_object_id}
+                onChange={(e) => setClaimForm({ ...claimForm, governs_object_id: e.target.value })}
+              >
+                <option value="">— match by year —</option>
+                {datedEvents.map((event) => (
+                  <option key={event.id} value={event.id}>
+                    {formatEventType(event.event_type)} · {event.event_date}
+                  </option>
+                ))}
+              </Select>
+              <HelperText>
+                {datedEvents.length === 0
+                  ? 'This person has no dated event for a claim to govern yet.'
+                  : 'The date this claim marks where it is read \u2014 on the Overview and the Timeline.'}
+              </HelperText>
             </div>
           )}
 

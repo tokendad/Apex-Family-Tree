@@ -46,6 +46,10 @@ function claimBody(body: Record<string, unknown>) {
     status: typeof body.status === 'string' ? body.status as ClaimStatus : undefined,
     notes: cleanOptional(body.notes),
     research_section: cleanOptional(body.research_section),
+    /* The event this claim governs (#52). '' arrives from the drawer's
+       "match it by year" option and cleanOptional turns it into null, which is
+       what clears the link. */
+    governs_object_id: cleanOptional(body.governs_object_id),
   };
 }
 
@@ -107,7 +111,12 @@ claimsRouter.get('/:id', (req, res) => {
       res.status(404).json({ error: 'Claim not found' });
       return;
     }
-    res.json({ ...claim, subjects: repo.findSubjects(id), evidence: repo.findEvidence(id) });
+    res.json({
+      ...claim,
+      governs_object_id: repo.findGovernedObjectId(id),
+      subjects: repo.findSubjects(id),
+      evidence: repo.findEvidence(id),
+    });
   } catch {
     res.status(500).json({ error: 'Failed to get claim' });
   }

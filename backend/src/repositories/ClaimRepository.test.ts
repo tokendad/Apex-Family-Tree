@@ -88,6 +88,10 @@ function seedDB(database: Database.Database) {
     .run('artifact-1', 'artifact', 'Discharge Record', 'family');
   database.prepare('INSERT INTO archive_objects (id, object_type, title, privacy_level, is_deleted, created_at, updated_at) VALUES (?, ?, ?, ?, 0, datetime(\'now\'), datetime(\'now\'))')
     .run('place-1', 'place', 'Paris', 'family');
+  database.prepare('INSERT INTO archive_objects (id, object_type, title, privacy_level, is_deleted, created_at, updated_at) VALUES (?, ?, ?, ?, 0, datetime(\'now\'), datetime(\'now\'))')
+    .run('event-1', 'event', 'Birth of Grandpa', 'family');
+  database.prepare('INSERT INTO archive_objects (id, object_type, title, privacy_level, is_deleted, created_at, updated_at) VALUES (?, ?, ?, ?, 0, datetime(\'now\'), datetime(\'now\'))')
+    .run('event-2', 'event', 'Baptism of Grandpa', 'family');
   database.prepare('INSERT INTO artifacts (id) VALUES (?)').run('artifact-1');
 }
 
@@ -340,6 +344,104 @@ describe('ClaimRepository', () => {
       expect(found.evidence_count).toBe(0);
       expect(found.supporting_count).toBe(0);
       expect(found.contradicting_count).toBe(0);
+    });
+  });
+  /* Which displayed fact a claim governs (#52). Stored as a claim_subjects row
+     with role = 'governs' rather than a column, so the tests that matter are
+     the ones proving that row stays a pointer and never acts as a subject. */
+  describe('the governed fact', () => {
+    it('records the event a claim governs, replaces it, and clears it', () => {
+      const repo = new ClaimRepository();
+      const claim = repo.create({
+        statement: 'He was born in 1904, not 1906.',
+        subject_object_id: 'person-1',
+        claim_type: 'date',
+        governs_object_id: 'event-1',
+      });
+
+      expect(repo.findGovernedObjectId(claim.id)).toBe('event-1');
+
+      /* A claim governs at most one fact, so the second link replaces the
+         first rather than sitting beside it. */
+      repo.update(claim.id, { governs_object_id: 'event-2' });
+      expect(repo.findGovernedObjectId(claim.id)).toBe('event-2');
+      expect(
+        db.prepare("SELECT COUNT(*) AS n FROM claim_subjects WHERE claim_id = ? AND role = 'governs'")
+          .get(claim.id),
+      ).toEqual({ n: 1 });
+
+      /* Null is "match it by year again", not "leave it alone". */
+      repo.update(claim.id, { governs_object_id: null });
+      expect(repo.findGovernedObjectId(claim.id)).toBeNull();
+    });
+
+    it('leaves the link alone when the field is not sent at all', () => {
+      const repo = new ClaimRepository();
+      const claim = repo.create({ statement: 'Born 1904.', subject_object_id: 'person-1', governs_object_id: 'event-1' });
+
+      repo.update(claim.id, { statement: 'Born in 1904, on the 20th.' });
+      expect(repo.findGovernedObjectId(claim.id)).toBe('event-1');
+    });
+
+    it('governs an event and nothing else', () => {
+      const repo = new ClaimRepository();
+      const claim = repo.create({ statement: 'Born 1904.', subject_object_id: 'person-1' });
+
+      expect(() => repo.setGovernedObject(claim.id, 'place-1')).toThrow('can only govern an event');
+      expect(() => repo.setGovernedObject(claim.id, 'artifact-1')).toThrow('can only govern an event');
+      expect(() => repo.setGovernedObject(claim.id, 'no-such-object')).toThrow('not found');
+      expect(repo.findGovernedObjectId(claim.id)).toBeNull();
+    });
+
+    it('reads back on the claim the person page loads', () => {
+      const repo = new ClaimRepository();
+      repo.create({ statement: 'Born 1904.', subject_object_id: 'person-1', governs_object_id: 'event-1' });
+      repo.create({ statement: 'His mother was Edith.', subject_object_id: 'person-1' });
+
+      const byStatement = new Map(
+        repo.findClaimsForSubject('person-1').map(claim => [claim.statement, claim.governs_object_id]),
+      );
+      expect(byStatement.get('Born 1904.')).toBe('event-1');
+      expect(byStatement.get('His mother was Edith.')).toBeNull();
+    });
+
+    it('falls back to null once the governed event is deleted', () => {
+      const repo = new ClaimRepository();
+      const claim = repo.create({ statement: 'Born 1904.', subject_object_id: 'person-1', governs_object_id: 'event-1' });
+
+      db.prepare('UPDATE archive_objects SET is_deleted = 1 WHERE id = ?').run('event-1');
+
+      /* A non-null id for an event no longer on the page would mark nothing and
+         also keep the claim out of the year-matching fallback, so the reader
+         would simply lose the mark. Null puts it back in the fallback. */
+      expect(repo.findGovernedObjectId(claim.id)).toBeNull();
+      expect(repo.findClaimsForSubject('person-1')[0].governs_object_id).toBeNull();
+    });
+
+    it('does not make the governed event a subject of the claim', () => {
+      const repo = new ClaimRepository();
+      const claim = repo.create({
+        statement: 'Born 1904.',
+        subject_object_id: 'person-1',
+        governs_object_id: 'event-1',
+      });
+
+      /* The claim is about the person. The event is where its answer is read,
+         which is not the same as the event having a claim of its own. */
+      expect(repo.findClaimsForSubject('event-1')).toEqual([]);
+      expect(repo.findSubjects(claim.id).map(subject => subject.subject_object_id)).toEqual(['person-1']);
+    });
+
+    it('does not put an unsettled mark on the governed event', () => {
+      const repo = new ClaimRepository();
+      repo.create({
+        statement: 'Born 1904.',
+        subject_object_id: 'person-1',
+        confidence_level_id: 'confidence_unknown',
+        governs_object_id: 'event-1',
+      });
+
+      expect(repo.findUnsettledSubjectIds()).toEqual(['person-1']);
     });
   });
 });

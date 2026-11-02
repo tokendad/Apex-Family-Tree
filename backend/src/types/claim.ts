@@ -38,6 +38,12 @@ export interface ClaimRecord {
 export interface ClaimForSubjectRecord extends ClaimRecord {
   supporting_count: number;
   contradicting_count: number;
+  /* The event whose displayed fact this claim governs, if someone said which
+     (#52). Null means nobody has, and the person page falls back to matching a
+     date claim to an event by year. It is also null when the event has been
+     deleted, which is what keeps that fallback working rather than pointing at
+     an event no longer on the page. */
+  governs_object_id: string | null;
 }
 
 export interface ClaimSubjectRecord {
@@ -91,6 +97,10 @@ export interface CreateClaimInput {
   status?: ClaimStatus;
   notes?: string | null;
   research_section?: string | null;
+  /* The event this claim governs. Stored as a claim_subjects row with
+     role = 'governs', so it needs no column of its own: a claim governs at
+     most one fact, and passing null clears it. */
+  governs_object_id?: string | null;
   created_by?: string | null;
 }
 

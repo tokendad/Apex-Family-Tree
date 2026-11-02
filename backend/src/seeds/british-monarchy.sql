@@ -1104,3 +1104,23 @@ SELECT e.id, 'event',
   JOIN archive_objects ao ON ao.id = e.person_id
  WHERE e.id LIKE 'mon-%'
    AND NOT EXISTS (SELECT 1 FROM archive_objects a2 WHERE a2.id = e.id);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- WHICH FACT A CLAIM GOVERNS
+--
+-- A claim_subjects row with role = 'governs' names the event whose displayed
+-- date a claim marks. Without one the person page matches a date claim to an
+-- event by year, which cannot tell a birth from a baptism four days later.
+-- Wallis Warfield's 1896 birth date would have been matched correctly anyway,
+-- so this row changes nothing a reader sees -- it is here so the development
+-- tree exercises the stored path at all, rather than only the fallback.
+--
+-- After the block above, because the link points at the event's archive object
+-- and that is where those rows are made.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+INSERT INTO claim_subjects (id, claim_id, subject_object_id, role)
+SELECT 'mon-cs-wallis-birth-governs', 'mon-cl-wallis-birth', 'mon-wallis-birth', 'governs'
+ WHERE NOT EXISTS (SELECT 1 FROM claim_subjects WHERE id = 'mon-cs-wallis-birth-governs')
+   AND EXISTS (SELECT 1 FROM claims WHERE id = 'mon-cl-wallis-birth')
+   AND EXISTS (SELECT 1 FROM archive_objects WHERE id = 'mon-wallis-birth');
