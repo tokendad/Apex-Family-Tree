@@ -52,7 +52,6 @@ export interface PreLinkedRelationship {
 }
 
 interface UsePersonWizardOptions {
-  editPersonId?: string | null;
   preLink?: PreLinkedRelationship | null;
   onComplete?: () => void;
 }
@@ -86,8 +85,7 @@ const INITIAL_DATA: WizardFormData = {
 const TOTAL_STEPS = 4;
 
 export function usePersonWizard(options: UsePersonWizardOptions = {}) {
-  const { editPersonId = null, preLink = null, onComplete } = options;
-  const isEditMode = !!editPersonId;
+  const { preLink = null, onComplete } = options;
 
   const [step, setStep] = useState(1);
   const [data, setData] = useState<WizardFormData>({ ...INITIAL_DATA });
@@ -133,41 +131,6 @@ export function usePersonWizard(options: UsePersonWizardOptions = {}) {
     [step],
   );
 
-  // Load existing person for edit mode
-  const loadPerson = useCallback(
-    async (personId: string) => {
-      try {
-        const res = await fetch(`/api/v1/people/${personId}`, { credentials: 'include' });
-        if (!res.ok) return;
-        const person = await res.json();
-
-        setData((prev) => ({
-          ...prev,
-          givenName: person.primary_name?.given_name ?? person.given_name ?? '',
-          middleName: person.primary_name?.middle_name ?? person.middle_name ?? '',
-          surname: person.primary_name?.surname ?? person.surname ?? '',
-          prefix: person.primary_name?.prefix ?? person.prefix ?? '',
-          suffix: person.primary_name?.suffix ?? person.suffix ?? '',
-          nickname: person.primary_name?.nickname ?? person.nickname ?? '',
-          displayName: person.display_name ?? '',
-          nameType: person.primary_name?.name_type ?? person.name_type ?? 'birth',
-          sex: person.sex ?? 'U',
-          isLiving: person.is_living ?? true,
-          isPrivate: person.is_private ?? false,
-          photoPreviewUrl: person.photo_url ?? '',
-          birthDate: person.birth_date ?? '',
-          birthPlace: person.birth_place ?? '',
-          deathDate: person.death_date ?? '',
-          deathPlace: person.death_place ?? '',
-          notes: person.notes ?? '',
-        }));
-      } catch {
-        // Silently fail — user can fill in manually
-      }
-    },
-    [],
-  );
-
   const submit = useCallback(async () => {
     if (!validateStep(step)) return;
 
@@ -187,8 +150,6 @@ export function usePersonWizard(options: UsePersonWizardOptions = {}) {
         is_private: data.isPrivate,
       };
 
-      let personId = editPersonId;
-
       // Report what the server actually said. Swallowing the response body
       // meant a failed save surfaced as nothing at all.
       const describeFailure = async (res: Response, fallback: string) => {
@@ -196,25 +157,15 @@ export function usePersonWizard(options: UsePersonWizardOptions = {}) {
         return body?.error ? `${fallback}: ${body.error}` : `${fallback} (HTTP ${res.status})`;
       };
 
-      if (isEditMode && personId) {
-        const res = await fetch(`/api/v1/people/${personId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(personPayload),
-        });
-        if (!res.ok) throw new Error(await describeFailure(res, 'Could not save this person'));
-      } else {
-        const res = await fetch('/api/v1/people', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(personPayload),
-        });
-        if (!res.ok) throw new Error(await describeFailure(res, 'Could not create this person'));
-        const created = await res.json();
-        personId = created.id;
-      }
+      const res = await fetch('/api/v1/people', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(personPayload),
+      });
+      if (!res.ok) throw new Error(await describeFailure(res, 'Could not create this person'));
+      const created = await res.json();
+      const personId: string | undefined = created.id;
 
       if (!personId) throw new Error('The server did not return an id for the new person');
 
@@ -418,7 +369,7 @@ export function usePersonWizard(options: UsePersonWizardOptions = {}) {
     } finally {
       setIsSaving(false);
     }
-  }, [step, data, editPersonId, isEditMode, preLink, onComplete, validateStep]);
+  }, [step, data, preLink, onComplete, validateStep]);
 
   const reset = useCallback(() => {
     setData({ ...INITIAL_DATA });
@@ -434,13 +385,11 @@ export function usePersonWizard(options: UsePersonWizardOptions = {}) {
     isDirty,
     isSaving,
     errors,
-    isEditMode,
     updateField,
     goNext,
     goBack,
     goToStep,
     submit,
     reset,
-    loadPerson,
   };
 }
