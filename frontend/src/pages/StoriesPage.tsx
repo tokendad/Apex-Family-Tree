@@ -5,6 +5,7 @@ import Navbar from '@/components/Navbar/Navbar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import { usePermissions } from '@/hooks/usePermissions';
+import PersonPicker from '@/components/entity-pickers/PersonPicker';
 import { useSearchStore } from '@/stores/searchStore';
 import styles from './ArtifactsPage.module.css';
 
@@ -91,7 +92,7 @@ const StoriesPage: React.FC = () => {
             <label className={styles.field}><span>Title</span><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></label>
             <label className={styles.field}><span>Summary</span><Input value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} /></label>
             <label className={styles.field}><span>Type</span><select value={form.story_type} onChange={(e) => setForm({ ...form, story_type: e.target.value as StoryRecord['story_type'] })}><option value="story">Story</option><option value="memory">Memory</option><option value="oral_history">Oral History</option><option value="note">Note</option></select></label>
-            <label className={styles.field}><span>Narrator Person ID</span><Input value={form.narrator_person_id} onChange={(e) => setForm({ ...form, narrator_person_id: e.target.value })} /></label>
+            <div className={styles.field}><PersonPicker label="Narrator" value={form.narrator_person_id || null} onSelect={(person) => setForm({ ...form, narrator_person_id: person.id })} onClear={() => setForm({ ...form, narrator_person_id: '' })} /></div>
             <label className={styles.field}><span>Date</span><Input value={form.date_text} onChange={(e) => setForm({ ...form, date_text: e.target.value })} /></label>
           </div>
           <label className={styles.field}><span>Story Markdown</span><textarea value={form.body_markdown} onChange={(e) => setForm({ ...form, body_markdown: e.target.value })} rows={8} required /></label>

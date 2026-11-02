@@ -1141,6 +1141,7 @@ describe('PersonDetailPage claim drawer', () => {
       { id: 'ev-b', event_type: 'birth', event_date: '25 JUN 1868', event_place: null, description: null },
       { id: 'ev-bap', event_type: 'baptism', event_date: '28 JUN 1868', event_place: null, description: null },
       { id: 'ev-undated', event_type: 'census', event_date: null, event_place: null, description: null },
+      { id: 'ev-attr', event_type: 'occupation', event_date: '1891', event_place: null, description: null },
     ];
 
     function mockWithEvents(claims: unknown[]) {
@@ -1173,6 +1174,10 @@ describe('PersonDetailPage claim drawer', () => {
       expect(screen.getByRole('option', { name: /Baptism · 28 JUN 1868/ })).toBeInTheDocument();
       /* An undated event displays no date, so there is nothing to mark. */
       expect(screen.queryByRole('option', { name: /Census/i })).not.toBeInTheDocument();
+      /* Nor is an attribute, dated or not: occupations and residences are
+         listed apart from the timeline and are never drawn with a marker, so
+         choosing one would store a link that marks nothing anywhere. */
+      expect(screen.queryByRole('option', { name: /Occupation/i })).not.toBeInTheDocument();
     });
 
     it('sends the chosen event on create', async () => {
@@ -1248,6 +1253,31 @@ describe('PersonDetailPage claim drawer', () => {
 
     expect(await screen.findByText(/needs a statement/i)).toBeInTheDocument();
     expect(posted).toHaveLength(0);
+  });
+
+  it('shows the reason the API gave rather than a generic failure', async () => {
+    mock([]);
+    global.fetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      if (init?.method === 'POST')
+        return Promise.resolve({ ok: false, status: 400, json: async () => ({ error: 'A claim can only govern an event' }) });
+      if (url.includes('/claims/confidence-levels'))
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+      if (url.includes('/claims/subject/'))
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+      if (url.includes('/connected') || url.includes('/collections/for-object/'))
+        return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+      if (url.includes('/relationships') || url.includes('/media') || url.includes('/sources'))
+        return Promise.resolve({ ok: true, json: async () => [] });
+      return Promise.resolve({ ok: true, json: async () => ({ ...stubPerson, notes: NOTE }) });
+    });
+
+    await openClaimsTab();
+    fireEvent.click(await screen.findByRole('button', { name: /new claim/i }));
+    fireEvent.change(await screen.findByLabelText(/statement/i), { target: { value: 'Something.' } });
+    fireEvent.click(screen.getByRole('button', { name: /create claim/i }));
+
+    /* "Failed to save the claim." tells the reader nothing they can act on. */
+    expect(await screen.findByText('A claim can only govern an event')).toBeInTheDocument();
   });
 });
 

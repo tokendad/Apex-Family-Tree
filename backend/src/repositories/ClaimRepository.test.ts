@@ -418,6 +418,20 @@ describe('ClaimRepository', () => {
       expect(repo.findClaimsForSubject('person-1')[0].governs_object_id).toBeNull();
     });
 
+    it('loses the link when the event is deleted outright', () => {
+      const repo = new ClaimRepository();
+      const claim = repo.create({ statement: 'Born 1904.', subject_object_id: 'person-1', governs_object_id: 'event-1' });
+
+      /* EventRepository.delete removes the archive_objects row rather than
+         flagging it, so the governs row goes with it on the cascade. Same
+         answer as the soft-delete case above, by a different route -- both have
+         to end at null, because both put the claim back in the fallback. */
+      db.prepare('DELETE FROM archive_objects WHERE id = ?').run('event-1');
+
+      expect(repo.findGovernedObjectId(claim.id)).toBeNull();
+      expect(repo.findClaimsForSubject('person-1')[0].governs_object_id).toBeNull();
+    });
+
     it('does not make the governed event a subject of the claim', () => {
       const repo = new ClaimRepository();
       const claim = repo.create({

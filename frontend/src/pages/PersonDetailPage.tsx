@@ -829,7 +829,17 @@ const PersonDetailPage: React.FC = () => {
           body: JSON.stringify(body),
         },
       );
-      if (!res.ok) throw new Error(claimDrawerId ? 'Failed to save the claim.' : 'Failed to create the claim.');
+      if (!res.ok) {
+        /* The API says why in its body, and this used to throw it away. Worth
+           reading now the governed-fact link gives the save a new way to be
+           refused -- "A claim can only govern an event" is actionable and
+           "Failed to save the claim." is not. */
+        const reason = await res.json().then(
+          (body: { error?: string }) => body?.error,
+          () => undefined,
+        );
+        throw new Error(reason || (claimDrawerId ? 'Failed to save the claim.' : 'Failed to create the claim.'));
+      }
 
       setActiveTab('claims');
       await fetchClaims();
@@ -1051,9 +1061,11 @@ const PersonDetailPage: React.FC = () => {
   // Attributes describe the person rather than occurring at a moment, so they
   // are listed separately instead of interleaved into the timeline (#32).
   const { events: timelineEvents, attributes } = partitionByKind(sortedEventsList);
-  /* What a date claim can be pointed at: an event with no date displays none,
-     so there is nothing there for a claim to mark. */
-  const datedEvents = sortedEventsList.filter((event) => event.event_date);
+  /* What a date claim can be pointed at. Two filters, both of them about what
+     actually carries a marker: an event with no date displays none, and an
+     attribute -- an occupation, a religion -- is listed separately and is never
+     drawn with one. Offering either would store a link that marks nothing. */
+  const datedEvents = timelineEvents.filter((event) => event.event_date);
   const childFamilies = relationships.filter((r) => r.type === 'child_family');
   const parentFamilies = relationships.filter((r) => r.type === 'parent_family');
 
