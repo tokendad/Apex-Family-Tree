@@ -307,6 +307,12 @@ export class MediaRepository extends BaseRepository {
         `UPDATE archive_objects SET title = ?, summary = ?, updated_at = ?
           WHERE id = ? AND object_type = 'artifact'`,
       ).run(title, summary, media.updated_at, id);
+      // And with where the file now is. A scan relinks a media row when its
+      // file moves between folders; the artifact's primary file is matched on
+      // the derived id, so only a row this bridge wrote is rewritten.
+      this.db.prepare(
+        'UPDATE artifact_files SET storage_path = ? WHERE id = ?',
+      ).run(media.file_path, `artifact_file_media_${id}`);
       return;
     }
 
@@ -580,6 +586,10 @@ export class MediaRepository extends BaseRepository {
 
         if (stale) {
           relinkStmt.run(filePath, this.now(), stale.id);
+          // The artifact's primary file records the old path, so sync it too:
+          // without this the catalogue entry survives a folder reorganization
+          // but /artifacts/:id/file 404s on a path that no longer exists.
+          this.syncArtifact(stale.id);
           relinked++;
           continue;
         }
@@ -590,6 +600,11 @@ export class MediaRepository extends BaseRepository {
           id, filename, filename, mimeFromExt(ext), fileSize, filePath, now, now,
         );
         if (result.changes > 0) {
+          // Scanned files are catalogued like uploaded ones. Without this a
+          // file picked up from MEDIA_PATH had no artifact identity, so the
+          // card the person page shows for it linked to an /artifacts/:id
+          // that 404s. Idempotent, so it is safe in this transaction.
+          this.syncArtifact(id);
           added++;
         } else {
           skipped++;

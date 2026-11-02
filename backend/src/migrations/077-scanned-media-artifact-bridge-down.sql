@@ -1,0 +1,8 @@
+-- No rollback.
+--
+-- 077 is a backfill, not a schema change: it gives scanned media the artifact
+-- identity 045 gave to everything imported before it. The rows it writes are
+-- indistinguishable from the ones 045 wrote, and an artifact it created may
+-- since have been re-typed, transcribed or connected by hand. Deleting them to
+-- undo this would discard that work and orphan whatever references them, so
+-- this file is deliberately empty -- as 045's rollback is (it has none).

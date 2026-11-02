@@ -63,6 +63,39 @@ function seedDB(database: Database.Database) {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+    /* The archive side of the bridge. media_items and archive_objects are two
+       views of the same thing and the repository keeps them in step on every
+       create, update and scan, so a fixture without these tables makes it
+       throw. Trimmed to the columns syncArtifact writes. */
+    CREATE TABLE archive_objects (
+      id TEXT PRIMARY KEY,
+      object_type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT,
+      privacy_level TEXT NOT NULL DEFAULT 'family',
+      is_deleted INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      created_by TEXT,
+      updated_by TEXT
+    );
+    CREATE TABLE artifacts (
+      id TEXT PRIMARY KEY REFERENCES archive_objects(id) ON DELETE CASCADE,
+      artifact_type_id TEXT NOT NULL,
+      original_date_text TEXT,
+      original_format TEXT
+    );
+    CREATE TABLE artifact_files (
+      id TEXT PRIMARY KEY,
+      artifact_id TEXT NOT NULL REFERENCES artifacts(id) ON DELETE CASCADE,
+      file_role TEXT NOT NULL DEFAULT 'primary',
+      storage_provider TEXT NOT NULL DEFAULT 'local',
+      storage_path TEXT NOT NULL,
+      original_filename TEXT,
+      mime_type TEXT,
+      size_bytes INTEGER,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
     CREATE TABLE person_media (
       person_id TEXT NOT NULL REFERENCES persons(id) ON DELETE CASCADE,
       media_id TEXT NOT NULL REFERENCES media_items(id) ON DELETE CASCADE,
@@ -266,7 +299,10 @@ describe('MediaRepository scanDirectory', () => {
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aft-media-scan-'));
-    db.exec('DELETE FROM media_items');
+    // The archive rows go too: a scan now catalogues what it imports, and a
+    // leftover artifact from the previous case would be the one a bare
+    // SELECT below finds.
+    db.exec('DELETE FROM artifact_files; DELETE FROM artifacts; DELETE FROM archive_objects; DELETE FROM media_items');
   });
 
   afterEach(() => {
@@ -334,6 +370,52 @@ describe('MediaRepository scanDirectory', () => {
     expect(rows[0].file_path).toBe(movedPath);
     expect(result.relinked).toBe(1);
     expect(result.added).toBe(0);
+  });
+
+  /* A scanned file is catalogued like an uploaded one. scanDirectory used to
+     insert media_items and stop there, so every file picked up from
+     MEDIA_PATH was a media item with no artifact identity -- and the card the
+     person page shows for it linked to an /artifacts/:id that 404s. */
+  it('catalogues a scanned file as an artifact', () => {
+    const repo = new MediaRepository();
+
+    fs.writeFileSync(path.join(tmpDir, 'letter to auntie.pdf'), 'pdf-bytes');
+    expect(repo.scanDirectory(tmpDir).added).toBe(1);
+
+    const row = db.prepare(
+      `SELECT ao.title, ao.object_type, a.artifact_type_id, af.storage_path, af.file_role
+         FROM media_items mi
+         JOIN archive_objects ao ON ao.id = mi.id
+         JOIN artifacts a ON a.id = mi.id
+         JOIN artifact_files af ON af.artifact_id = mi.id`,
+    ).get() as Record<string, unknown> | undefined;
+
+    expect(row).toMatchObject({
+      title: 'letter to auntie.pdf',
+      object_type: 'artifact',
+      artifact_type_id: 'artifact_type_document',
+      storage_path: path.join(tmpDir, 'letter to auntie.pdf'),
+      file_role: 'primary',
+    });
+  });
+
+  it('follows the artifact file when a scanned file is relinked', () => {
+    const repo = new MediaRepository();
+
+    const originalPath = path.join(tmpDir, 'photo.jpg');
+    fs.writeFileSync(originalPath, 'hello-world-content');
+    repo.scanDirectory(tmpDir);
+
+    const subDir = path.join(tmpDir, 'Family');
+    fs.mkdirSync(subDir);
+    const movedPath = path.join(subDir, 'photo.jpg');
+    fs.renameSync(originalPath, movedPath);
+    expect(repo.scanDirectory(tmpDir).relinked).toBe(1);
+
+    // Without this the catalogue entry survives the move but the file it
+    // points at does not, and /artifacts/:id/file 404s on the old path.
+    const file = db.prepare('SELECT storage_path FROM artifact_files').get();
+    expect(file).toMatchObject({ storage_path: movedPath });
   });
 
   it('cleans up a pre-existing orphaned duplicate that already has a live counterpart', () => {
