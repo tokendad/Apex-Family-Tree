@@ -145,7 +145,7 @@ jobs:
 
           {
             if [ -n "${{ github.event.inputs.release_reason }}" ]; then
-              echo "**${{ github.event.inputs.release_reason }}"
+              echo "**${{ github.event.inputs.release_reason }}**"
               echo ""
             fi
 
