@@ -8,6 +8,7 @@ import ArchiveObjectLayout from '@/components/archive-object/ArchiveObjectLayout
 import { type ContextActionItem } from '@/components/archive-object/ContextActionsMenu';
 import { usePageActions } from '@/contexts/PageActionsContext';
 import { usePermissions } from '@/hooks/usePermissions';
+import ObjectPicker, { type ArchiveObjectResult } from '@/components/entity-pickers/ObjectPicker';
 import { useModal } from '@/components/modals/useModal';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
 import { formatEventType, isAttributeType, payloadLabel } from '@/utils/eventTypes';
@@ -121,9 +122,11 @@ const EventDetailPage: React.FC = () => {
      read it, so a wake with twenty photographs attached showed none of them
      and reported no connections. */
   const [media, setMedia] = useState<MediaItem[]>([]);
-  const [placeId, setPlaceId] = useState('');
-  const [artifactId, setArtifactId] = useState('');
-  const [personId, setPersonId] = useState('');
+  /* Three archive-object ids typed into three text boxes. Each picker searches
+     only its own kind, so "Connect Place" cannot be handed an artifact. */
+  const [place, setPlace] = useState<ArchiveObjectResult | null>(null);
+  const [artifact, setArtifact] = useState<ArchiveObjectResult | null>(null);
+  const [person, setPerson] = useState<ArchiveObjectResult | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -185,9 +188,13 @@ const EventDetailPage: React.FC = () => {
     }
   };
 
+  /* Returns whether it landed, so the caller can empty its picker. Leaving the
+     object sitting in the control after a successful connect invites a second
+     press that only fails on the unique constraint. */
   const connect = async (relationship_type_code: string, members: Array<{ object_id: string; role: string }>) => {
     const res = await fetch('/api/v1/relationships', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ relationship_type_code, members }) });
     if (res.ok) await loadConnected();
+    return res.ok;
   };
 
   const handleDelete = async () => {
@@ -392,12 +399,48 @@ const EventDetailPage: React.FC = () => {
                   )}
                   {canEdit && (
                     <div className={styles.connectBox}>
-                      <Input placeholder="Place ID" value={placeId} onChange={(inputEvent) => setPlaceId(inputEvent.target.value)} />
-                      <Button onClick={() => id && placeId.trim() && connect('occurred_at', [{ object_id: id, role: 'event' }, { object_id: placeId.trim(), role: 'place' }])}>Connect Place</Button>
-                      <Input placeholder="Artifact ID" value={artifactId} onChange={(inputEvent) => setArtifactId(inputEvent.target.value)} />
-                      <Button onClick={() => id && artifactId.trim() && connect('depicts_event', [{ object_id: artifactId.trim(), role: 'artifact' }, { object_id: id, role: 'event' }])}>Connect Artifact</Button>
-                      <Input placeholder="Person ID" value={personId} onChange={(inputEvent) => setPersonId(inputEvent.target.value)} />
-                      <Button onClick={() => id && personId.trim() && connect('associated_with', [{ object_id: personId.trim(), role: 'item' }, { object_id: id, role: 'item' }])}>Connect Person</Button>
+                      <ObjectPicker
+                        label="Place"
+                        objectTypes={['place']}
+                        excludeIds={connected.map((object) => object.object_id)}
+                        value={place}
+                        onSelect={setPlace}
+                        onClear={() => setPlace(null)}
+                      />
+                      <Button
+                        disabled={!place}
+                        onClick={async () => { if (id && place && await connect('occurred_at', [{ object_id: id, role: 'event' }, { object_id: place.id, role: 'place' }])) setPlace(null); }}
+                      >
+                        Connect Place
+                      </Button>
+                      <ObjectPicker
+                        label="Artifact"
+                        objectTypes={['artifact']}
+                        excludeIds={connected.map((object) => object.object_id)}
+                        value={artifact}
+                        onSelect={setArtifact}
+                        onClear={() => setArtifact(null)}
+                      />
+                      <Button
+                        disabled={!artifact}
+                        onClick={async () => { if (id && artifact && await connect('depicts_event', [{ object_id: artifact.id, role: 'artifact' }, { object_id: id, role: 'event' }])) setArtifact(null); }}
+                      >
+                        Connect Artifact
+                      </Button>
+                      <ObjectPicker
+                        label="Person"
+                        objectTypes={['person']}
+                        excludeIds={connected.map((object) => object.object_id)}
+                        value={person}
+                        onSelect={setPerson}
+                        onClear={() => setPerson(null)}
+                      />
+                      <Button
+                        disabled={!person}
+                        onClick={async () => { if (id && person && await connect('associated_with', [{ object_id: person.id, role: 'item' }, { object_id: id, role: 'item' }])) setPerson(null); }}
+                      >
+                        Connect Person
+                      </Button>
                     </div>
                   )}
                 </section>

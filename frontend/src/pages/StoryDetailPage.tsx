@@ -6,6 +6,8 @@ import Navbar from '@/components/Navbar/Navbar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import { usePermissions } from '@/hooks/usePermissions';
+import ObjectPicker, { type ArchiveObjectResult } from '@/components/entity-pickers/ObjectPicker';
+import PersonPicker from '@/components/entity-pickers/PersonPicker';
 import styles from './ArtifactsPage.module.css';
 
 interface ConnectedObject { relationship_id: string; object_id: string; object_type: string; title: string; summary: string | null }
@@ -60,8 +62,11 @@ const StoryDetailPage: React.FC = () => {
   const { canEdit, canDelete } = usePermissions();
   const [story, setStory] = useState<StoryRecord | null>(null);
   const [form, setForm] = useState<ReturnType<typeof formFromStory> | null>(null);
-  const [objectId, setObjectId] = useState('');
-  const [collectionId, setCollectionId] = useState('');
+  /* All three of these were archive-object ids typed into text boxes: a reader
+     knows a story's narrator by name and a collection by its title, never by
+     the id, and a wrong id failed with no message at all. */
+  const [objectToConnect, setObjectToConnect] = useState<ArchiveObjectResult | null>(null);
+  const [collection, setCollection] = useState<ArchiveObjectResult | null>(null);
   const [collectionCaption, setCollectionCaption] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -116,27 +121,27 @@ const StoryDetailPage: React.FC = () => {
   };
 
   const handleConnectObject = async () => {
-    if (!id || !objectId.trim()) return;
+    if (!id || !objectToConnect) return;
     const res = await fetch(`/api/v1/stories/${id}/connections`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ object_id: objectId.trim() }),
+      body: JSON.stringify({ object_id: objectToConnect.id }),
     });
     if (res.ok) {
-      setObjectId('');
+      setObjectToConnect(null);
       await loadStory();
     }
   };
 
   const handleAddToCollection = async () => {
-    if (!id || !collectionId.trim()) return;
-    const res = await fetch(`/api/v1/collections/${collectionId.trim()}/items`, {
+    if (!id || !collection) return;
+    const res = await fetch(`/api/v1/collections/${collection.id}/items`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ item_object_id: id, caption: collectionCaption.trim() || null }),
     });
     if (res.ok) {
-      setCollectionId('');
+      setCollection(null);
       setCollectionCaption('');
     }
   };
@@ -154,7 +159,7 @@ const StoryDetailPage: React.FC = () => {
               <label className={styles.field}><span>Summary</span><Input value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} /></label>
               <label className={styles.field}><span>Type</span><select value={form.story_type} onChange={(e) => setForm({ ...form, story_type: e.target.value as StoryRecord['story_type'] })}><option value="story">Story</option><option value="memory">Memory</option><option value="oral_history">Oral History</option><option value="note">Note</option></select></label>
               <label className={styles.field}><span>Privacy</span><select value={form.privacy_level} onChange={(e) => setForm({ ...form, privacy_level: e.target.value as StoryRecord['privacy_level'] })}><option value="family">Family</option><option value="private">Private</option><option value="restricted">Restricted</option><option value="public">Public</option></select></label>
-              <label className={styles.field}><span>Narrator Person ID</span><Input value={form.narrator_person_id} onChange={(e) => setForm({ ...form, narrator_person_id: e.target.value })} /></label>
+              <div className={styles.field}><PersonPicker label="Narrator" value={form.narrator_person_id || null} onSelect={(person) => setForm({ ...form, narrator_person_id: person.id })} onClear={() => setForm({ ...form, narrator_person_id: '' })} /></div>
               <label className={styles.field}><span>Date</span><Input value={form.date_text} onChange={(e) => setForm({ ...form, date_text: e.target.value })} /></label>
             </div>
             <label className={styles.field}><span>Story Markdown</span><textarea value={form.body_markdown} onChange={(e) => setForm({ ...form, body_markdown: e.target.value })} rows={10} required /></label>
@@ -167,10 +172,10 @@ const StoryDetailPage: React.FC = () => {
           <section className={styles.detailCard}>
             <div className={styles.sectionTitleRow}><h2>Connected Objects</h2></div>
             {story.connected_objects.length === 0 ? <p className={styles.muted}>No archive objects connected yet.</p> : <div className={styles.connectedList}>{story.connected_objects.map((object) => <Link key={`${object.relationship_id}-${object.object_id}`} className={styles.connectedItem} to={objectPath(object.object_type, object.object_id)}><strong>{object.title}</strong><span>{object.object_type}</span></Link>)}</div>}
-            {canEdit && <div className={styles.connectBox}><Input placeholder="Archive object ID" value={objectId} onChange={(event) => setObjectId(event.target.value)} /><Button onClick={handleConnectObject}>Connect Object</Button></div>}
+            {canEdit && <div className={styles.connectBox}><ObjectPicker label="Object" excludeIds={story.connected_objects.map((connected) => connected.object_id)} value={objectToConnect} onSelect={setObjectToConnect} onClear={() => setObjectToConnect(null)} /><Button onClick={handleConnectObject} disabled={!objectToConnect}>Connect Object</Button></div>}
           </section>
 
-          {canEdit && <section className={styles.detailCard}><div className={styles.sectionTitleRow}><h2>Add to Collection</h2></div><div className={styles.connectBox}><Input placeholder="Collection ID" value={collectionId} onChange={(event) => setCollectionId(event.target.value)} /><Input placeholder="Caption" value={collectionCaption} onChange={(event) => setCollectionCaption(event.target.value)} /><Button onClick={handleAddToCollection}>Add Story to Collection</Button></div></section>}
+          {canEdit && <section className={styles.detailCard}><div className={styles.sectionTitleRow}><h2>Add to Collection</h2></div><div className={styles.connectBox}><ObjectPicker label="Collection" objectTypes={['collection']} value={collection} onSelect={setCollection} onClear={() => setCollection(null)} /><Input placeholder="Caption" value={collectionCaption} onChange={(event) => setCollectionCaption(event.target.value)} /><Button onClick={handleAddToCollection} disabled={!collection}>Add Story to Collection</Button></div></section>}
         </>}
       </div>
     </AppShell>

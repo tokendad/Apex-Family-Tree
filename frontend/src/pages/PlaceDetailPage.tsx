@@ -8,6 +8,7 @@ import ArchiveObjectLayout from '@/components/archive-object/ArchiveObjectLayout
 import { type ContextActionItem } from '@/components/archive-object/ContextActionsMenu';
 import { usePageActions } from '@/contexts/PageActionsContext';
 import { usePermissions } from '@/hooks/usePermissions';
+import ObjectPicker, { type ArchiveObjectResult } from '@/components/entity-pickers/ObjectPicker';
 import styles from '@/components/archive-object/ArchiveDetailPage.module.css';
 
 interface PlaceRecord {
@@ -71,7 +72,9 @@ const PlaceDetailPage: React.FC = () => {
   const [form, setForm] = useState<ReturnType<typeof formFromPlace> | null>(null);
   const [chain, setChain] = useState<ChainStep[]>([]);
   const [connectedEvents, setConnectedEvents] = useState<ConnectedObject[]>([]);
-  const [eventId, setEventId] = useState('');
+  /* Was an archive-object id typed into a text box. Nobody knows an event by
+     its id, and a mistyped one failed silently. */
+  const [eventToConnect, setEventToConnect] = useState<ArchiveObjectResult | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -118,14 +121,14 @@ const PlaceDetailPage: React.FC = () => {
   };
 
   const handleConnectEvent = async () => {
-    if (!id || !eventId.trim()) return;
+    if (!id || !eventToConnect) return;
     const res = await fetch('/api/v1/relationships', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ relationship_type_code: 'occurred_at', members: [{ object_id: eventId.trim(), role: 'event' }, { object_id: id, role: 'place' }] }),
+      body: JSON.stringify({ relationship_type_code: 'occurred_at', members: [{ object_id: eventToConnect.id, role: 'event' }, { object_id: id, role: 'place' }] }),
     });
     if (res.ok) {
-      setEventId('');
+      setEventToConnect(null);
       await loadConnectedEvents();
     }
   };
@@ -271,8 +274,15 @@ const PlaceDetailPage: React.FC = () => {
                   )}
                   {canEdit && (
                     <div className={styles.connectBox}>
-                      <Input placeholder="Event archive object ID" value={eventId} onChange={(event) => setEventId(event.target.value)} />
-                      <Button onClick={handleConnectEvent}>Connect Event</Button>
+                      <ObjectPicker
+                        label="Event"
+                        objectTypes={['event']}
+                        excludeIds={connectedEvents.map((connected) => connected.object_id)}
+                        value={eventToConnect}
+                        onSelect={setEventToConnect}
+                        onClear={() => setEventToConnect(null)}
+                      />
+                      <Button onClick={handleConnectEvent} disabled={!eventToConnect}>Connect Event</Button>
                     </div>
                   )}
                 </section>

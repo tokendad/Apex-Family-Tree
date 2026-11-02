@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import Input from '@/components/Form/Input';
 import styles from './ObjectPicker.module.css';
 
@@ -44,6 +44,10 @@ const ObjectPicker: React.FC<ObjectPickerProps> = ({
   onSelect,
   onClear,
 }) => {
+  /* One page can hold several of these -- the event page offers a place, an
+     artifact and a person at once -- so the search input cannot carry a fixed
+     id, or the label points at whichever copy rendered first. */
+  const inputId = useId();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<ArchiveObjectResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -103,11 +107,11 @@ const ObjectPicker: React.FC<ObjectPickerProps> = ({
 
   return (
     <div className={styles.picker}>
-      <label className={styles.label} htmlFor="object-picker-search">
+      <label className={styles.label} htmlFor={inputId}>
         {label}
       </label>
       <Input
-        id="object-picker-search"
+        id={inputId}
         value={query}
         placeholder={objectTypes?.length === 1 ? `Search ${objectTypes[0]}s…` : 'Search the archive…'}
         onChange={(event) => setQuery(event.target.value)}
