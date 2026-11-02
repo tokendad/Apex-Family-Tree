@@ -9,6 +9,7 @@ import { type ContextActionItem } from '@/components/archive-object/ContextActio
 import { usePageActions } from '@/contexts/PageActionsContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import ObjectPicker, { type ArchiveObjectResult } from '@/components/entity-pickers/ObjectPicker';
+import PlaceInput from '@/components/entity-pickers/PlaceInput';
 import { useModal } from '@/components/modals/useModal';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
 import { formatEventType, isAttributeType, payloadLabel } from '@/utils/eventTypes';
@@ -282,7 +283,7 @@ const EventDetailPage: React.FC = () => {
                         </label>
                         <label className={styles.field}>
                           <span>Place Text</span>
-                          <Input value={form.event_place} onChange={(e) => setForm({ ...form, event_place: e.target.value })} />
+                          <PlaceInput value={form.event_place} onChange={(event_place) => setForm({ ...form, event_place })} />
                         </label>
                         <label className={styles.field}>
                           <span>Plot</span>

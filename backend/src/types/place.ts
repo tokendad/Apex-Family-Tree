@@ -35,6 +35,23 @@ export interface PlaceAliasRecord {
   created_at: string;
 }
 
+/** One row of a place typeahead: enough to show and to choose, no more (#35).
+
+    parent_title is what distinguishes two places that read the same -- a
+    "Worcester" inside Massachusetts from one inside England. */
+export interface PlaceSuggestion {
+  id: string;
+  title: string;
+  place_type: string | null;
+  address_text: string | null;
+  locality: string | null;
+  county: string | null;
+  region: string | null;
+  country: string | null;
+  parent_place_id: string | null;
+  parent_title: string | null;
+}
+
 export interface CreatePlaceInput {
   title: string;
   summary?: string | null;

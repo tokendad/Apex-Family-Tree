@@ -98,7 +98,8 @@ describe('EventsPage — events and attributes in one index', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /new event/i }));
 
-    const select = screen.getByRole('combobox');
+    // The place field is a combobox too now (#35), so name the select.
+    const select = screen.getAllByRole('combobox').find((el) => el.tagName === 'SELECT')!;
     const groups = within(select).getAllByRole('group');
     expect(groups.map((g) => g.getAttribute('label'))).toEqual(['Events', 'Facts & Attributes']);
   });

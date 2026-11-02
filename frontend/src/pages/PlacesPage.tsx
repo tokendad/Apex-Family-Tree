@@ -5,6 +5,7 @@ import Navbar from '@/components/Navbar/Navbar';
 import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import { usePermissions } from '@/hooks/usePermissions';
+import PlacePicker from '@/components/entity-pickers/PlacePicker';
 import { useSearchStore } from '@/stores/searchStore';
 import styles from './ArtifactsPage.module.css';
 
@@ -23,7 +24,7 @@ interface PlaceRecord {
   notes: string | null;
 }
 
-const EMPTY_FORM = { title: '', summary: '', place_type: '', address_text: '', locality: '', county: '', region: '', country: '', postal_code: '', notes: '', privacy_level: 'family' as PlaceRecord['privacy_level'] };
+const EMPTY_FORM = { title: '', summary: '', place_type: '', address_text: '', locality: '', county: '', region: '', country: '', postal_code: '', notes: '', privacy_level: 'family' as PlaceRecord['privacy_level'], parent_place_id: null as string | null };
 
 const PlacesPage: React.FC = () => {
   const navigate = useNavigate();
@@ -94,6 +95,9 @@ const PlacesPage: React.FC = () => {
               <label className={styles.field}><span>Region</span><Input value={form.region} onChange={(e) => setForm({ ...form, region: e.target.value })} /></label>
               <label className={styles.field}><span>Country</span><Input value={form.country} onChange={(e) => setForm({ ...form, country: e.target.value })} /></label>
               <label className={styles.field}><span>Postal code</span><Input value={form.postal_code} onChange={(e) => setForm({ ...form, postal_code: e.target.value })} /></label>
+              {/* A new place could not say what contains it, so everything
+                  created by hand sat outside the containment tree (#35). */}
+              <label className={styles.field}><span>Inside</span><PlacePicker value={form.parent_place_id} onChange={(parent) => setForm({ ...form, parent_place_id: parent?.id ?? null })} placeholder="Worcester, Massachusetts" /></label>
             </div>
             <label className={styles.field}><span>Notes</span><textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} /></label>
             <div className={styles.actions}><Button type="submit" loading={isSaving}>Create Place</Button></div>

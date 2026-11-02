@@ -15,6 +15,7 @@ import type { PersonResult } from '@/components/PersonSearch/PersonSearch';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
 import { formatEventType, sortEventsForTimeline } from '@/utils/eventTypes';
 import { useModal } from '@/components/modals/useModal';
+import PlaceInput from '@/components/entity-pickers/PlaceInput';
 import archiveStyles from '@/components/archive-object/ArchiveDetailPage.module.css';
 import styles from './FamilyDetailPage.module.css';
 import { DATE_INPUT_HINT } from '@/utils/dateInput';
@@ -936,7 +937,7 @@ const FamilyDetailPage: React.FC = () => {
         </label>
         <label className={archiveStyles.field}>
           <span>Place</span>
-          <Input value={eventForm.event_place} onChange={(e) => setEventForm({ ...eventForm, event_place: e.target.value })} placeholder="e.g. 12 Maple Street" />
+          <PlaceInput value={eventForm.event_place} onChange={(event_place) => setEventForm({ ...eventForm, event_place })} placeholder="Worcester, Massachusetts" />
         </label>
         <label className={archiveStyles.field}>
           <span>Plot</span>
