@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext.js';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { PageActionsProvider } from './contexts/PageActionsContext';
 import { ProtectedRoute } from './components/ProtectedRoute.js';
 import { AdminRoute } from './components/AdminRoute.js';
@@ -80,6 +81,9 @@ function App() {
     <ErrorBoundary>
       <BrowserRouter>
         <AuthProvider>
+          {/* Inside AuthProvider: the theme is an account setting, so reading
+              it is a request that needs the session cookie (#11). */}
+          <ThemeProvider>
           <PageActionsProvider>
           <ModalHost />
           <OfflineBanner />
@@ -150,6 +154,7 @@ function App() {
             </Routes>
           </Suspense>
           </PageActionsProvider>
+          </ThemeProvider>
         </AuthProvider>
       </BrowserRouter>
     </ErrorBoundary>
