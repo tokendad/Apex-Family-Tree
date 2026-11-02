@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { getDatabase } from '../../db/connection.js';
+import { EventRepository } from '../../repositories/EventRepository.js';
 import { nameSoundex, normalizeName } from '../gedcom/matcher.js';
 
 export type PeopleDuplicateConfidence = 'strong' | 'partial' | 'low';
@@ -496,13 +497,20 @@ function moveEvents(canonicalPersonId: string, duplicateIds: string[]) {
     ORDER BY event_type ASC, id ASC
   `).all(...duplicateIds) as EventRow[];
 
+  // These writes bypass EventRepository, so the subject edge in the
+  // relationship graph has to be kept in step by hand. Without this a merge
+  // leaves the event drawn to the duplicate person who no longer exists.
+  const eventRepo = new EventRepository();
+
   for (const event of events) {
     const canonicalEvent = canonicalEventFor(canonicalPersonId, event);
     if (canonicalEvent) {
       db.prepare('UPDATE source_citations SET event_id = ? WHERE event_id = ?').run(canonicalEvent.id, event.id);
+      eventRepo.syncEventSubject(event.id, null, null);
       db.prepare('DELETE FROM events WHERE id = ?').run(event.id);
     } else {
       db.prepare('UPDATE events SET person_id = ?, updated_at = datetime(\'now\') WHERE id = ?').run(canonicalPersonId, event.id);
+      eventRepo.syncEventSubject(event.id, canonicalPersonId, null);
     }
   }
 }

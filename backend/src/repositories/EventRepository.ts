@@ -137,6 +137,7 @@ export class EventRepository extends BaseRepository {
         // After the archive object: the link is a relationship between two of
         // them, so the event has to exist as one first.
         this.syncEventPlace(id, data.event_place ?? null);
+        this.syncEventSubject(id, data.person_id ?? null, data.family_id ?? null);
       }
     });
 
@@ -236,6 +237,7 @@ export class EventRepository extends BaseRepository {
         // membership row away but leaves the relationship behind holding a
         // single member, which is an edge from nothing to the place.
         this.unlinkEventPlace(id);
+        this.unlinkEventSubject(id);
         this.db.prepare('DELETE FROM archive_objects WHERE id = ?').run(id);
       }
       return this.db.prepare('DELETE FROM events WHERE id = ?').run(id).changes > 0;
@@ -346,6 +348,100 @@ export class EventRepository extends BaseRepository {
     // foreign key to it.
     return Boolean(
       this.db.prepare("SELECT id FROM relationship_types WHERE id = 'rel_type_occurred_at'").get(),
+    );
+  }
+
+  /** The id of an event's subject edge. Same deterministic form as the place
+      edge and as migration 165, so one event never accumulates two. */
+  private subjectRelationshipId(eventId: string): string {
+    return `rel_event_subject_${eventId}`;
+  }
+
+  /** Mirror events.person_id / events.family_id into the relationship graph.
+
+      The legacy column stays the source of truth. This is the same fact drawn
+      as an edge, which is what the Connections tab and its count read -- issue
+      #31, where an imported event showed on its person's timeline but called
+      itself unconnected.
+
+      A person subject is a 'person' archive object. A family subject is the
+      family union, written by TreeRepository.syncFamilyUnionFromLegacyFamily as
+      an archive object of type 'relationship' whose id is the family id. */
+  syncEventSubject(eventId: string, personId: string | null, familyId: string | null): void {
+    if (!this.hasSubjectEdgeSupport()) return;
+
+    const subjectId = personId || familyId;
+    if (!subjectId) {
+      this.unlinkEventSubject(eventId);
+      return;
+    }
+
+    // Both endpoints must exist as archive objects or the member rows point at
+    // nothing. A family that the tree has not written a union for is the real
+    // case here: the event keeps its legacy subject and simply has no edge,
+    // rather than the write failing or leaving a dangling member behind.
+    const subjectObject = this.db.prepare(
+      'SELECT id FROM archive_objects WHERE id = ?',
+    ).get(subjectId);
+    if (!subjectObject) {
+      this.unlinkEventSubject(eventId);
+      return;
+    }
+
+    const relationshipId = this.subjectRelationshipId(eventId);
+    const now = this.now();
+
+    this.db.prepare(
+      `INSERT OR IGNORE INTO archive_objects (id, object_type, title, privacy_level, created_at, updated_at)
+       VALUES (?, 'relationship', 'Subject Of Event', 'family', ?, ?)`,
+    ).run(relationshipId, now, now);
+
+    this.db.prepare(
+      `INSERT OR IGNORE INTO relationships (id, relationship_type_id, label, notes)
+       VALUES (?, 'rel_type_event_subject', 'Subject Of Event', ?)`,
+    ).run(relationshipId, `Linked from events.${personId ? 'person' : 'family'}_id`);
+
+    this.db.prepare(
+      `INSERT OR IGNORE INTO relationship_members (relationship_id, object_id, role, sort_order)
+       VALUES (?, ?, 'event', 0)`,
+    ).run(relationshipId, eventId);
+
+    // Re-point rather than insert: an event moved to another person by the
+    // dedup tool must not end up claiming both of them as its subject.
+    this.db.prepare(
+      "DELETE FROM relationship_members WHERE relationship_id = ? AND role = 'subject'",
+    ).run(relationshipId);
+    this.db.prepare(
+      `INSERT INTO relationship_members (relationship_id, object_id, role, sort_order)
+       VALUES (?, ?, 'subject', 1)`,
+    ).run(relationshipId, subjectId);
+  }
+
+  /** Remove an event's subject edge. The subject itself is untouched -- a
+      person who has lost an event is still a person. */
+  private unlinkEventSubject(eventId: string): void {
+    if (!this.hasSubjectEdgeSupport()) return;
+
+    const relationshipId = this.subjectRelationshipId(eventId);
+    this.db.prepare('DELETE FROM relationship_members WHERE relationship_id = ?').run(relationshipId);
+    this.db.prepare('DELETE FROM relationships WHERE id = ?').run(relationshipId);
+    this.db.prepare('DELETE FROM archive_objects WHERE id = ?').run(relationshipId);
+  }
+
+  /** Hand-built fixtures have an events table and nothing else, and a database
+      that has not reached migration 165 has the tables but not the type. The
+      edge is an enrichment, so its absence must not fail a write. */
+  private hasSubjectEdgeSupport(): boolean {
+    const tables = this.db.prepare(
+      `SELECT name FROM sqlite_master
+       WHERE type = 'table'
+         AND name IN ('archive_objects', 'relationships',
+                      'relationship_members', 'relationship_types')`,
+    ).all() as { name: string }[];
+    if (tables.length < 4) return false;
+
+    return Boolean(
+      this.db.prepare("SELECT id FROM relationship_types WHERE id = 'rel_type_event_subject'").get(),
     );
   }
 
