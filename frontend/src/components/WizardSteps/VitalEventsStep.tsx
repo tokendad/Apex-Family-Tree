@@ -2,6 +2,7 @@ import React from 'react';
 import { useState } from 'react';
 import { FormGroup, Label, Input } from '@/components/Form';
 import TagPicker from '@/components/TagPicker/TagPicker';
+import PlaceInput from '@/components/entity-pickers/PlaceInput';
 import type { EventData } from '@/components/TagPicker/TagPicker';
 import type { WizardFormData } from '@/hooks/usePersonWizard';
 import { useModal } from '@/components/modals/useModal';
@@ -90,10 +91,10 @@ const VitalEventsStep: React.FC<VitalEventsStepProps> = ({ data, onChange, editP
             </FormGroup>
             <FormGroup>
               <Label>Place</Label>
-              <Input
+              <PlaceInput
                 placeholder="City, State, Country"
                 value={data.birthPlace}
-                onChange={(e) => onChange('birthPlace', e.target.value)}
+                onChange={(value) => onChange('birthPlace', value)}
               />
             </FormGroup>
           </div>
@@ -112,10 +113,10 @@ const VitalEventsStep: React.FC<VitalEventsStepProps> = ({ data, onChange, editP
             </FormGroup>
             <FormGroup>
               <Label>Place</Label>
-              <Input
+              <PlaceInput
                 placeholder="City, State, Country"
                 value={data.deathPlace}
-                onChange={(e) => onChange('deathPlace', e.target.value)}
+                onChange={(value) => onChange('deathPlace', value)}
               />
             </FormGroup>
           </div>

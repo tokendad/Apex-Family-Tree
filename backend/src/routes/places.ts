@@ -71,6 +71,18 @@ placesRouter.get('/', (req, res) => {
   }
 });
 
+/* Before /:id, or "suggest" is read as a place id. */
+placesRouter.get('/suggest', (req, res) => {
+  try {
+    const repo = new PlaceRepository();
+    const term = typeof req.query.q === 'string' ? req.query.q : '';
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 10, 1), 25);
+    res.json({ data: repo.suggest(term, limit) });
+  } catch {
+    res.status(500).json({ error: 'Failed to suggest places' });
+  }
+});
+
 placesRouter.get('/:id', (req, res) => {
   try {
     const repo = new PlaceRepository();

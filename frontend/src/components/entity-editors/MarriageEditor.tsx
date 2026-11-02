@@ -3,6 +3,7 @@ import Button from '@/components/Button/Button';
 import { Label, Input } from '@/components/Form';
 import FormGroup from '@/components/Form/FormGroup';
 import PersonPicker from '@/components/entity-pickers/PersonPicker';
+import PlaceInput from '@/components/entity-pickers/PlaceInput';
 import type { PersonResult } from '@/components/PersonSearch/PersonSearch';
 import type { ModalEditorProps } from '@/components/modals/modalTypes';
 import styles from './MarriageEditor.module.css';
@@ -182,10 +183,10 @@ const MarriageEditor: React.FC<MarriageEditorProps> = ({
 
           <FormGroup>
             <Label htmlFor={`me-place-${modalId}`}>Marriage Place</Label>
-            <Input
+            <PlaceInput
               id={`me-place-${modalId}`}
               value={marriagePlace}
-              onChange={(e) => setMarriagePlace(e.target.value)}
+              onChange={setMarriagePlace}
               placeholder="e.g. Boston, MA"
             />
           </FormGroup>

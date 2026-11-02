@@ -9,6 +9,7 @@ import { type ContextActionItem } from '@/components/archive-object/ContextActio
 import { usePageActions } from '@/contexts/PageActionsContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import ObjectPicker, { type ArchiveObjectResult } from '@/components/entity-pickers/ObjectPicker';
+import PlacePicker from '@/components/entity-pickers/PlacePicker';
 import styles from '@/components/archive-object/ArchiveDetailPage.module.css';
 
 interface PlaceRecord {
@@ -54,6 +55,7 @@ function formFromPlace(place: PlaceRecord) {
     postal_code: place.postal_code ?? '',
     notes: place.notes ?? '',
     privacy_level: place.privacy_level,
+    parent_place_id: place.parent_place_id ?? null,
   };
 }
 
@@ -216,6 +218,19 @@ const PlaceDetailPage: React.FC = () => {
                           </label>
                         ))}
                       </div>
+                      <label className={styles.field}>
+                        <span>Inside</span>
+                        {/* parent_place_id has been in the schema since 074 and
+                            nothing could set it, so a place created by hand sat
+                            outside the containment tree entirely (#35). */}
+                        <PlacePicker
+                          value={form.parent_place_id}
+                          valueTitle={chain[0]?.title ?? null}
+                          excludeId={place.id}
+                          onChange={(parent) => setForm({ ...form, parent_place_id: parent?.id ?? null })}
+                          placeholder="The town, state or country this sits inside"
+                        />
+                      </label>
                       <label className={styles.field}>
                         <span>Notes</span>
                         <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} />

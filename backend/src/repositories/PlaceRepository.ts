@@ -1,6 +1,6 @@
 import { BaseRepository } from './base.js';
 import { ArchiveObjectRepository } from './ArchiveObjectRepository.js';
-import type { CreatePlaceInput, PlaceAliasRecord, PlaceRecord, UpdatePlaceInput } from '../types/place.js';
+import type { CreatePlaceInput, PlaceAliasRecord, PlaceRecord, PlaceSuggestion, UpdatePlaceInput } from '../types/place.js';
 
 function normalizePlaceName(value: string): string {
   return value.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -216,6 +216,74 @@ export class PlaceRepository extends BaseRepository {
        WHERE ao.is_deleted = 0
        ORDER BY c.depth ASC`,
     ).all(placeId) as PlaceRecord[];
+  }
+
+  /** Places matching what somebody has typed so far, for a typeahead (#35).
+
+      Ordered so the most useful candidate is first: titles that start with the
+      term, then titles that contain it, then matches that came from a
+      component or an alias, and alphabetically within each band. findAll
+      orders by id because it pages with a keyset cursor, which is right for a
+      list of everything and wrong for ten suggestions -- it would return an
+      arbitrary ten of the matches.
+
+      Aliases are searched too, for the same reason resolveOrCreate matches on
+      them: "Worcester, Worcester, Massachusetts" is a spelling the archive
+      folded away, and typing it should offer the place that absorbed it rather
+      than nothing.
+
+      The suggestion carries its parent's title so the list can say which
+      Worcester is meant without a second request per row. */
+  suggest(term: string, limit = 10): PlaceSuggestion[] {
+    const trimmed = term.trim();
+    if (!trimmed) return [];
+
+    const prefix = `${trimmed.toLowerCase()}%`;
+    const contains = `%${trimmed.toLowerCase()}%`;
+
+    return this.db.prepare(
+      `SELECT ao.id AS id,
+              ao.title AS title,
+              p.place_type AS place_type,
+              p.address_text AS address_text,
+              p.locality AS locality,
+              p.county AS county,
+              p.region AS region,
+              p.country AS country,
+              p.parent_place_id AS parent_place_id,
+              parent_ao.title AS parent_title
+       FROM places p
+       INNER JOIN archive_objects ao ON ao.id = p.id
+       LEFT JOIN places parent ON parent.id = p.parent_place_id
+       LEFT JOIN archive_objects parent_ao ON parent_ao.id = parent.id AND parent_ao.is_deleted = 0
+       WHERE ao.object_type = 'place'
+         AND ao.is_deleted = 0
+         AND (
+           LOWER(ao.title) LIKE ?
+           OR LOWER(ao.title) LIKE ?
+           OR LOWER(COALESCE(p.locality, '')) LIKE ?
+           OR LOWER(COALESCE(p.county, '')) LIKE ?
+           OR LOWER(COALESCE(p.region, '')) LIKE ?
+           OR LOWER(COALESCE(p.country, '')) LIKE ?
+           OR LOWER(COALESCE(p.address_text, '')) LIKE ?
+           OR EXISTS (
+             SELECT 1 FROM place_aliases a
+             WHERE a.place_id = p.id AND LOWER(a.alias) LIKE ?
+           )
+         )
+       ORDER BY
+         CASE
+           WHEN LOWER(ao.title) LIKE ? THEN 0
+           WHEN LOWER(ao.title) LIKE ? THEN 1
+           ELSE 2
+         END ASC,
+         ao.title ASC
+       LIMIT ?`,
+    ).all(
+      prefix, contains, contains, contains, contains, contains, contains, contains,
+      prefix, contains,
+      limit,
+    ) as PlaceSuggestion[];
   }
 
   findAliases(placeId: string): PlaceAliasRecord[] {
