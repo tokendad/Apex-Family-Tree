@@ -50,3 +50,7 @@ dev-data/
 
 # TypeScript incremental build info
 *.tsbuildinfo
+
+# Development seed trees. Demo GEDCOMs are fetched or converted locally --
+# see backend/src/seeds/README.md -- not carried in the repository.
+backend/src/seeds/*.ged
