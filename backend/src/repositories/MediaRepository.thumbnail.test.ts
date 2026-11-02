@@ -21,7 +21,8 @@ function tempFile(name: string, contents = 'bytes'): string {
 }
 
 /** Makes the media item an artifact too, which is what gives it a row in
-    artifact_files. A scanned photograph is not one until somebody says so. */
+    artifact_files. Seeded by hand here because `seed` writes media_items
+    directly rather than going through the repository's bridge. */
 function seedArtifact(id: string) {
   db.prepare('INSERT INTO artifacts (id, artifact_type_id) VALUES (?, ?)')
     .run(id, 'artifact_type_photograph');
@@ -63,10 +64,13 @@ beforeEach(() => {
     );
     /* A media item is only an artifact when a row here says so, and the
        thumbnail file row is written only for those: artifact_files.artifact_id
-       references this table, so writing it for a plain scanned photograph
-       failed the foreign key and rolled the thumbnail back with it. */
+       references this table, so writing it for a media item with no artifact
+       failed the foreign key and rolled the thumbnail back with it. (A scan
+       now writes the artifact as it imports, so in the live archive the two
+       arrive together -- but setThumbnail still runs over rows the bridge
+       never reached.) */
     CREATE TABLE artifacts (
-      id TEXT PRIMARY KEY, artifact_type_id TEXT
+      id TEXT PRIMARY KEY, artifact_type_id TEXT, original_date_text TEXT, original_format TEXT
     );
     CREATE TABLE artifact_files (
       id TEXT PRIMARY KEY, artifact_id TEXT, file_role TEXT,
