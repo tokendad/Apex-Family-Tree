@@ -1,11 +1,9 @@
 import React from 'react';
-import { useState } from 'react';
 import { FormGroup, Label, Input } from '@/components/Form';
 import TagPicker from '@/components/TagPicker/TagPicker';
 import PlaceInput from '@/components/entity-pickers/PlaceInput';
 import type { EventData } from '@/components/TagPicker/TagPicker';
 import type { WizardFormData } from '@/hooks/usePersonWizard';
-import { useModal } from '@/components/modals/useModal';
 import styles from './VitalEventsStep.module.css';
 import { DATE_INPUT_HINT } from '@/utils/dateInput';
 
@@ -24,13 +22,9 @@ const ADDITIONAL_EVENT_TYPES = [
 interface VitalEventsStepProps {
   data: WizardFormData;
   onChange: <K extends keyof WizardFormData>(field: K, value: WizardFormData[K]) => void;
-  editPersonId?: string | null;
-  personDisplayName?: string;
 }
 
-const VitalEventsStep: React.FC<VitalEventsStepProps> = ({ data, onChange, editPersonId, personDisplayName }) => {
-  const { openModal } = useModal();
-  const [marriageChips, setMarriageChips] = useState<string[]>([]);
+const VitalEventsStep: React.FC<VitalEventsStepProps> = ({ data, onChange }) => {
 
   const handleToggle = (tag: string) => {
     const exists = data.additionalEvents.find((e) => e.type === tag);
@@ -58,20 +52,6 @@ const VitalEventsStep: React.FC<VitalEventsStepProps> = ({ data, onChange, editP
       'additionalEvents',
       data.additionalEvents.filter((e) => e.type !== tag),
     );
-  };
-
-  const handleAddMarriage = async () => {
-    if (!editPersonId) return;
-    const result = await openModal('MarriageEditor', {
-      personId: editPersonId,
-      personName: personDisplayName ?? 'this person',
-      onSaved: () => {/* parent refreshes after wizard complete */},
-    });
-    if (result.action === 'created') {
-      const { spouseName, marriageDate } = result.entity as { spouseName: string | null; marriageDate: string | null };
-      const parts = ['Married', spouseName, marriageDate].filter(Boolean);
-      setMarriageChips((prev) => [...prev, parts.join(' · ')]);
-    }
   };
 
   return (
@@ -133,35 +113,11 @@ const VitalEventsStep: React.FC<VitalEventsStepProps> = ({ data, onChange, editP
         onEventChange={handleEventChange}
         onRemoveEvent={handleRemoveEvent}
       />
-      {/* Marriage sits with the other additional events rather than in its own
-          section: it is one more thing that can be recorded here, not a
-          separate category. */}
-      <div className={styles.marriageSection}>
-        <button
-          type="button"
-          className={styles.addMarriageBtn}
-          onClick={handleAddMarriage}
-          disabled={!editPersonId}
-        >
-          + Add Marriage
-        </button>
-
-        {/* A title attribute on a disabled button never appears, because
-            disabled elements do not fire mouse events — so the reason it is
-            unavailable has to be rendered. */}
-        {!editPersonId && (
-          <p className={styles.marriageHint}>
-            A marriage links two people, so this becomes available once this person
-            has been saved. Finish adding them, then reopen to record it.
-          </p>
-        )}
-
-        {marriageChips.map((chip, i) => (
-          <span key={i} className={styles.marriageChip}>
-            {chip}
-          </span>
-        ))}
-      </div>
+      <p className={styles.marriageHint}>
+        Marriages are added from the person&rsquo;s editor once they exist, since a
+        marriage links two people. Finish adding this person, then open them from
+        the tree to record it.
+      </p>
     </div>
   );
 };

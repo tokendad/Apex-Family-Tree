@@ -260,12 +260,10 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
   }, [treeFilter, refetch, setNodes, setFamilies, setConnectors, setLoading, fitToScreen]);
 
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [editPersonId, setEditPersonId] = useState<string | null>(null);
   const [preLink, setPreLink] = useState<PreLinkedRelationship | null>(null);
 
   const handleWizardComplete = useCallback(() => {
     setWizardOpen(false);
-    setEditPersonId(null);
     setPreLink(null);
     if (treeFilter === 'all') {
       refetch();
@@ -273,21 +271,11 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
   }, [refetch, treeFilter]);
 
   const wizard = usePersonWizard({
-    editPersonId,
     preLink,
     onComplete: handleWizardComplete,
   });
 
-  // Load person data when editing
-  useEffect(() => {
-    if (editPersonId && wizardOpen) {
-      wizard.loadPerson(editPersonId);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editPersonId, wizardOpen]);
-
   const openCreateWizard = useCallback(() => {
-    setEditPersonId(null);
     setPreLink(null);
     wizard.reset();
     setWizardOpen(true);
@@ -304,7 +292,6 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
 
   const openPreLinkedWizard = useCallback(
     (personId: string, type: PreLinkedRelationship['type']) => {
-      setEditPersonId(null);
       setPreLink({ type, personId });
       wizard.reset();
       setWizardOpen(true);
@@ -314,7 +301,6 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
 
   const closeWizard = useCallback(() => {
     setWizardOpen(false);
-    setEditPersonId(null);
     setPreLink(null);
   }, []);
 
@@ -324,14 +310,7 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
         return <PersonalInfoStep data={wizard.data} onChange={wizard.updateField} />;
       case 2:
         return (
-          <VitalEventsStep
-            data={wizard.data}
-            onChange={wizard.updateField}
-            editPersonId={editPersonId}
-            personDisplayName={
-              [wizard.data.givenName, wizard.data.surname].filter(Boolean).join(' ') || undefined
-            }
-          />
+          <VitalEventsStep data={wizard.data} onChange={wizard.updateField} />
         );
       case 3:
         return <RelationshipsStep data={wizard.data} onChange={wizard.updateField} />;
@@ -420,7 +399,7 @@ const TreePage: React.FC<TreePageProps> = ({ renderer = 'family-chart' }) => {
     [homePersonId, setHomePersonId],
   );
 
-  const wizardTitle = editPersonId ? 'Edit Person' : 'Add Person';
+  const wizardTitle = 'Add Person';
 
   return (
     <AppShell
