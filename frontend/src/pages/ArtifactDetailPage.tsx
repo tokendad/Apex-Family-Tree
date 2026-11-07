@@ -147,6 +147,8 @@ interface ConfidenceLevelOption {
  * connectedObjects this page's Provenance tab surfaces. */
 const PROVENANCE_RELATIONSHIP_CODES = ['owned_by', 'donated_by', 'scanned_by'];
 
+type DrawerMode = 'connect' | 'add-claim' | 'record-provenance' | 'add-identification';
+
 interface ArtifactForm {
   title: string;
   summary: string;
@@ -310,7 +312,7 @@ const ArtifactDetailPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [activeTab, setActiveTab] = useState('details');
-  const [drawerMode, setDrawerMode] = useState<'connect' | 'add-claim' | 'record-provenance' | 'add-identification' | null>(null);
+  const [drawerMode, setDrawerMode] = useState<DrawerMode | null>(null);
   /* The Transcript tab edits in place rather than in a drawer: a letter is
      several hundred words and wants the width of the page. */
   const [transcriptEditing, setTranscriptEditing] = useState(false);
@@ -507,6 +509,22 @@ const ArtifactDetailPage: React.FC = () => {
     setIdentificationError(null);
   };
 
+  const resetConnectForm = () => {
+    setConnectTypeCode('');
+    setConnectTarget(null);
+    setConnectError(null);
+  };
+
+  /** Every entry into any drawer mode goes through here, so a relationship
+   * type or target chosen under one mode (e.g. Connect's full type list)
+   * can never carry into a differently-scoped one (e.g. Record Provenance's
+   * narrower list) just because the drawer was never explicitly closed. */
+  const openDrawer = (mode: DrawerMode) => {
+    resetConnectForm();
+    resetIdentificationForm();
+    setDrawerMode(mode);
+  };
+
   const handleAddIdentification = async () => {
     if (!id || !identificationNote.trim()) return;
     setIsAddingIdentification(true);
@@ -558,7 +576,7 @@ const ArtifactDetailPage: React.FC = () => {
       label: 'Connect',
       description: 'Link this artifact to a person, event, place, story or collection',
       disabled: !canEdit,
-      onSelect: () => setDrawerMode('connect'),
+      onSelect: () => openDrawer('connect'),
     },
     {
       id: 'edit-artifact',
@@ -576,7 +594,7 @@ const ArtifactDetailPage: React.FC = () => {
       label: 'Add Claim',
       description: 'Use this artifact as evidence',
       disabled: !canEdit,
-      onSelect: () => setDrawerMode('add-claim'),
+      onSelect: () => openDrawer('add-claim'),
     },
     {
       id: 'add-transcript',
@@ -593,14 +611,14 @@ const ArtifactDetailPage: React.FC = () => {
       label: 'Record Provenance',
       description: 'Track ownership, donation, or scanning history',
       disabled: !canEdit,
-      onSelect: () => setDrawerMode('record-provenance'),
+      onSelect: () => openDrawer('record-provenance'),
     },
     {
       id: 'add-identification',
       label: 'Add Identification',
       description: 'Record who identified someone or something in this artifact, and when',
       disabled: !canEdit,
-      onSelect: () => setDrawerMode('add-identification'),
+      onSelect: () => openDrawer('add-identification'),
     },
     {
       id: 'delete-artifact',
@@ -1003,6 +1021,7 @@ const ArtifactDetailPage: React.FC = () => {
         }
         onClose={() => {
           setDrawerMode(null);
+          resetConnectForm();
           resetIdentificationForm();
         }}
       >

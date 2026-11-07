@@ -372,8 +372,26 @@ artifactsRouter.post(
       });
       res.status(201).json(entry);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to add identification';
-      res.status(message === 'Artifact not found' ? 404 : 400).json({ error: message });
+      // Only addIdentification's own, known validation messages are ever
+      // shown to the caller; anything else (a locked database, a missing
+      // table) is an internal failure and gets the same generic 500 every
+      // other handler in this file returns, not the raw error text.
+      const message = error instanceof Error ? error.message : '';
+      if (message === 'Artifact not found') {
+        res.status(404).json({ error: message });
+        return;
+      }
+      const knownValidationErrors = [
+        'note is required',
+        'identified_person_id does not exist',
+        'identifier_person_id does not exist',
+        'confidence_level_id does not exist',
+      ];
+      if (knownValidationErrors.includes(message)) {
+        res.status(400).json({ error: message });
+        return;
+      }
+      res.status(500).json({ error: 'Failed to add identification' });
     }
   },
 );

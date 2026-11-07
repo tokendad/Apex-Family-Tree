@@ -32,16 +32,33 @@ CREATE INDEX IF NOT EXISTS idx_artifact_identification_history_artifact
   ON artifact_identification_history(artifact_id);
 
 -- Same idiom as audit_log (026): insert-only, enforced at the database
--- level so a history entry cannot be edited or removed by any code path,
--- present or future.
+-- level so no application code path -- present or future -- can edit the
+-- content of an entry.
+--
+-- Unlike audit_log, this table has a real parent: artifact_id cascades from
+-- artifacts, and the two person references cascade (as a SET NULL) from
+-- archive_objects. A blanket "no UPDATE, no DELETE" pair blocks those
+-- cascades too, which breaks deleting a person who has ever been named in
+-- an identification (PersonRepository.delete) or merging one away
+-- (personDedup's moveArchiveMemberships), and leaves a half-deleted media
+-- row when an artifact itself is removed (MediaRepository.delete deletes
+-- media_items before archive_objects, outside a transaction).
+--
+-- So the UPDATE guard only fires when something other than the two person
+-- references changes -- note, artifact_id, confidence_level_id, created_by
+-- and created_at are what "cannot be modified" actually protects; SET NULL
+-- touches neither. And there is no DELETE guard at all: the only way a row
+-- is ever deleted is the artifact_id cascade when its artifact is removed
+-- entirely, which is the same lifecycle every other child of artifacts
+-- (artifact_files, for one) already has. No route in this app deletes a
+-- history row directly.
 CREATE TRIGGER IF NOT EXISTS artifact_identification_history_no_update
 BEFORE UPDATE ON artifact_identification_history
+WHEN NEW.note IS NOT OLD.note
+  OR NEW.artifact_id IS NOT OLD.artifact_id
+  OR NEW.confidence_level_id IS NOT OLD.confidence_level_id
+  OR NEW.created_by IS NOT OLD.created_by
+  OR NEW.created_at IS NOT OLD.created_at
 BEGIN
   SELECT RAISE(ABORT, 'Identification history entries cannot be modified');
-END;
-
-CREATE TRIGGER IF NOT EXISTS artifact_identification_history_no_delete
-BEFORE DELETE ON artifact_identification_history
-BEGIN
-  SELECT RAISE(ABORT, 'Identification history entries cannot be deleted');
 END;

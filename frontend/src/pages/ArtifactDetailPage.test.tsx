@@ -349,6 +349,30 @@ describe('ArtifactDetailPage', () => {
       expect(within(select).queryByRole('option', { name: 'Appears In' })).not.toBeInTheDocument();
     });
 
+    // A relationship type chosen under Connect's full list has no matching
+    // <option> once Record Provenance's narrower list is shown, but the
+    // underlying state used to survive the switch anyway and Connect could
+    // still be submitted under the Record Provenance title (PR #66 review).
+    it('does not carry a relationship type chosen in Connect into Record Provenance', async () => {
+      renderPage();
+
+      fireEvent.click(await screen.findByRole('button', { name: /actions/i }));
+      fireEvent.click(screen.getByRole('menuitem', { name: /^connect\b/i }));
+      fireEvent.change(await screen.findByLabelText(/how are they related/i), {
+        target: { value: 'appears_in' },
+      });
+      expect(await screen.findByLabelText(/what should this artifact be connected to/i)).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /actions/i }));
+      fireEvent.click(screen.getByRole('menuitem', { name: /record provenance/i }));
+
+      const select = await screen.findByLabelText(/how are they related/i);
+      expect(select).toHaveValue('');
+      // The target picker only shows once a type is chosen; it reappearing
+      // here would mean 'appears_in' survived the switch.
+      expect(screen.queryByLabelText(/what should this artifact be connected to/i)).not.toBeInTheDocument();
+    });
+
     it('shows the owned_by connection under the Provenance tab, not just Connections', async () => {
       renderPage();
 

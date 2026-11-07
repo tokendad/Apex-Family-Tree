@@ -82,13 +82,13 @@ function seedDB(database: Database.Database) {
     );
     CREATE TRIGGER artifact_identification_history_no_update
     BEFORE UPDATE ON artifact_identification_history
+    WHEN NEW.note IS NOT OLD.note
+      OR NEW.artifact_id IS NOT OLD.artifact_id
+      OR NEW.confidence_level_id IS NOT OLD.confidence_level_id
+      OR NEW.created_by IS NOT OLD.created_by
+      OR NEW.created_at IS NOT OLD.created_at
     BEGIN
       SELECT RAISE(ABORT, 'Identification history entries cannot be modified');
-    END;
-    CREATE TRIGGER artifact_identification_history_no_delete
-    BEFORE DELETE ON artifact_identification_history
-    BEGIN
-      SELECT RAISE(ABORT, 'Identification history entries cannot be deleted');
     END;
   `);
 
@@ -314,15 +314,30 @@ describe('ArtifactRepository', () => {
       expect(() => repo.addIdentification('does-not-exist', { note: 'A guess' })).toThrow('Artifact not found');
     });
 
-    it('never allows an entry to be modified or removed, enforced by the table itself', () => {
+    it('never allows the content of an entry to be edited, enforced by the table itself', () => {
       const repo = new ArtifactRepository();
       const photo = repo.create({ title: 'Class Photo', artifact_type_id: 'artifact_type_photo' });
       const entry = repo.addIdentification(photo.id, { note: 'First guess.' });
 
       expect(() => db.prepare("UPDATE artifact_identification_history SET note = 'edited' WHERE id = ?").run(entry.id))
         .toThrow('Identification history entries cannot be modified');
-      expect(() => db.prepare('DELETE FROM artifact_identification_history WHERE id = ?').run(entry.id))
-        .toThrow('Identification history entries cannot be deleted');
+      expect(() => db.prepare("UPDATE artifact_identification_history SET created_by = 'someone-else' WHERE id = ?").run(entry.id))
+        .toThrow('Identification history entries cannot be modified');
+    });
+
+    // The database's own ON DELETE SET NULL (person deleted/merged away) and
+    // ON DELETE CASCADE (parent artifact removed) must still go through —
+    // see PR #66 review, where a blanket trigger blocked both.
+    it('still lets the database null out a person reference, e.g. when that person is deleted', () => {
+      const repo = new ArtifactRepository();
+      const photo = repo.create({ title: 'Class Photo', artifact_type_id: 'artifact_type_photo' });
+      seedPerson(db, 'person-gone', 'Soon Deleted');
+      const entry = repo.addIdentification(photo.id, { note: 'A guess.', identified_person_id: 'person-gone' });
+
+      expect(() =>
+        db.prepare('UPDATE artifact_identification_history SET identified_person_id = NULL WHERE id = ?').run(entry.id),
+      ).not.toThrow();
+      expect(repo.listIdentifications(photo.id)[0].identified_person_id).toBeNull();
     });
   });
 });
