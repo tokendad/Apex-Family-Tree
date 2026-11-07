@@ -192,7 +192,7 @@ const ThumbCard: React.FC<ThumbCardProps> = ({ item, onClick, selectable, select
         <div className={styles.thumbImgWrap}>
           {!loaded && <div className={styles.imgSkeleton} aria-hidden="true" />}
           <img
-            src={`/api/v1/media/${item.id}`}
+            src={`/api/v1/media/${item.id}/thumbnail`}
             alt={displayTitle(item)}
             className={`${styles.thumbImg} ${loaded ? styles.thumbImgLoaded : ''}`}
             onLoad={() => setLoaded(true)}
