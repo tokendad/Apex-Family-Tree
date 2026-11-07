@@ -208,7 +208,7 @@ describe('person de-duplication service', () => {
     });
   });
 
-  it('previews transfer counts and field conflicts before applying a merge', () => {
+  it('previews transfer counts and field comparisons before applying a merge', () => {
     const preview = previewPeopleMerge({
       groupId: 'dupe__keep',
       canonicalPersonId: 'keep',
@@ -223,10 +223,23 @@ describe('person de-duplication service', () => {
 
     expect(preview.canonicalPersonId).toBe('keep');
     expect(preview.duplicatePersonIds).toEqual(['dupe']);
-    expect(preview.conflicts).toEqual(
+    expect(preview.comparisons).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ field: 'birthPlace', canonicalValue: 'Boston, MA', duplicateValue: 'Cambridge, MA' }),
-        expect.objectContaining({ field: 'notes', canonicalValue: 'Original notes', duplicateValue: 'Additional notes' }),
+        expect.objectContaining({
+          field: 'birthPlace', status: 'different', hasSelection: true,
+          canonicalValue: 'Boston, MA', duplicateValue: 'Cambridge, MA',
+        }),
+        expect.objectContaining({
+          field: 'notes', status: 'different', hasSelection: true,
+          canonicalValue: 'Original notes', duplicateValue: 'Additional notes',
+        }),
+        expect.objectContaining({ field: 'fullName', status: 'match', hasSelection: false }),
+        expect.objectContaining({ field: 'birthDate', status: 'match', hasSelection: false }),
+        expect.objectContaining({ field: 'deathDate', status: 'missing' }),
+        expect.objectContaining({ field: 'spouse', hasSelection: false }),
+        expect.objectContaining({ field: 'father', hasSelection: false }),
+        expect.objectContaining({ field: 'mother', hasSelection: false }),
+        expect.objectContaining({ field: 'occupation', hasSelection: false }),
       ]),
     );
     expect(preview.transferCounts).toMatchObject({
@@ -265,5 +278,40 @@ describe('person de-duplication service', () => {
     expect(db.prepare('SELECT person_id FROM media_person_regions WHERE id = ?').get('region-1')).toEqual({ person_id: 'keep' });
     expect(db.prepare('SELECT home_person_id FROM users WHERE id = ?').get('user-1')).toEqual({ home_person_id: 'keep' });
     expect(db.prepare('SELECT scope_person_id FROM export_jobs WHERE id = ?').get('export-1')).toEqual({ scope_person_id: 'keep' });
+  });
+
+  it('classifies a possible-match name and requires an explicit choice before applying', () => {
+    db.prepare('INSERT INTO persons (id, sex, is_living) VALUES (?, ?, ?)').run('wide-keep', 'M', 0);
+    db.prepare('INSERT INTO persons (id, sex, is_living) VALUES (?, ?, ?)').run('wide-dupe', 'M', 0);
+    db.prepare('INSERT INTO names (id, person_id, given_name, surname, is_primary) VALUES (?, ?, ?, ?, 1)')
+      .run('wide-keep-name', 'wide-keep', 'John W.', 'LeFort');
+    db.prepare('INSERT INTO names (id, person_id, given_name, surname, is_primary) VALUES (?, ?, ?, ?, 1)')
+      .run('wide-dupe-name', 'wide-dupe', 'John William', 'LeFort');
+
+    const groupId = ['wide-dupe', 'wide-keep'].sort().join('__');
+    const preview = previewPeopleMerge({
+      groupId,
+      canonicalPersonId: 'wide-keep',
+      duplicatePersonIds: ['wide-dupe'],
+    });
+    const fullName = preview.comparisons.find((c) => c.field === 'fullName');
+    expect(fullName).toMatchObject({ status: 'possible', hasSelection: true });
+
+    expect(() => applyPeopleMerge({
+      groupId,
+      canonicalPersonId: 'wide-keep',
+      duplicatePersonIds: ['wide-dupe'],
+    })).toThrow(/selection is required/i);
+
+    const result = applyPeopleMerge({
+      groupId,
+      canonicalPersonId: 'wide-keep',
+      duplicatePersonIds: ['wide-dupe'],
+      fieldResolutions: { fullName: 'duplicate:wide-dupe' },
+    });
+    expect(result.mergedPersonIds).toEqual(['wide-dupe']);
+    expect(
+      db.prepare('SELECT given_name, surname FROM names WHERE person_id = ? AND is_primary = 1').get('wide-keep'),
+    ).toEqual({ given_name: 'John William', surname: 'LeFort' });
   });
 });
