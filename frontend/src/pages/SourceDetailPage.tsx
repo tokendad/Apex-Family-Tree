@@ -45,7 +45,7 @@ const MediaThumb: React.FC<{ item: SourceMediaItem }> = ({ item }) => {
   return (
     <img
       className={localStyles.mediaThumb}
-      src={`/api/v1/media/${item.id}?thumb=1`}
+      src={`/api/v1/media/${item.id}/thumbnail`}
       alt={mediaLabel(item)}
       loading="lazy"
       onError={() => setFailed(true)}

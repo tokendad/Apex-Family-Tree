@@ -190,7 +190,7 @@ const ModalMediaThumb: React.FC<{ item: MediaItem }> = ({ item }) => {
     return (
       <img
         className={styles.mediaThumbnail}
-        src={`/api/v1/media/${item.id}?thumb=1`}
+        src={`/api/v1/media/${item.id}/thumbnail`}
         alt={mediaDisplayName(item)}
         onError={() => setImgError(true)}
         loading="lazy"
