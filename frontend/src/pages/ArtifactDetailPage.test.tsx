@@ -102,12 +102,51 @@ function baseFetch(url: string): Promise<unknown> {
                 { role: 'subject', allowed_object_types: ['person'], is_required: true },
               ],
             },
+            {
+              id: 'rel_type_owned_by',
+              code: 'owned_by',
+              name: 'Owned By',
+              category: 'artifact',
+              description: null,
+              roles: [
+                { role: 'artifact', allowed_object_types: ['artifact'], is_required: true },
+                { role: 'owner', allowed_object_types: ['person'], is_required: true },
+              ],
+            },
+            {
+              id: 'rel_type_donated_by',
+              code: 'donated_by',
+              name: 'Donated By',
+              category: 'artifact',
+              description: null,
+              roles: [
+                { role: 'artifact', allowed_object_types: ['artifact'], is_required: true },
+                { role: 'donor', allowed_object_types: ['person'], is_required: true },
+              ],
+            },
+            {
+              id: 'rel_type_scanned_by',
+              code: 'scanned_by',
+              name: 'Scanned By',
+              category: 'artifact',
+              description: null,
+              roles: [
+                { role: 'artifact', allowed_object_types: ['artifact'], is_required: true },
+                { role: 'scanner', allowed_object_types: ['person'], is_required: true },
+              ],
+            },
           ],
         }),
       });
     }
     if (url === '/api/v1/claims/evidence/artifact-1') {
       return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+    }
+    if (url === '/api/v1/artifacts/artifact-1/identifications') {
+      return Promise.resolve({ ok: true, json: async () => ({ data: [] }) });
+    }
+    if (url === '/api/v1/claims/confidence-levels') {
+      return Promise.resolve({ ok: true, json: async () => ({ data: [{ id: 'confidence_probable', name: 'Probable' }] }) });
     }
     return Promise.resolve({ ok: false, json: async () => ({}) });
 }
@@ -291,6 +330,106 @@ describe('ArtifactDetailPage', () => {
         { object_id: 'artifact-1', role: 'artifact' },
         { object_id: 'event-1', role: 'event' },
       ]);
+    });
+  });
+
+  describe('provenance (#24)', () => {
+    it('scopes Record Provenance to ownership, donation and scanning', async () => {
+      renderPage();
+
+      fireEvent.click(await screen.findByRole('button', { name: /actions/i }));
+      fireEvent.click(screen.getByRole('menuitem', { name: /record provenance/i }));
+
+      const select = await screen.findByLabelText(/how are they related/i);
+      expect(within(select).getByRole('option', { name: 'Owned By' })).toBeInTheDocument();
+      expect(within(select).getByRole('option', { name: 'Donated By' })).toBeInTheDocument();
+      expect(within(select).getByRole('option', { name: 'Scanned By' })).toBeInTheDocument();
+      // Connect's own types are not provenance and must not appear here.
+      expect(within(select).queryByRole('option', { name: 'Depicts Event' })).not.toBeInTheDocument();
+      expect(within(select).queryByRole('option', { name: 'Appears In' })).not.toBeInTheDocument();
+    });
+
+    it('shows the owned_by connection under the Provenance tab, not just Connections', async () => {
+      renderPage();
+
+      fireEvent.click(await screen.findByRole('tab', { name: /provenance/i }));
+
+      expect(await screen.findByText('Ada Lovelace')).toBeInTheDocument();
+      expect(screen.getByText('Owned By')).toBeInTheDocument();
+    });
+
+    it('lists identification history and lets Add Identification append an entry', async () => {
+      const entries = [
+        {
+          id: 'ident-1',
+          identified_person_id: null,
+          identified_person_name: null,
+          identifier_person_id: null,
+          identifier_person_name: null,
+          confidence_level_id: 'confidence_probable',
+          confidence_level_name: 'Probable',
+          note: 'Probably Grade 6, by the classroom decor.',
+          created_at: '2026-06-01 12:00:00',
+        },
+      ];
+
+      fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+        if (url === '/api/v1/artifacts/artifact-1/identifications' && !init) {
+          return Promise.resolve({ ok: true, json: async () => ({ data: entries }) });
+        }
+        if (url === '/api/v1/artifacts/artifact-1/identifications' && init?.method === 'POST') {
+          const added = {
+            id: 'ident-2',
+            identified_person_id: null,
+            identified_person_name: null,
+            identifier_person_id: null,
+            identifier_person_name: null,
+            confidence_level_id: null,
+            confidence_level_name: null,
+            note: 'A second guess.',
+            created_at: '2026-06-02 12:00:00',
+          };
+          entries.push(added);
+          return Promise.resolve({ ok: true, status: 201, json: async () => added });
+        }
+        return baseFetch(url);
+      });
+
+      renderPage();
+
+      fireEvent.click(await screen.findByRole('tab', { name: /provenance/i }));
+      expect(await screen.findByText('Probably Grade 6, by the classroom decor.')).toBeInTheDocument();
+
+      fireEvent.click(await screen.findByRole('button', { name: /actions/i }));
+      fireEvent.click(screen.getByRole('menuitem', { name: /add identification/i }));
+
+      const note = await screen.findByLabelText(/what was identified/i);
+      fireEvent.change(note, { target: { value: 'A second guess.' } });
+      fireEvent.click(screen.getByRole('button', { name: /^add identification$/i }));
+
+      await waitFor(() => {
+        const post = fetchMock.mock.calls.find(
+          (call) => call[0] === '/api/v1/artifacts/artifact-1/identifications' && (call[1] as RequestInit | undefined)?.method === 'POST',
+        );
+        expect(post).toBeTruthy();
+        expect(JSON.parse(String((post?.[1] as RequestInit).body))).toMatchObject({ note: 'A second guess.' });
+      });
+
+      // The drawer closes and the new entry joins the list -- no edit/delete
+      // affordance anywhere, since the table itself forbids both.
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(await screen.findByText('A second guess.')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^edit$/i, hidden: true })).not.toBeInTheDocument();
+    });
+
+    it('requires a note before Add Identification can be submitted', async () => {
+      renderPage();
+
+      fireEvent.click(await screen.findByRole('button', { name: /actions/i }));
+      fireEvent.click(screen.getByRole('menuitem', { name: /add identification/i }));
+
+      await screen.findByLabelText(/what was identified/i);
+      expect(screen.getByRole('button', { name: /^add identification$/i })).toBeDisabled();
     });
   });
 });

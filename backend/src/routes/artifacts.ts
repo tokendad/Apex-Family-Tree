@@ -43,6 +43,8 @@ function artifactBody(body: Record<string, unknown>) {
     language: cleanOptional(body.language),
     transcription: cleanOptional(body.transcription),
     notes: cleanOptional(body.notes),
+    digitized_at: cleanOptional(body.digitized_at),
+    provenance_confidence_notes: cleanOptional(body.provenance_confidence_notes),
   };
 }
 
@@ -329,6 +331,49 @@ artifactsRouter.delete(
       res.status(204).send();
     } catch {
       res.status(500).json({ error: 'Failed to delete artifact' });
+    }
+  },
+);
+
+// GET /artifacts/:id/identifications — List an artifact's identification history, newest first
+artifactsRouter.get('/:id/identifications', (req, res) => {
+  try {
+    const repo = new ArtifactRepository();
+    if (!repo.findById(paramStr(req.params.id))) {
+      res.status(404).json({ error: 'Artifact not found' });
+      return;
+    }
+    res.json({ data: repo.listIdentifications(paramStr(req.params.id)) });
+  } catch {
+    res.status(500).json({ error: 'Failed to list identification history' });
+  }
+});
+
+// POST /artifacts/:id/identifications — Append an identification history entry
+//
+// Insert-only: the table backing this has no UPDATE/DELETE path, enforced by
+// DB triggers, so there is no corresponding PUT or DELETE route here.
+artifactsRouter.post(
+  '/:id/identifications',
+  requireRole('admin', 'editor', 'limited_editor'),
+  validate([
+    { field: 'note', required: true, type: 'string', maxLength: 2000 },
+  ]),
+  (req, res) => {
+    try {
+      const repo = new ArtifactRepository();
+      const body = req.body as Record<string, unknown>;
+      const entry = repo.addIdentification(paramStr(req.params.id), {
+        note: body.note as string,
+        identified_person_id: cleanOptional(body.identified_person_id),
+        identifier_person_id: cleanOptional(body.identifier_person_id),
+        confidence_level_id: cleanOptional(body.confidence_level_id),
+        created_by: req.user?.userId ?? null,
+      });
+      res.status(201).json(entry);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to add identification';
+      res.status(message === 'Artifact not found' ? 404 : 400).json({ error: message });
     }
   },
 );

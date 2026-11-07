@@ -12,6 +12,9 @@ import ObjectCollections, { CollectionMembership } from '@/components/ObjectColl
 import { usePermissions } from '@/hooks/usePermissions';
 import ObjectPicker from '@/components/entity-pickers/ObjectPicker';
 import type { ArchiveObjectResult } from '@/components/entity-pickers/ObjectPicker';
+import PersonPicker from '@/components/entity-pickers/PersonPicker';
+import type { PersonResult } from '@/components/PersonSearch/PersonSearch';
+import { getPersonDisplayName } from '@/utils/entityDisplay';
 import { objectPath } from '@/utils/objectPath';
 import styles from './ArtifactsPage.module.css';
 
@@ -29,6 +32,8 @@ interface ArtifactRecord {
   physical_location: string | null;
   transcription: string | null;
   notes: string | null;
+  digitized_at: string | null;
+  provenance_confidence_notes: string | null;
   created_at: string;
   updated_at: string;
   files?: ArtifactFile[];
@@ -119,6 +124,29 @@ interface RelatedClaim {
   evidence_count: number;
 }
 
+/** One entry in the artifact's identification history. Read-only in the UI:
+ * the table backing it has no UPDATE/DELETE path. */
+interface IdentificationEntry {
+  id: string;
+  identified_person_id: string | null;
+  identified_person_name: string | null;
+  identifier_person_id: string | null;
+  identifier_person_name: string | null;
+  confidence_level_id: string | null;
+  confidence_level_name: string | null;
+  note: string;
+  created_at: string;
+}
+
+interface ConfidenceLevelOption {
+  id: string;
+  name: string;
+}
+
+/** Ownership, donation and scanning relationships — the subset of
+ * connectedObjects this page's Provenance tab surfaces. */
+const PROVENANCE_RELATIONSHIP_CODES = ['owned_by', 'donated_by', 'scanned_by'];
+
 interface ArtifactForm {
   title: string;
   summary: string;
@@ -129,6 +157,8 @@ interface ArtifactForm {
   physical_location: string;
   transcription: string;
   notes: string;
+  digitized_at: string;
+  provenance_confidence_notes: string;
   privacy_level: ArtifactRecord['privacy_level'];
 }
 
@@ -143,6 +173,8 @@ function formFromArtifact(artifact: ArtifactRecord): ArtifactForm {
     physical_location: artifact.physical_location ?? '',
     transcription: artifact.transcription ?? '',
     notes: artifact.notes ?? '',
+    digitized_at: artifact.digitized_at ?? '',
+    provenance_confidence_notes: artifact.provenance_confidence_notes ?? '',
     privacy_level: artifact.privacy_level,
   };
 }
@@ -161,6 +193,8 @@ function cleanPayload(form: ArtifactForm) {
        was transcribed. */
     transcription: form.transcription.trim() || null,
     notes: form.notes.trim() || null,
+    digitized_at: form.digitized_at || null,
+    provenance_confidence_notes: form.provenance_confidence_notes.trim() || null,
     privacy_level: form.privacy_level,
   };
 }
@@ -270,11 +304,13 @@ const ArtifactDetailPage: React.FC = () => {
   const [pendingRemoval, setPendingRemoval] = useState<string | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [relatedClaims, setRelatedClaims] = useState<RelatedClaim[]>([]);
+  const [identifications, setIdentifications] = useState<IdentificationEntry[]>([]);
+  const [confidenceLevels, setConfidenceLevels] = useState<ConfidenceLevelOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [activeTab, setActiveTab] = useState('details');
-  const [drawerMode, setDrawerMode] = useState<'connect' | 'add-claim' | 'record-provenance' | null>(null);
+  const [drawerMode, setDrawerMode] = useState<'connect' | 'add-claim' | 'record-provenance' | 'add-identification' | null>(null);
   /* The Transcript tab edits in place rather than in a drawer: a letter is
      several hundred words and wants the width of the page. */
   const [transcriptEditing, setTranscriptEditing] = useState(false);
@@ -282,6 +318,14 @@ const ArtifactDetailPage: React.FC = () => {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
+
+  // ── Identification history: note + optional person pickers, append-only ──
+  const [identificationNote, setIdentificationNote] = useState('');
+  const [identifiedPerson, setIdentifiedPerson] = useState<PersonResult | null>(null);
+  const [identifierPerson, setIdentifierPerson] = useState<PersonResult | null>(null);
+  const [identificationConfidenceId, setIdentificationConfidenceId] = useState('');
+  const [isAddingIdentification, setIsAddingIdentification] = useState(false);
+  const [identificationError, setIdentificationError] = useState<string | null>(null);
 
   const loadArtifact = useCallback(async () => {
     if (!id) return;
@@ -334,6 +378,21 @@ const ArtifactDetailPage: React.FC = () => {
     setRelatedClaims(json.data);
   }, [id]);
 
+  const loadIdentifications = useCallback(async () => {
+    if (!id) return;
+    const res = await fetch(`/api/v1/artifacts/${id}/identifications`);
+    if (!res.ok) return;
+    const json = await res.json() as { data: IdentificationEntry[] };
+    setIdentifications(json.data);
+  }, [id]);
+
+  const loadConfidenceLevels = useCallback(async () => {
+    const res = await fetch('/api/v1/claims/confidence-levels');
+    if (!res.ok) return;
+    const json = await res.json() as { data: ConfidenceLevelOption[] };
+    setConfidenceLevels(json.data);
+  }, []);
+
   useEffect(() => {
     void loadArtifact();
   }, [loadArtifact]);
@@ -346,6 +405,11 @@ const ArtifactDetailPage: React.FC = () => {
   useEffect(() => {
     void loadRelatedClaims();
   }, [loadRelatedClaims]);
+
+  useEffect(() => {
+    void loadIdentifications();
+    void loadConfidenceLevels();
+  }, [loadIdentifications, loadConfidenceLevels]);
 
   const handleSave = async (event: FormEvent) => {
     event.preventDefault();
@@ -435,12 +499,58 @@ const ArtifactDetailPage: React.FC = () => {
     }
   };
 
+  const resetIdentificationForm = () => {
+    setIdentificationNote('');
+    setIdentifiedPerson(null);
+    setIdentifierPerson(null);
+    setIdentificationConfidenceId('');
+    setIdentificationError(null);
+  };
+
+  const handleAddIdentification = async () => {
+    if (!id || !identificationNote.trim()) return;
+    setIsAddingIdentification(true);
+    setIdentificationError(null);
+    try {
+      const res = await fetch(`/api/v1/artifacts/${id}/identifications`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          note: identificationNote.trim(),
+          identified_person_id: identifiedPerson?.id ?? null,
+          identifier_person_id: identifierPerson?.id ?? null,
+          confidence_level_id: identificationConfidenceId || null,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null) as { error?: string } | null;
+        throw new Error(body?.error ?? 'Failed to add identification');
+      }
+      resetIdentificationForm();
+      setDrawerMode(null);
+      await loadIdentifications();
+    } catch (err) {
+      setIdentificationError(err instanceof Error ? err.message : 'Failed to add identification');
+    } finally {
+      setIsAddingIdentification(false);
+    }
+  };
+
+
+  // 'record-provenance' reuses the Connect form, scoped to ownership/
+  // donation/scanning relationship types -- the same handleConnect/
+  // resolveRoles machinery, just a narrower <select>.
+  const visibleRelationshipTypes = drawerMode === 'record-provenance'
+    ? relationshipTypes.filter((type) => PROVENANCE_RELATIONSHIP_CODES.includes(type.code))
+    : relationshipTypes;
 
   const drawerTitle = drawerMode === 'connect'
     ? 'Connect Person'
     : drawerMode === 'add-claim'
       ? 'Add Claim'
-      : 'Record Provenance';
+      : drawerMode === 'add-identification'
+        ? 'Add Identification'
+        : 'Record Provenance';
 
   const contextActions: ContextActionItem[] = [
     {
@@ -486,6 +596,13 @@ const ArtifactDetailPage: React.FC = () => {
       onSelect: () => setDrawerMode('record-provenance'),
     },
     {
+      id: 'add-identification',
+      label: 'Add Identification',
+      description: 'Record who identified someone or something in this artifact, and when',
+      disabled: !canEdit,
+      onSelect: () => setDrawerMode('add-identification'),
+    },
+    {
       id: 'delete-artifact',
       label: 'Delete Artifact',
       description: 'Remove this artifact metadata',
@@ -526,6 +643,12 @@ const ArtifactDetailPage: React.FC = () => {
                 { id: 'connections', label: 'Connections', count: connectedObjects.length },
                 { id: 'collections', label: 'Collections', count: memberOf.length },
                 { id: 'claims', label: 'Claims', count: relatedClaims.length },
+                {
+                  id: 'provenance',
+                  label: 'Provenance',
+                  count: connectedObjects.filter((o) => PROVENANCE_RELATIONSHIP_CODES.includes(o.relationship_type_code)).length
+                    + identifications.length,
+                },
               ]}
               activeTab={activeTab}
               onTabChange={(tabId) => {
@@ -581,8 +704,18 @@ const ArtifactDetailPage: React.FC = () => {
                     <label className={styles.field}><span>Creator</span><Input value={form.creator_text} onChange={(e) => setForm({ ...form, creator_text: e.target.value })} /></label>
                     <label className={styles.field}><span>Physical Location</span><Input value={form.physical_location} onChange={(e) => setForm({ ...form, physical_location: e.target.value })} /></label>
                     <label className={styles.field}><span>Summary</span><Input value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} /></label>
+                    <label className={styles.field}><span>Digitised On</span><Input type="date" value={form.digitized_at} onChange={(e) => setForm({ ...form, digitized_at: e.target.value })} /></label>
                   </div>
                   <label className={styles.field}><span>Notes</span><textarea rows={5} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></label>
+                  <label className={styles.field}>
+                    <span>Provenance Confidence Notes</span>
+                    <textarea
+                      rows={3}
+                      value={form.provenance_confidence_notes}
+                      onChange={(e) => setForm({ ...form, provenance_confidence_notes: e.target.value })}
+                      placeholder="How sure are we about this artifact's ownership chain, and why?"
+                    />
+                  </label>
                   {saveError && <div className={styles.error}>{saveError}</div>}
                   <div className={styles.actions}>
                     <Button type="submit" loading={isSaving}>Save Artifact</Button>
@@ -600,6 +733,8 @@ const ArtifactDetailPage: React.FC = () => {
                   <DetailRow label="Physical Location" value={artifact.physical_location} />
                   <DetailRow label="Privacy" value={artifact.privacy_level} />
                   <DetailRow label="Notes" value={artifact.notes} />
+                  <DetailRow label="Digitised On" value={artifact.digitized_at} />
+                  <DetailRow label="Provenance Confidence Notes" value={artifact.provenance_confidence_notes} />
                 </section>
                 </>
               ))}
@@ -759,6 +894,98 @@ const ArtifactDetailPage: React.FC = () => {
                   )}
                 </section>
               )}
+
+              {activeTab === 'provenance' && (() => {
+                const custody = connectedObjects.filter((object) =>
+                  PROVENANCE_RELATIONSHIP_CODES.includes(object.relationship_type_code),
+                );
+                return (
+                  <>
+                    <section className={styles.detailCard}>
+                      <div className={styles.sectionTitleRow}>
+                        <h2>Ownership &amp; Custody</h2>
+                        {custody.length > 0 && <span className={styles.cardType}>{custody.length}</span>}
+                      </div>
+
+                      {removeError && <div className={styles.error}>{removeError}</div>}
+
+                      {custody.length === 0 ? (
+                        <p className={styles.muted}>
+                          No ownership, donation or scanning history yet. Use Actions &rarr; Record
+                          Provenance to add it.
+                        </p>
+                      ) : (
+                        <div className={styles.connectedList}>
+                          {custody.map((object) => (
+                            <div key={object.relationship_id} className={styles.connectedItem}>
+                              <Link to={objectPath(object.object_type, object.object_id)}>
+                                <strong>{object.title}</strong>
+                              </Link>
+                              <span>{object.relationship_type_name}</span>
+
+                              {canEdit && (
+                                pendingRemoval === object.relationship_id ? (
+                                  <span className={styles.confirmRow}>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => void handleRemoveConnection(object.relationship_id)}
+                                    >
+                                      Confirm removal
+                                    </Button>
+                                    <Button variant="ghost" size="sm" onClick={() => setPendingRemoval(null)}>
+                                      Cancel
+                                    </Button>
+                                  </span>
+                                ) : (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setPendingRemoval(object.relationship_id)}
+                                  >
+                                    Remove
+                                  </Button>
+                                )
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+
+                    <section className={styles.detailCard}>
+                      <div className={styles.sectionTitleRow}>
+                        <h2>Identification History</h2>
+                        {identifications.length > 0 && <span className={styles.cardType}>{identifications.length}</span>}
+                      </div>
+
+                      {identifications.length === 0 ? (
+                        <p className={styles.muted}>
+                          Nothing identified yet. Use Actions &rarr; Add Identification to record who
+                          identified someone or something in this artifact, and when. Each entry is
+                          permanent -- correcting one means adding a new entry, not editing the old one.
+                        </p>
+                      ) : (
+                        <div className={styles.connectedList}>
+                          {identifications.map((entry) => (
+                            <div key={entry.id} className={styles.connectedItem}>
+                              <strong>{entry.note}</strong>
+                              <span>
+                                {entry.identified_person_name && `Identified: ${entry.identified_person_name}`}
+                                {entry.identified_person_name && entry.identifier_person_name && ' · '}
+                                {entry.identifier_person_name && `By: ${entry.identifier_person_name}`}
+                                {(entry.identified_person_name || entry.identifier_person_name) && ' · '}
+                                {entry.confidence_level_name ? `${entry.confidence_level_name} · ` : ''}
+                                {entry.created_at}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  </>
+                );
+              })()}
             </ArchiveObjectLayout>
           </>
         )}
@@ -767,10 +994,19 @@ const ArtifactDetailPage: React.FC = () => {
       <ActionDrawer
         open={drawerMode !== null}
         title={drawerTitle}
-        description={drawerMode === 'connect' ? 'Link this artifact to another object in the archive.' : 'This action is part of the shared artifact command surface.'}
-        onClose={() => setDrawerMode(null)}
+        description={
+          drawerMode === 'connect' || drawerMode === 'record-provenance'
+            ? 'Link this artifact to another object in the archive.'
+            : drawerMode === 'add-identification'
+              ? 'Each entry is permanent -- correcting one means adding a new entry, not editing the old one.'
+              : 'This action is part of the shared artifact command surface.'
+        }
+        onClose={() => {
+          setDrawerMode(null);
+          resetIdentificationForm();
+        }}
       >
-        {drawerMode === 'connect' ? (
+        {drawerMode === 'connect' || drawerMode === 'record-provenance' ? (
           <div className={styles.connectBox}>
             {/* Relationship first: it determines which kinds of object are
                 valid, so choosing it narrows the search rather than letting the
@@ -787,7 +1023,7 @@ const ArtifactDetailPage: React.FC = () => {
               }}
             >
               <option value="">Choose a relationship…</option>
-              {relationshipTypes.map((type) => (
+              {visibleRelationshipTypes.map((type) => (
                 <option key={type.id} value={type.code}>
                   {type.name}
                 </option>
@@ -817,18 +1053,69 @@ const ArtifactDetailPage: React.FC = () => {
               Connect
             </Button>
           </div>
+        ) : drawerMode === 'add-identification' ? (
+          <div className={styles.connectBox}>
+            <label className={styles.field}>
+              <span>What was identified?</span>
+              <textarea
+                rows={3}
+                value={identificationNote}
+                onChange={(e) => setIdentificationNote(e.target.value)}
+                placeholder="e.g. Probably Grade 6, by the classroom decor."
+                autoFocus
+              />
+            </label>
+
+            <PersonPicker
+              label="Who is identified (optional)"
+              value={identifiedPerson?.id ?? null}
+              onSelect={setIdentifiedPerson}
+              onClear={() => setIdentifiedPerson(null)}
+            />
+            {identifiedPerson && <p className={styles.muted}>{getPersonDisplayName(identifiedPerson)}</p>}
+
+            <PersonPicker
+              label="Who made the identification (optional)"
+              value={identifierPerson?.id ?? null}
+              onSelect={setIdentifierPerson}
+              onClear={() => setIdentifierPerson(null)}
+            />
+            {identifierPerson && <p className={styles.muted}>{getPersonDisplayName(identifierPerson)}</p>}
+
+            {confidenceLevels.length > 0 && (
+              <label className={styles.field}>
+                <span>Confidence (optional)</span>
+                <select
+                  value={identificationConfidenceId}
+                  onChange={(e) => setIdentificationConfidenceId(e.target.value)}
+                >
+                  <option value="">Unspecified</option>
+                  {confidenceLevels.map((level) => (
+                    <option key={level.id} value={level.id}>{level.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            {identificationError && <div className={styles.error}>{identificationError}</div>}
+            <Button
+              onClick={handleAddIdentification}
+              loading={isAddingIdentification}
+              disabled={!identificationNote.trim()}
+            >
+              Add Identification
+            </Button>
+          </div>
         ) : (
           <div className={styles.connectBox}>
             <p className={styles.muted}>
-              {drawerMode === 'add-claim'
-                ? 'Claim creation from an artifact will open the claims workflow with this artifact preselected as evidence.'
-                : 'Provenance recording will capture creator, owner, donor, scanner, and identifier relationships.'}
+              Claim creation from an artifact will open the claims workflow with this artifact preselected as evidence.
             </p>
             <Button onClick={() => {
-              if (drawerMode === 'add-claim') navigate('/claims');
+              navigate('/claims');
               setDrawerMode(null);
             }}>
-              {drawerMode === 'add-claim' ? 'Open Claims' : 'Done'}
+              Open Claims
             </Button>
           </div>
         )}
