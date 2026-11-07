@@ -15,6 +15,7 @@ const scanResponse = {
       id: 'dupe__keep',
       confidence: 'strong',
       reasons: ['Same normalized primary name', 'Same birth year'],
+      matchScore: 90,
       people: [
         {
           id: 'keep',
@@ -43,13 +44,42 @@ const previewResponse = {
   groupId: 'dupe__keep',
   canonicalPersonId: 'keep',
   duplicatePersonIds: ['dupe'],
-  conflicts: [
+  comparisons: [
+    {
+      field: 'fullName',
+      label: 'Full name',
+      status: 'match',
+      hasSelection: false,
+      canonicalValue: 'John Smith',
+      duplicatePersonId: 'dupe',
+      duplicateValue: 'John Smith',
+    },
     {
       field: 'deathDate',
       label: 'Death date',
+      status: 'missing',
+      hasSelection: true,
       canonicalValue: null,
       duplicatePersonId: 'dupe',
       duplicateValue: '2 FEB 1970',
+    },
+    {
+      field: 'birthPlace',
+      label: 'Birth place',
+      status: 'different',
+      hasSelection: true,
+      canonicalValue: 'Boston, MA',
+      duplicatePersonId: 'dupe',
+      duplicateValue: 'Cambridge, MA',
+    },
+    {
+      field: 'spouse',
+      label: 'Spouse',
+      status: 'missing',
+      hasSelection: false,
+      canonicalValue: null,
+      duplicatePersonId: 'dupe',
+      duplicateValue: 'Jane Smith',
     },
   ],
   transferCounts: {
@@ -81,21 +111,31 @@ beforeEach(() => {
 });
 
 describe('PeopleDedupPage', () => {
-  it('scans, previews, and applies a people merge', async () => {
+  it('scans, compares fields side by side, and requires a choice before reviewing the merge', async () => {
     render(<PeopleDedupPage />, { wrapper: MemoryRouter });
 
     fireEvent.click(screen.getByRole('button', { name: /scan for duplicates/i }));
 
     await waitFor(() => expect(screen.getAllByText('Strong')).toHaveLength(2));
     expect(screen.getByText(/Same normalized primary name/)).toBeInTheDocument();
+    expect(screen.getByText(/Likely Match: 90%/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText(/keep John Smith keep/i));
     fireEvent.click(screen.getByRole('button', { name: /preview merge/i }));
 
     expect(await screen.findByText(/2 events/i)).toBeInTheDocument();
-    expect(screen.getByText(/Death date/)).toBeInTheDocument();
+    expect(screen.getByText('Death date')).toBeInTheDocument();
+    // The different (red) birthPlace row has no default selection, so Review Merge is blocked.
+    expect(screen.getByRole('button', { name: /^review merge$/i })).toBeDisabled();
+    expect(screen.getByText(/resolve 1 more field/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /apply merge/i }));
+    fireEvent.click(screen.getByRole('radio', { name: /use this: cambridge, ma/i }));
+    expect(screen.getByRole('button', { name: /^review merge$/i })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: /^review merge$/i }));
+    expect(await screen.findByText(/will survive the merge/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /confirm merge/i }));
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(

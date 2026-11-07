@@ -133,6 +133,31 @@
   text-transform: capitalize;
 }
 
+.headerBadges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.matchScore {
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-gray-100);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
 .personGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -191,6 +216,104 @@
   padding: var(--space-3);
   border: 1px solid var(--color-gray-200);
   border-radius: var(--radius-md);
+}
+
+.comparisonTable {
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.comparisonRow {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+}
+
+.rowMatch {
+  background: var(--color-success-bg, #f0fdf4);
+  border-color: var(--color-success, #166534);
+}
+
+.rowPossible {
+  background: #fefce8;
+  border-color: #ca8a04;
+}
+
+.rowDifferent {
+  background: var(--color-error-bg, #fef2f2);
+  border-color: var(--color-error);
+}
+
+.rowMissing {
+  background: #eff6ff;
+  border-color: #2563eb;
+}
+
+.comparisonLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: var(--font-weight-semibold);
+}
+
+.statusIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25em;
+  height: 1.25em;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.08);
+  font-size: var(--font-size-xs);
+}
+
+.selectionRequired {
+  color: var(--color-error);
+  font-weight: var(--font-weight-semibold);
+}
+
+.comparisonReadOnly {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.comparisonCaption {
+  grid-column: 1 / -1;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+
+.comparisonChoices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: var(--font-size-sm);
+}
+
+.legend {
+  display: grid;
+  gap: var(--space-1);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.reviewList {
+  margin: 0 0 var(--space-3);
+  padding-left: var(--space-5);
+}
+
+.reviewRow {
+  margin-bottom: var(--space-1);
 }
 
 .primaryButton,
