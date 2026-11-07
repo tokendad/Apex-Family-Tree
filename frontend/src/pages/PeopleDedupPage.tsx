@@ -462,7 +462,7 @@ export default function PeopleDedupPage() {
                     </p>
                     <ul className={styles.reviewList}>
                       {preview.comparisons.filter((c) => c.hasSelection).map((comparison) => (
-                        <li key={comparison.field} className={styles.reviewRow}>
+                        <li key={`${comparison.field}-${comparison.duplicatePersonId}`} className={styles.reviewRow}>
                           <strong>{comparison.label}:</strong> {resolvedValue(comparison)}
                           {resolvedValue(comparison) !== (comparison.canonicalValue || 'blank') && (
                             <span className={styles.comparisonCaption}> (replaces current value)</span>

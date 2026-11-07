@@ -14,7 +14,7 @@ function seedSchema(database: Database.Database) {
   database.exec(`
     CREATE TABLE persons (
       id TEXT PRIMARY KEY,
-      sex TEXT NOT NULL DEFAULT 'U',
+      sex TEXT DEFAULT 'U',
       is_living INTEGER NOT NULL DEFAULT 1,
       is_private INTEGER NOT NULL DEFAULT 0,
       notes TEXT,
@@ -313,5 +313,78 @@ describe('person de-duplication service', () => {
     expect(
       db.prepare('SELECT given_name, surname FROM names WHERE person_id = ? AND is_primary = 1').get('wide-keep'),
     ).toEqual({ given_name: 'John William', surname: 'LeFort' });
+  });
+
+  it('does not treat two unrelated people who share a given name as a possible match', () => {
+    db.prepare('INSERT INTO persons (id, sex, is_living) VALUES (?, ?, ?)').run('john-a', 'M', 0);
+    db.prepare('INSERT INTO persons (id, sex, is_living) VALUES (?, ?, ?)').run('john-b', 'M', 0);
+    db.prepare('INSERT INTO names (id, person_id, given_name, surname, is_primary) VALUES (?, ?, ?, ?, 1)')
+      .run('john-a-name', 'john-a', 'John', 'Smith');
+    db.prepare('INSERT INTO names (id, person_id, given_name, surname, is_primary) VALUES (?, ?, ?, ?, 1)')
+      .run('john-b-name', 'john-b', 'John', 'Jones');
+
+    const preview = previewPeopleMerge({
+      groupId: ['john-a', 'john-b'].sort().join('__'),
+      canonicalPersonId: 'john-a',
+      duplicatePersonIds: ['john-b'],
+    });
+    expect(preview.comparisons.find((c) => c.field === 'fullName')).toMatchObject({ status: 'different' });
+  });
+
+  it('clears sex and notes instead of silently keeping the canonical value when "blank" is chosen', () => {
+    const result = applyPeopleMerge({
+      groupId: 'dupe__keep',
+      canonicalPersonId: 'keep',
+      duplicatePersonIds: ['dupe'],
+      fieldResolutions: {
+        birthPlace: 'canonical',
+        notes: 'blank',
+        sex: 'blank',
+        deathDate: 'duplicate:dupe',
+        deathPlace: 'duplicate:dupe',
+      },
+    });
+    expect(result.mergedPersonIds).toEqual(['dupe']);
+    expect(db.prepare('SELECT sex, notes FROM persons WHERE id = ?').get('keep')).toEqual({ sex: null, notes: null });
+  });
+
+  it('finds father and mother even when a family stores spouse1/spouse2 roles swapped', () => {
+    db.prepare("INSERT INTO persons (id, sex) VALUES ('swap-child', 'M')").run();
+    db.prepare("INSERT INTO persons (id, sex) VALUES ('swap-mother', 'F')").run();
+    db.prepare("INSERT INTO persons (id, sex) VALUES ('swap-father', 'M')").run();
+    db.prepare("INSERT INTO persons (id, sex) VALUES ('no-family-child', 'M')").run();
+    db.prepare("INSERT INTO names (id, person_id, given_name, surname, is_primary) VALUES ('n1', 'swap-mother', 'Mary', 'Doe', 1)").run();
+    db.prepare("INSERT INTO names (id, person_id, given_name, surname, is_primary) VALUES ('n2', 'swap-father', 'Paul', 'Doe', 1)").run();
+    db.prepare("INSERT INTO names (id, person_id, given_name, surname, is_primary) VALUES ('n3', 'swap-child', 'Sam', 'Doe', 1)").run();
+    db.prepare("INSERT INTO names (id, person_id, given_name, surname, is_primary) VALUES ('n4', 'no-family-child', 'Sam', 'Doe', 1)").run();
+    // spouse1 is the mother and spouse2 is the father -- the opposite of the usual convention.
+    db.prepare("INSERT INTO families (id, spouse1_id, spouse2_id) VALUES ('swap-family', 'swap-mother', 'swap-father')").run();
+    db.prepare("INSERT INTO family_members (id, family_id, person_id, role) VALUES ('swap-link', 'swap-family', 'swap-child', 'child')").run();
+
+    const preview = previewPeopleMerge({
+      groupId: ['swap-child', 'no-family-child'].sort().join('__'),
+      canonicalPersonId: 'swap-child',
+      duplicatePersonIds: ['no-family-child'],
+    });
+    expect(preview.comparisons.find((c) => c.field === 'father')).toMatchObject({ canonicalValue: 'Paul Doe' });
+    expect(preview.comparisons.find((c) => c.field === 'mother')).toMatchObject({ canonicalValue: 'Mary Doe' });
+  });
+
+  it('defaults a missing field to the populated side even when the caller sends no field resolution', () => {
+    const result = applyPeopleMerge({
+      groupId: 'dupe__keep',
+      canonicalPersonId: 'keep',
+      duplicatePersonIds: ['dupe'],
+      fieldResolutions: {
+        birthPlace: 'canonical',
+        notes: 'duplicate:dupe',
+      },
+    });
+    expect(result.mergedPersonIds).toEqual(['dupe']);
+    // keep has no death event; dupe does. No explicit deathDate/deathPlace
+    // resolution was sent, so the service must still adopt dupe's values
+    // rather than silently keeping keep's blank ones.
+    expect(db.prepare('SELECT person_id, event_place FROM events WHERE id = ?').get('death-dupe'))
+      .toEqual({ person_id: 'keep', event_place: 'Boston, MA' });
   });
 });

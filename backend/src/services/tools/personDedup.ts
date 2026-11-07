@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { getDatabase } from '../../db/connection.js';
 import { EventRepository } from '../../repositories/EventRepository.js';
 import { dateMatch, nameSoundex, normalizeName } from '../gedcom/matcher.js';
+import { soundex } from '../../utils/soundex.js';
 
 export type PeopleDuplicateConfidence = 'strong' | 'partial' | 'low';
 export type FieldChoice = 'canonical' | `duplicate:${string}` | 'blank';
@@ -181,25 +182,31 @@ function findPersonFacts(ids?: string[]): PersonFactRow[] {
         SELECT CASE WHEN f.spouse1_id = p.id THEN f.spouse2_id ELSE f.spouse1_id END
         FROM families f
         WHERE (f.spouse1_id = p.id OR f.spouse2_id = p.id)
-          AND COALESCE(f.spouse1_id, f.spouse2_id) IS NOT NULL
+          AND CASE WHEN f.spouse1_id = p.id THEN f.spouse2_id ELSE f.spouse1_id END IS NOT NULL
         ORDER BY f.id ASC
         LIMIT 1
       )`)}, '') AS spouse_name,
       NULLIF(${personDisplayNameSql(`(
-        SELECT pf.spouse1_id
+        SELECT CASE
+          WHEN COALESCE((SELECT sex FROM persons WHERE id = pf.spouse1_id), 'M') = 'M' THEN pf.spouse1_id
+          ELSE pf.spouse2_id
+        END
         FROM family_members fm
         INNER JOIN families pf ON pf.id = fm.family_id
-        WHERE fm.person_id = p.id AND fm.role = 'child' AND pf.spouse1_id IS NOT NULL
-          AND COALESCE((SELECT sex FROM persons WHERE id = pf.spouse1_id), 'M') = 'M'
+        WHERE fm.person_id = p.id AND fm.role = 'child'
+          AND (pf.spouse1_id IS NOT NULL OR pf.spouse2_id IS NOT NULL)
         ORDER BY fm.id ASC
         LIMIT 1
       )`)}, '') AS father_name,
       NULLIF(${personDisplayNameSql(`(
-        SELECT pf.spouse2_id
+        SELECT CASE
+          WHEN COALESCE((SELECT sex FROM persons WHERE id = pf.spouse2_id), 'F') = 'F' THEN pf.spouse2_id
+          ELSE pf.spouse1_id
+        END
         FROM family_members fm
         INNER JOIN families pf ON pf.id = fm.family_id
-        WHERE fm.person_id = p.id AND fm.role = 'child' AND pf.spouse2_id IS NOT NULL
-          AND COALESCE((SELECT sex FROM persons WHERE id = pf.spouse2_id), 'F') = 'F'
+        WHERE fm.person_id = p.id AND fm.role = 'child'
+          AND (pf.spouse1_id IS NOT NULL OR pf.spouse2_id IS NOT NULL)
         ORDER BY fm.id ASC
         LIMIT 1
       )`)}, '') AS mother_name,
@@ -435,10 +442,11 @@ function classifyName(a: string, b: string): ComparisonStatus {
   const tokensA = na.split(' ').filter(Boolean);
   const tokensB = nb.split(' ').filter(Boolean);
   if (tokensA.length === tokensB.length
-    && tokensA.every((token, i) => token === tokensB[i] || isInitialOf(token, tokensB[i]))) {
+    && tokensA.every((token, i) => token === tokensB[i]
+      || isInitialOf(token, tokensB[i])
+      || soundex(token) === soundex(tokensB[i]))) {
     return 'possible';
   }
-  if (nameSoundex(a, null) === nameSoundex(b, null)) return 'possible';
   return 'different';
 }
 
@@ -605,7 +613,15 @@ function updateCanonicalPersonFields(input: PeopleMergeInput, rows: PersonFactRo
   const personParams: unknown[] = [];
 
   for (const field of ['sex', 'isLiving', 'notes']) {
-    const duplicateId = duplicateIdFromChoice(choiceFor(input, field));
+    const choice = choiceFor(input, field);
+    /* is_living is NOT NULL in the schema, so "blank" isn't a representable
+       state for it -- leave it alone rather than violate the constraint. */
+    if (choice === 'blank' && field !== 'isLiving') {
+      personSets.push(`${field === 'sex' ? 'sex' : 'notes'} = ?`);
+      personParams.push(null);
+      continue;
+    }
+    const duplicateId = duplicateIdFromChoice(choice);
     if (!duplicateId) continue;
     const duplicate = duplicateById.get(duplicateId);
     if (!duplicate) continue;
@@ -835,6 +851,15 @@ function applyFullNameResolution(input: PeopleMergeInput, duplicateById: Map<str
   if (!duplicate) return;
 
   const db = getDatabase();
+  const duplicateName = db.prepare(`
+    SELECT name_type, given_name, surname
+    FROM names
+    WHERE person_id = ?
+    ORDER BY is_primary DESC, sort_order ASC, id ASC
+    LIMIT 1
+  `).get(duplicateId) as { name_type: string; given_name: string | null; surname: string | null } | undefined;
+  if (!duplicateName) return;
+
   db.prepare('UPDATE names SET is_primary = 0 WHERE person_id = ? AND is_primary = 1').run(input.canonicalPersonId);
   const existing = db.prepare(`
     SELECT id FROM names
@@ -842,15 +867,15 @@ function applyFullNameResolution(input: PeopleMergeInput, duplicateById: Map<str
       AND COALESCE(given_name, '') = COALESCE(?, '')
       AND COALESCE(surname, '') = COALESCE(?, '')
     LIMIT 1
-  `).get(input.canonicalPersonId, duplicate.given_name, duplicate.surname) as { id: string } | undefined;
+  `).get(input.canonicalPersonId, duplicateName.given_name, duplicateName.surname) as { id: string } | undefined;
 
   if (existing) {
     db.prepare('UPDATE names SET is_primary = 1, updated_at = datetime(\'now\') WHERE id = ?').run(existing.id);
   } else {
     db.prepare(`
       INSERT INTO names (id, person_id, name_type, given_name, surname, is_primary, sort_order, created_at, updated_at)
-      VALUES (?, ?, 'birth', ?, ?, 1, 0, datetime('now'), datetime('now'))
-    `).run(randomUUID(), input.canonicalPersonId, duplicate.given_name, duplicate.surname);
+      VALUES (?, ?, ?, ?, ?, 1, 0, datetime('now'), datetime('now'))
+    `).run(randomUUID(), input.canonicalPersonId, duplicateName.name_type, duplicateName.given_name, duplicateName.surname);
   }
 }
 
@@ -894,24 +919,42 @@ function applyBirthDeathResolutions(input: PeopleMergeInput, duplicateById: Map<
   }
 }
 
+/* Issue #70 requires missing-information fields to default to whichever
+   side has the value. The frontend pre-selects that default for display,
+   but a caller hitting this service directly (no UI in the loop) must get
+   the same guarantee, so it's applied here too before anything is written. */
+function withMissingFieldDefaults(input: PeopleMergeInput, comparisons: PeopleMergeComparison[]): PeopleMergeInput {
+  const fieldResolutions = { ...input.fieldResolutions };
+  for (const comparison of comparisons) {
+    if (!comparison.hasSelection || comparison.status !== 'missing' || fieldResolutions[comparison.field]) continue;
+    fieldResolutions[comparison.field] = comparison.canonicalValue
+      ? 'canonical'
+      : comparison.duplicateValue
+        ? `duplicate:${comparison.duplicatePersonId}`
+        : 'blank';
+  }
+  return { ...input, fieldResolutions };
+}
+
 export function applyPeopleMerge(input: PeopleMergeInput): PeopleMergeResult {
   const duplicateIds = validateInput(input);
   const preview = previewPeopleMerge(input);
   requireResolutions(input, preview.comparisons);
+  const resolvedInput = withMissingFieldDefaults(input, preview.comparisons);
   const db = getDatabase();
 
   const runMerge = db.transaction(() => {
-    const rows = findPersonFacts([input.canonicalPersonId, ...duplicateIds]);
+    const rows = findPersonFacts([resolvedInput.canonicalPersonId, ...duplicateIds]);
     const duplicateById = new Map(rows.filter((row) => duplicateIds.includes(row.id)).map((row) => [row.id, row]));
-    updateCanonicalPersonFields(input, rows);
-    applyFullNameResolution(input, duplicateById);
-    copyMissingNames(input.canonicalPersonId, duplicateIds);
-    moveEvents(input.canonicalPersonId, duplicateIds);
-    applyBirthDeathResolutions(input, duplicateById);
-    moveFamilies(input.canonicalPersonId, duplicateIds);
-    moveDirectReferences(input.canonicalPersonId, duplicateIds);
-    moveMedia(input.canonicalPersonId, duplicateIds);
-    moveArchiveMemberships(input.canonicalPersonId, duplicateIds);
+    updateCanonicalPersonFields(resolvedInput, rows);
+    applyFullNameResolution(resolvedInput, duplicateById);
+    copyMissingNames(resolvedInput.canonicalPersonId, duplicateIds);
+    moveEvents(resolvedInput.canonicalPersonId, duplicateIds);
+    applyBirthDeathResolutions(resolvedInput, duplicateById);
+    moveFamilies(resolvedInput.canonicalPersonId, duplicateIds);
+    moveDirectReferences(resolvedInput.canonicalPersonId, duplicateIds);
+    moveMedia(resolvedInput.canonicalPersonId, duplicateIds);
+    moveArchiveMemberships(resolvedInput.canonicalPersonId, duplicateIds);
     db.prepare(`DELETE FROM persons WHERE id IN (${duplicateIds.map(() => '?').join(',')})`).run(...duplicateIds);
   });
 
