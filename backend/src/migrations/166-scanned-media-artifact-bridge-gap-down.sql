@@ -1,0 +1,4 @@
+-- No rollback. Same reasoning as 077's: this is a backfill, not a schema
+-- change, and the rows it writes are indistinguishable from ones written by
+-- hand or by an earlier bridge run. Deleting them to undo this would discard
+-- any work done on them since and orphan whatever references them.
