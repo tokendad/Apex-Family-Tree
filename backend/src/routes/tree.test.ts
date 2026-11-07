@@ -168,6 +168,57 @@ describe('GET /api/v1/tree/unconnected-segments', () => {
     expect(res.status).toBe(200);
     expect(res.body.segments).toHaveLength(0);
   });
+
+  /* The family_union relationship mirror of a legacy family is only ever
+     rewritten by syncFamilyUnionFromLegacyFamily, which always copies the
+     full current spouse/child list -- so it should never be missing a child
+     family_members has. But a write path that inserts into family_members
+     directly without going through FamilyRepository (a data migration's raw
+     SQL, for one) leaves the mirror stale, and the home person's own family
+     can be one of them. getAllTreeFamilies must still treat family_members
+     as the real list, or a stale mirror quietly loses a child -- and
+     everyone who descends from that child -- out of the connected tree. */
+  it('treats a stale family_union mirror as additional data, not a replacement for family_members', async () => {
+    const localDb = new Database(':memory:');
+    seedMinimal(localDb);
+    seedRelationshipTables(localDb);
+    localDb.prepare(`INSERT INTO users (id, email, display_name, password_hash, role, home_person_id)
+      VALUES ('user-1', 'a@b.com', 'Test', 'x', 'admin', 'home')`).run();
+
+    // home + spouse have two children in family_members: 'synced-kid' (whose
+    // sync ran) and 'late-kid' (added after, e.g. by a raw-SQL migration,
+    // so the mirror below never picked it up). late-kid has their own
+    // spouse and child, who should be reachable through them.
+    localDb.prepare(`INSERT INTO persons (id, sex) VALUES
+      ('home', 'M'), ('spouse', 'F'), ('synced-kid', 'F'), ('late-kid', 'F'),
+      ('late-kid-spouse', 'M'), ('grandkid', 'F')`).run();
+    localDb.prepare(`INSERT INTO families (id, spouse1_id, spouse2_id) VALUES ('f-home', 'home', 'spouse')`).run();
+    localDb.prepare(`INSERT INTO family_members (id, family_id, person_id, role) VALUES
+      ('fm1', 'f-home', 'synced-kid', 'child'), ('fm2', 'f-home', 'late-kid', 'child')`).run();
+    localDb.prepare(`INSERT INTO families (id, spouse1_id, spouse2_id) VALUES ('f-late-kid', 'late-kid', 'late-kid-spouse')`).run();
+    localDb.prepare(`INSERT INTO family_members (id, family_id, person_id, role) VALUES ('fm3', 'f-late-kid', 'grandkid', 'child')`).run();
+
+    // The stale mirror: archive objects for everyone but only 'synced-kid'
+    // as a family_union member, exactly as if sync ran before late-kid
+    // existed and never ran again.
+    for (const id of ['home', 'spouse', 'synced-kid', 'late-kid']) {
+      localDb.prepare(`INSERT INTO archive_objects (id, object_type, title) VALUES (?, 'person', ?)`).run(id, id);
+    }
+    localDb.prepare(`INSERT INTO archive_objects (id, object_type, title) VALUES ('f-home', 'relationship', 'Family Union')`).run();
+    localDb.prepare(`INSERT INTO relationships (id, relationship_type_id, date_text) VALUES ('f-home', 'rel_type_family_union', NULL)`).run();
+    localDb.prepare(`INSERT INTO relationship_members (id, relationship_id, object_id, role, sort_order) VALUES
+      ('m1', 'f-home', 'home', 'partner', 0),
+      ('m2', 'f-home', 'spouse', 'partner', 1),
+      ('m3', 'f-home', 'synced-kid', 'child', 0)`).run();
+
+    db = localDb;
+    const app = buildApp();
+    const res = await request(app).get('/api/v1/tree/unconnected-segments');
+    expect(res.status).toBe(200);
+    // late-kid, their spouse and their child must all still be connected --
+    // none of this family should show up as a separate, unconnected branch.
+    expect(res.body.segments).toHaveLength(0);
+  });
 });
 
 describe('GET /api/v1/tree/unconnected-people', () => {

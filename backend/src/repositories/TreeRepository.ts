@@ -205,10 +205,21 @@ export class TreeRepository extends BaseRepository {
       marriage_date: family.date_text,
     }));
 
-    const relationshipIds = new Set(relationshipFamilies.map((family) => family.id));
+    /* Legacy wins when both exist for the same id. The relationship mirror is
+       never edited in its own right -- syncFamilyUnionFromLegacyFamily is its
+       only writer, and it always overwrites the full partner/child list from
+       legacy -- so legacy is never missing something the mirror has. The
+       reverse isn't true: anything that writes family_members directly
+       without going through FamilyRepository (a data migration's raw SQL, for
+       one) leaves the mirror stale, and previously that staleness silently
+       replaced the correct legacy children with an incomplete list, which is
+       how a person their own page listed as a child could still show as
+       living in an unconnected tree. */
+    const legacyFamilies = this.getLegacyTreeFamilies();
+    const legacyIds = new Set(legacyFamilies.map((family) => family.id));
     return [
-      ...relationshipFamilies,
-      ...this.getLegacyTreeFamilies().filter((family) => !relationshipIds.has(family.id)),
+      ...legacyFamilies,
+      ...relationshipFamilies.filter((family) => !legacyIds.has(family.id)),
     ];
   }
 
