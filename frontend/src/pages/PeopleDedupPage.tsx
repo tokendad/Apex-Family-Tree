@@ -150,15 +150,26 @@ export default function PeopleDedupPage() {
     if (!preview) return;
     setFieldResolutions((current) => {
       const next = { ...current };
+      const missingByField = new Map<string, MergeComparison[]>();
       for (const comparison of preview.comparisons) {
-        if (!comparison.hasSelection || next[comparison.field]) continue;
-        if (comparison.status === 'missing') {
-          next[comparison.field] = comparison.canonicalValue
-            ? 'canonical'
-            : comparison.duplicateValue
-              ? `duplicate:${comparison.duplicatePersonId}`
-              : 'blank';
+        if (!comparison.hasSelection || comparison.status !== 'missing') continue;
+        const bucket = missingByField.get(comparison.field) ?? [];
+        bucket.push(comparison);
+        missingByField.set(comparison.field, bucket);
+      }
+      // A field with 3+ people produces one "missing" comparison per
+      // duplicate. Defaulting from only the first one risks picking 'blank'
+      // because that duplicate happens to be empty too, even when another
+      // duplicate in the same group actually has the value.
+      for (const [field, comparisons] of missingByField) {
+        if (next[field]) continue;
+        const withCanonical = comparisons.find((comparison) => comparison.canonicalValue);
+        if (withCanonical) {
+          next[field] = 'canonical';
+          continue;
         }
+        const withDuplicate = comparisons.find((comparison) => comparison.duplicateValue);
+        next[field] = withDuplicate ? `duplicate:${withDuplicate.duplicatePersonId}` : 'blank';
       }
       return next;
     });

@@ -387,4 +387,69 @@ describe('person de-duplication service', () => {
     expect(db.prepare('SELECT person_id, event_place FROM events WHERE id = ?').get('death-dupe'))
       .toEqual({ person_id: 'keep', event_place: 'Boston, MA' });
   });
+
+  it('defaults a missing field to whichever duplicate has it, even when an earlier duplicate in the group is also blank', () => {
+    // Three-person merge: 'keep' and a second duplicate ('dupe2') both have
+    // no death info, but 'dupe' (the first duplicate compared) does. Scanning
+    // only the first duplicate's comparison would wrongly conclude the field
+    // is blank on both sides and default to 'blank', wiping out dupe's date
+    // once its event is transferred onto keep.
+    db.prepare("INSERT INTO persons (id, sex, is_living) VALUES ('dupe2', 'M', 0)").run();
+    db.prepare("INSERT INTO names (id, person_id, given_name, surname, is_primary) VALUES ('name-dupe2', 'dupe2', 'John', 'Smith', 1)").run();
+    db.prepare("INSERT INTO events (id, person_id, event_type, event_date, event_date_sort_key) VALUES ('birth-dupe2', 'dupe2', 'birth', '1 JAN 1900', 19000101)").run();
+
+    const groupId = ['keep', 'dupe', 'dupe2'].sort().join('__');
+    const result = applyPeopleMerge({
+      groupId,
+      canonicalPersonId: 'keep',
+      duplicatePersonIds: ['dupe', 'dupe2'],
+      fieldResolutions: {
+        birthPlace: 'canonical',
+        notes: 'duplicate:dupe',
+      },
+    });
+    expect(result.mergedPersonIds.sort()).toEqual(['dupe', 'dupe2']);
+    expect(db.prepare('SELECT person_id, event_place FROM events WHERE id = ?').get('death-dupe'))
+      .toEqual({ person_id: 'keep', event_place: 'Boston, MA' });
+  });
+
+  it('recalculates the date qualifier when adopting a duplicate date of different precision', () => {
+    db.prepare("UPDATE events SET event_date = 'ABT 1900', event_date_qualifier = 'about' WHERE id = 'birth-keep'").run();
+
+    const result = applyPeopleMerge({
+      groupId: 'dupe__keep',
+      canonicalPersonId: 'keep',
+      duplicatePersonIds: ['dupe'],
+      fieldResolutions: {
+        birthDate: 'duplicate:dupe',
+        birthPlace: 'duplicate:dupe',
+        notes: 'duplicate:dupe',
+      },
+    });
+    expect(result.mergedPersonIds).toEqual(['dupe']);
+    expect(db.prepare('SELECT event_date, event_date_qualifier FROM events WHERE id = ?').get('birth-keep'))
+      .toEqual({ event_date: '1 JAN 1900', event_date_qualifier: 'exact' });
+  });
+
+  it('honors an explicit "use canonical" choice even when the canonical side is blank and a transferred event would otherwise fill it', () => {
+    // keep has no death event; dupe does, and moveEvents transfers dupe's
+    // death event onto keep by default since there's no existing row to
+    // merge citations into. Explicitly choosing 'canonical' here means "keep
+    // the (blank) canonical value" and must still null the transferred event
+    // back out rather than silently leaving dupe's date in place.
+    const result = applyPeopleMerge({
+      groupId: 'dupe__keep',
+      canonicalPersonId: 'keep',
+      duplicatePersonIds: ['dupe'],
+      fieldResolutions: {
+        birthPlace: 'canonical',
+        notes: 'duplicate:dupe',
+        deathDate: 'canonical',
+        deathPlace: 'canonical',
+      },
+    });
+    expect(result.mergedPersonIds).toEqual(['dupe']);
+    expect(db.prepare('SELECT event_date, event_place FROM events WHERE id = ?').get('death-dupe'))
+      .toEqual({ event_date: null, event_place: null });
+  });
 });

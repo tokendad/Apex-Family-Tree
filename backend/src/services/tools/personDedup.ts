@@ -880,12 +880,23 @@ function applyFullNameResolution(input: PeopleMergeInput, duplicateById: Map<str
 }
 
 /* moveEvents already decided which single birth/death event survives on the
-   canonical person (merging citations either way). This only overrides the
-   date/place on that surviving row when the user explicitly picked the
-   other side -- it must run after moveEvents so there's exactly one row of
-   each type left to update. */
-function applyBirthDeathResolutions(input: PeopleMergeInput, duplicateById: Map<string, PersonFactRow>) {
+   canonical person (merging citations either way, and -- when the canonical
+   side had no event of that type -- transferring the duplicate's row onto
+   the canonical person by default). This resolves every birth/death field
+   explicitly against the chosen side's own original value, including
+   'canonical', rather than treating 'canonical' as a no-op: if the
+   canonical person had no value, moveEvents has already filled that slot
+   with a duplicate's event, and an explicit "use canonical" (or a default
+   that resolves to the canonical's empty side) must still clear it back out.
+   Dates go through EventRepository so event_date_qualifier is recalculated
+   from the adopted date rather than left over from whichever row survived. */
+function applyBirthDeathResolutions(
+  input: PeopleMergeInput,
+  canonical: PersonFactRow,
+  duplicateById: Map<string, PersonFactRow>,
+) {
   const db = getDatabase();
+  const eventRepo = new EventRepository();
   const updates: Array<{ field: string; eventType: string; column: 'date' | 'place' }> = [
     { field: 'birthDate', eventType: 'birth', column: 'date' },
     { field: 'birthPlace', eventType: 'birth', column: 'place' },
@@ -895,26 +906,21 @@ function applyBirthDeathResolutions(input: PeopleMergeInput, duplicateById: Map<
 
   for (const { field, eventType, column } of updates) {
     const choice = choiceFor(input, field);
-    if (choice === 'blank') {
-      const sets = column === 'date' ? 'event_date = NULL, event_date_sort_key = NULL' : 'event_place = NULL';
-      db.prepare(`UPDATE events SET ${sets}, updated_at = datetime('now') WHERE person_id = ? AND event_type = ?`)
-        .run(input.canonicalPersonId, eventType);
-      continue;
-    }
     const duplicateId = duplicateIdFromChoice(choice);
-    if (!duplicateId) continue;
-    const duplicate = duplicateById.get(duplicateId);
-    if (!duplicate) continue;
+    const source = duplicateId ? duplicateById.get(duplicateId) : choice === 'blank' ? null : canonical;
+    if (duplicateId && !source) continue;
+
+    const existingEvent = db.prepare('SELECT id FROM events WHERE person_id = ? AND event_type = ?')
+      .get(input.canonicalPersonId, eventType) as { id: string } | undefined;
+    if (!existingEvent) continue;
 
     if (column === 'date') {
-      const date = eventType === 'birth' ? duplicate.birth_date : duplicate.death_date;
-      const sort = eventType === 'birth' ? duplicate.birth_sort : duplicate.death_sort;
-      db.prepare(`UPDATE events SET event_date = ?, event_date_sort_key = ?, updated_at = datetime('now') WHERE person_id = ? AND event_type = ?`)
-        .run(date, sort, input.canonicalPersonId, eventType);
+      const date = eventType === 'birth' ? source?.birth_date ?? null : source?.death_date ?? null;
+      eventRepo.update(existingEvent.id, { event_date: date });
     } else {
-      const place = eventType === 'birth' ? duplicate.birth_place : duplicate.death_place;
-      db.prepare(`UPDATE events SET event_place = ?, updated_at = datetime('now') WHERE person_id = ? AND event_type = ?`)
-        .run(place, input.canonicalPersonId, eventType);
+      const place = eventType === 'birth' ? source?.birth_place ?? null : source?.death_place ?? null;
+      db.prepare(`UPDATE events SET event_place = ?, updated_at = datetime('now') WHERE id = ?`)
+        .run(place, existingEvent.id);
     }
   }
 }
@@ -925,13 +931,27 @@ function applyBirthDeathResolutions(input: PeopleMergeInput, duplicateById: Map<
    the same guarantee, so it's applied here too before anything is written. */
 function withMissingFieldDefaults(input: PeopleMergeInput, comparisons: PeopleMergeComparison[]): PeopleMergeInput {
   const fieldResolutions = { ...input.fieldResolutions };
+  const missingByField = new Map<string, PeopleMergeComparison[]>();
   for (const comparison of comparisons) {
-    if (!comparison.hasSelection || comparison.status !== 'missing' || fieldResolutions[comparison.field]) continue;
-    fieldResolutions[comparison.field] = comparison.canonicalValue
-      ? 'canonical'
-      : comparison.duplicateValue
-        ? `duplicate:${comparison.duplicatePersonId}`
-        : 'blank';
+    if (!comparison.hasSelection || comparison.status !== 'missing') continue;
+    const bucket = missingByField.get(comparison.field) ?? [];
+    bucket.push(comparison);
+    missingByField.set(comparison.field, bucket);
+  }
+  // A field with 3+ people in the merge group produces one "missing"
+  // comparison per duplicate. Looking at only the first one risks defaulting
+  // to 'blank' because that duplicate happens to be empty too, even though a
+  // later duplicate in the same group actually has the value -- so this
+  // scans every duplicate for the field before giving up on a populated side.
+  for (const [field, fieldComparisons] of missingByField) {
+    if (fieldResolutions[field]) continue;
+    const withCanonical = fieldComparisons.find((comparison) => comparison.canonicalValue);
+    if (withCanonical) {
+      fieldResolutions[field] = 'canonical';
+      continue;
+    }
+    const withDuplicate = fieldComparisons.find((comparison) => comparison.duplicateValue);
+    fieldResolutions[field] = withDuplicate ? `duplicate:${withDuplicate.duplicatePersonId}` : 'blank';
   }
   return { ...input, fieldResolutions };
 }
@@ -945,12 +965,13 @@ export function applyPeopleMerge(input: PeopleMergeInput): PeopleMergeResult {
 
   const runMerge = db.transaction(() => {
     const rows = findPersonFacts([resolvedInput.canonicalPersonId, ...duplicateIds]);
+    const canonical = rows.find((row) => row.id === resolvedInput.canonicalPersonId)!;
     const duplicateById = new Map(rows.filter((row) => duplicateIds.includes(row.id)).map((row) => [row.id, row]));
     updateCanonicalPersonFields(resolvedInput, rows);
     applyFullNameResolution(resolvedInput, duplicateById);
     copyMissingNames(resolvedInput.canonicalPersonId, duplicateIds);
     moveEvents(resolvedInput.canonicalPersonId, duplicateIds);
-    applyBirthDeathResolutions(resolvedInput, duplicateById);
+    applyBirthDeathResolutions(resolvedInput, canonical, duplicateById);
     moveFamilies(resolvedInput.canonicalPersonId, duplicateIds);
     moveDirectReferences(resolvedInput.canonicalPersonId, duplicateIds);
     moveMedia(resolvedInput.canonicalPersonId, duplicateIds);
