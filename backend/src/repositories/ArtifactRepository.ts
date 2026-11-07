@@ -2,9 +2,11 @@ import { BaseRepository } from './base.js';
 import { ArchiveObjectRepository } from './ArchiveObjectRepository.js';
 import type {
   ArtifactFile,
+  ArtifactIdentificationEntry,
   ArtifactRecord,
   ArtifactType,
   CreateArtifactInput,
+  CreateIdentificationInput,
   EvidenceClassification,
   UpdateArtifactInput,
 } from '../types/artifact.js';
@@ -234,6 +236,80 @@ export class ArtifactRepository extends BaseRepository {
   }
 
   /**
+   * identified_person_id and identifier_person_id are both nullable and
+   * independent: the former is who the entry is about, which may be no one
+   * in particular ("probably Grade 6"); the latter is who made the call.
+   * Narrower fixtures that don't carry the archive/confidence tables are
+   * guarded the same way artifact_files is.
+   */
+  private hasIdentificationHistoryTable(): boolean {
+    return Boolean(
+      this.db.prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'artifact_identification_history'",
+      ).get(),
+    );
+  }
+
+  /** Newest first: the point of the history is seeing how understanding of
+   * an artifact has developed, which reads naturally most-recent-on-top. */
+  listIdentifications(artifactId: string): ArtifactIdentificationEntry[] {
+    if (!this.hasIdentificationHistoryTable()) return [];
+    return this.db.prepare(
+      `SELECT h.id, h.artifact_id, h.identified_person_id, ip.title AS identified_person_name,
+              h.identifier_person_id, ir.title AS identifier_person_name,
+              h.confidence_level_id, cl.name AS confidence_level_name,
+              h.note, h.created_by, h.created_at
+       FROM artifact_identification_history h
+       LEFT JOIN archive_objects ip ON ip.id = h.identified_person_id
+       LEFT JOIN archive_objects ir ON ir.id = h.identifier_person_id
+       LEFT JOIN confidence_levels cl ON cl.id = h.confidence_level_id
+       WHERE h.artifact_id = ?
+       ORDER BY h.created_at DESC, h.id DESC`,
+    ).all(artifactId) as ArtifactIdentificationEntry[];
+  }
+
+  /**
+   * Appends one identification entry. Never updates or deletes a row --
+   * the table's own triggers forbid it -- so correcting an identification
+   * means recording a new entry, which is the point: the history itself is
+   * what's being preserved.
+   */
+  addIdentification(artifactId: string, data: CreateIdentificationInput): ArtifactIdentificationEntry {
+    if (!this.findById(artifactId)) {
+      throw new Error('Artifact not found');
+    }
+    if (!data.note?.trim()) {
+      throw new Error('note is required');
+    }
+    if (data.identified_person_id && !this.db.prepare('SELECT 1 FROM archive_objects WHERE id = ?').get(data.identified_person_id)) {
+      throw new Error('identified_person_id does not exist');
+    }
+    if (data.identifier_person_id && !this.db.prepare('SELECT 1 FROM archive_objects WHERE id = ?').get(data.identifier_person_id)) {
+      throw new Error('identifier_person_id does not exist');
+    }
+    if (data.confidence_level_id && !this.db.prepare('SELECT 1 FROM confidence_levels WHERE id = ?').get(data.confidence_level_id)) {
+      throw new Error('confidence_level_id does not exist');
+    }
+
+    const id = this.generateId();
+    this.db.prepare(
+      `INSERT INTO artifact_identification_history
+        (id, artifact_id, identified_person_id, identifier_person_id, confidence_level_id, note, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      id,
+      artifactId,
+      data.identified_person_id ?? null,
+      data.identifier_person_id ?? null,
+      data.confidence_level_id ?? null,
+      data.note.trim(),
+      data.created_by ?? null,
+    );
+
+    return this.listIdentifications(artifactId).find((entry) => entry.id === id)!;
+  }
+
+  /**
    * Narrower fixtures bridge no media at all. Guarded like artifact_files.
    */
   private hasMediaItemsTable(): boolean {
@@ -316,6 +392,8 @@ export class ArtifactRepository extends BaseRepository {
         'language',
         'transcription',
         'notes',
+        'digitized_at',
+        'provenance_confidence_notes',
       ] as const) {
         if (data[key] !== undefined) {
           fields.push(`${key} = ?`);

@@ -16,6 +16,8 @@ export interface Artifact {
   language: string | null;
   transcription: string | null;
   notes: string | null;
+  digitized_at: string | null;
+  provenance_confidence_notes: string | null;
 }
 
 export interface ArtifactType {
@@ -99,4 +101,32 @@ export interface CreateArtifactInput {
 
 export type UpdateArtifactInput = Partial<Omit<CreateArtifactInput, 'created_by'>> & {
   updated_by?: string | null;
+  // Set after creation, once an artifact has actually been digitised and its
+  // provenance assessed -- not part of CreateArtifactInput.
+  digitized_at?: string | null;
+  provenance_confidence_notes?: string | null;
 };
+
+/** One entry in an artifact's identification history. Insert-only: the table
+ * backing this has no UPDATE or DELETE path, enforced by DB triggers. */
+export interface ArtifactIdentificationEntry {
+  id: string;
+  artifact_id: string;
+  identified_person_id: string | null;
+  identified_person_name: string | null;
+  identifier_person_id: string | null;
+  identifier_person_name: string | null;
+  confidence_level_id: string | null;
+  confidence_level_name: string | null;
+  note: string;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface CreateIdentificationInput {
+  note: string;
+  identified_person_id?: string | null;
+  identifier_person_id?: string | null;
+  confidence_level_id?: string | null;
+  created_by?: string | null;
+}

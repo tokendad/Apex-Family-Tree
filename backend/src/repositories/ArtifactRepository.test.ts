@@ -58,8 +58,38 @@ function seedDB(database: Database.Database) {
       condition_notes TEXT,
       language TEXT,
       transcription TEXT,
-      notes TEXT
+      notes TEXT,
+      digitized_at TEXT,
+      provenance_confidence_notes TEXT
     );
+    CREATE TABLE confidence_levels (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      description TEXT,
+      numeric_value INTEGER,
+      is_system INTEGER NOT NULL DEFAULT 0,
+      sort_order INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE artifact_identification_history (
+      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+      artifact_id TEXT NOT NULL REFERENCES artifacts(id) ON DELETE CASCADE,
+      identified_person_id TEXT REFERENCES archive_objects(id) ON DELETE SET NULL,
+      identifier_person_id TEXT REFERENCES archive_objects(id) ON DELETE SET NULL,
+      confidence_level_id TEXT REFERENCES confidence_levels(id),
+      note TEXT NOT NULL,
+      created_by TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TRIGGER artifact_identification_history_no_update
+    BEFORE UPDATE ON artifact_identification_history
+    WHEN NEW.note IS NOT OLD.note
+      OR NEW.artifact_id IS NOT OLD.artifact_id
+      OR NEW.confidence_level_id IS NOT OLD.confidence_level_id
+      OR NEW.created_by IS NOT OLD.created_by
+      OR NEW.created_at IS NOT OLD.created_at
+    BEGIN
+      SELECT RAISE(ABORT, 'Identification history entries cannot be modified');
+    END;
   `);
 
   database.prepare('INSERT INTO artifact_types (id, name, is_system, sort_order) VALUES (?, ?, 1, ?)').run('artifact_type_uncategorized', 'Uncategorized', 0);
@@ -67,6 +97,8 @@ function seedDB(database: Database.Database) {
   database.prepare('INSERT INTO artifact_types (id, name, is_system, sort_order) VALUES (?, ?, 1, ?)').run('artifact_type_letter', 'Letter', 20);
   database.prepare('INSERT INTO evidence_classifications (id, name, default_weight, is_system, sort_order) VALUES (?, ?, ?, 1, ?)')
     .run('evidence_personal_artifact', 'Personal Artifact', 45, 10);
+  database.prepare('INSERT INTO confidence_levels (id, name, numeric_value, is_system, sort_order) VALUES (?, ?, ?, 1, ?)')
+    .run('confidence_probable', 'Probable', 70, 10);
 }
 
 describe('ArtifactRepository', () => {
@@ -199,5 +231,113 @@ describe('ArtifactRepository', () => {
   it('treats an empty id list as a no-op', () => {
     const repo = new ArtifactRepository();
     expect(repo.bulkUpdateType([], 'artifact_type_photo', 'user-9')).toBe(0);
+  });
+
+  it('records digitisation date and provenance confidence notes via update', () => {
+    const repo = new ArtifactRepository();
+    const photo = repo.create({ title: 'Studio Portrait', artifact_type_id: 'artifact_type_photo' });
+
+    const updated = repo.update(photo.id, {
+      digitized_at: '2026-06-22',
+      provenance_confidence_notes: 'Matched by clothing to the class photo; not fully certain.',
+    });
+
+    expect(updated).toMatchObject({
+      digitized_at: '2026-06-22',
+      provenance_confidence_notes: 'Matched by clothing to the class photo; not fully certain.',
+    });
+  });
+
+  describe('identification history', () => {
+    function seedPerson(database: Database.Database, id: string, title: string) {
+      database.prepare(
+        `INSERT INTO archive_objects (id, object_type, title) VALUES (?, 'person', ?)`,
+      ).run(id, title);
+    }
+
+    it('appends an entry and lists it newest first with joined names', () => {
+      const repo = new ArtifactRepository();
+      const photo = repo.create({ title: 'Class Photo', artifact_type_id: 'artifact_type_photo' });
+      seedPerson(db, 'person-subject', 'Walter LeFort');
+      seedPerson(db, 'person-identifier', 'Jen LeFort');
+
+      const first = repo.addIdentification(photo.id, {
+        note: 'Probably Grade 6, by the classroom decor.',
+        confidence_level_id: 'confidence_probable',
+      });
+      const second = repo.addIdentification(photo.id, {
+        note: 'Confirmed as Walter by matching his shirt to the studio portrait.',
+        identified_person_id: 'person-subject',
+        identifier_person_id: 'person-identifier',
+      });
+
+      expect(first.confidence_level_name).toBe('Probable');
+      expect(first.identified_person_name).toBeNull();
+
+      // created_at has only second resolution, so two entries made in the
+      // same test can tie -- assert both are present rather than depending
+      // on which one sorts first when that happens.
+      const entries = repo.listIdentifications(photo.id);
+      expect(entries.map((e) => e.id).sort()).toEqual([first.id, second.id].sort());
+      expect(entries.find((e) => e.id === second.id)).toMatchObject({
+        identified_person_name: 'Walter LeFort',
+        identifier_person_name: 'Jen LeFort',
+        note: 'Confirmed as Walter by matching his shirt to the studio portrait.',
+      });
+    });
+
+    it('rejects a blank note', () => {
+      const repo = new ArtifactRepository();
+      const photo = repo.create({ title: 'Class Photo', artifact_type_id: 'artifact_type_photo' });
+
+      expect(() => repo.addIdentification(photo.id, { note: '   ' })).toThrow('note is required');
+    });
+
+    it('rejects a reference to a person that does not exist', () => {
+      const repo = new ArtifactRepository();
+      const photo = repo.create({ title: 'Class Photo', artifact_type_id: 'artifact_type_photo' });
+
+      expect(() => repo.addIdentification(photo.id, { note: 'A guess', identified_person_id: 'nobody' }))
+        .toThrow('identified_person_id does not exist');
+    });
+
+    it('rejects an unknown confidence level', () => {
+      const repo = new ArtifactRepository();
+      const photo = repo.create({ title: 'Class Photo', artifact_type_id: 'artifact_type_photo' });
+
+      expect(() => repo.addIdentification(photo.id, { note: 'A guess', confidence_level_id: 'nope' }))
+        .toThrow('confidence_level_id does not exist');
+    });
+
+    it('rejects an artifact that does not exist', () => {
+      const repo = new ArtifactRepository();
+      expect(() => repo.addIdentification('does-not-exist', { note: 'A guess' })).toThrow('Artifact not found');
+    });
+
+    it('never allows the content of an entry to be edited, enforced by the table itself', () => {
+      const repo = new ArtifactRepository();
+      const photo = repo.create({ title: 'Class Photo', artifact_type_id: 'artifact_type_photo' });
+      const entry = repo.addIdentification(photo.id, { note: 'First guess.' });
+
+      expect(() => db.prepare("UPDATE artifact_identification_history SET note = 'edited' WHERE id = ?").run(entry.id))
+        .toThrow('Identification history entries cannot be modified');
+      expect(() => db.prepare("UPDATE artifact_identification_history SET created_by = 'someone-else' WHERE id = ?").run(entry.id))
+        .toThrow('Identification history entries cannot be modified');
+    });
+
+    // The database's own ON DELETE SET NULL (person deleted/merged away) and
+    // ON DELETE CASCADE (parent artifact removed) must still go through —
+    // see PR #66 review, where a blanket trigger blocked both.
+    it('still lets the database null out a person reference, e.g. when that person is deleted', () => {
+      const repo = new ArtifactRepository();
+      const photo = repo.create({ title: 'Class Photo', artifact_type_id: 'artifact_type_photo' });
+      seedPerson(db, 'person-gone', 'Soon Deleted');
+      const entry = repo.addIdentification(photo.id, { note: 'A guess.', identified_person_id: 'person-gone' });
+
+      expect(() =>
+        db.prepare('UPDATE artifact_identification_history SET identified_person_id = NULL WHERE id = ?').run(entry.id),
+      ).not.toThrow();
+      expect(repo.listIdentifications(photo.id)[0].identified_person_id).toBeNull();
+    });
   });
 });
