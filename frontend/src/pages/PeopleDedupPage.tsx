@@ -70,6 +70,24 @@ const STATUS_META: Record<ComparisonStatus, { icon: string; label: string; rowCl
   missing: { icon: 'i', label: 'Missing information', rowClass: 'rowMissing' },
 };
 
+/* Relationship fields (spouse/father/mother/occupation) have hasSelection:
+   false even when the two sides differ -- the merge unions both onto the
+   canonical person regardless, so there is no "use this" action to take.
+   Coloring those rows red/yellow (the different/possible palette) reads as
+   "needs your attention" when nothing can or needs to be done about it, so a
+   differing or merely-similar relationship fact gets this calm, neutral
+   treatment instead. An exact match or a one-sided "missing" value keeps its
+   normal green/blue styling -- that reporting is still accurate even without
+   a choice to make. */
+const CONTEXT_META = { icon: '↔', label: 'Shared context', rowClass: 'rowContext' };
+
+function rowMeta(comparison: MergeComparison): { icon: string; label: string; rowClass: string } {
+  if (!comparison.hasSelection && (comparison.status === 'different' || comparison.status === 'possible')) {
+    return CONTEXT_META;
+  }
+  return STATUS_META[comparison.status];
+}
+
 function ToolsSidebar() {
   return (
     <aside className={styles.sidebar} aria-label="People de-duplication tools">
@@ -374,7 +392,7 @@ export default function PeopleDedupPage() {
                       aria-label={`Field comparison between ${personNameById.get(preview.canonicalPersonId) ?? 'Person 1'} and other candidates`}
                     >
                       {preview.comparisons.map((comparison) => {
-                        const meta = STATUS_META[comparison.status];
+                        const meta = rowMeta(comparison);
                         const rowClass = `${styles.comparisonRow} ${styles[meta.rowClass]}`;
                         const blocked = requiresSelection(comparison) && !fieldResolutions[comparison.field];
                         return (
@@ -387,38 +405,58 @@ export default function PeopleDedupPage() {
                             </legend>
 
                             {!comparison.hasSelection ? (
-                              <p className={styles.comparisonReadOnly}>
-                                <span>{comparison.canonicalValue || 'Not recorded'}</span>
-                                <span>{comparison.duplicateValue || 'Not recorded'}</span>
+                              <div className={styles.comparisonBody}>
+                                <div className={styles.comparisonReadOnly}>
+                                  <div className={styles.comparisonCell}>
+                                    <span className={styles.cellValue}>{comparison.canonicalValue || 'Not recorded'}</span>
+                                  </div>
+                                  <div className={styles.comparisonCell}>
+                                    <span className={styles.cellValue}>{comparison.duplicateValue || 'Not recorded'}</span>
+                                  </div>
+                                </div>
                                 <span className={styles.comparisonCaption}>Both records&apos; relationships are kept after merging.</span>
-                              </p>
+                              </div>
                             ) : comparison.status === 'match' ? (
-                              <p className={styles.comparisonReadOnly}>
-                                <span>{comparison.canonicalValue || 'Not recorded'}</span>
-                                <span>{comparison.duplicateValue || 'Not recorded'}</span>
-                              </p>
+                              <div className={styles.comparisonBody}>
+                                <div className={styles.comparisonCell}>
+                                  <span className={styles.cellValue}>{comparison.canonicalValue || 'Not recorded'}</span>
+                                </div>
+                                <div className={styles.comparisonCell}>
+                                  <span className={styles.cellValue}>{comparison.duplicateValue || 'Not recorded'}</span>
+                                </div>
+                              </div>
                             ) : (
-                              <div className={styles.comparisonChoices}>
-                                <label>
-                                  <input
-                                    type="radio"
-                                    name={comparison.field}
-                                    checked={fieldResolutions[comparison.field] === 'canonical'}
-                                    onChange={() => setResolution(comparison.field, 'canonical')}
-                                  />
-                                  Use this: {comparison.canonicalValue || 'blank'}
-                                </label>
-                                <label>
-                                  <input
-                                    type="radio"
-                                    name={comparison.field}
-                                    checked={fieldResolutions[comparison.field] === `duplicate:${comparison.duplicatePersonId}`}
-                                    onChange={() => setResolution(comparison.field, `duplicate:${comparison.duplicatePersonId}`)}
-                                  />
-                                  Use this: {comparison.duplicateValue || 'blank'}
-                                </label>
+                              <div className={styles.comparisonBody}>
+                                <div className={styles.comparisonChoices}>
+                                  <div className={styles.comparisonCell}>
+                                    <span className={styles.cellValue}>{comparison.canonicalValue || 'blank'}</span>
+                                    <label className={styles.cellChoice}>
+                                      <input
+                                        type="radio"
+                                        name={comparison.field}
+                                        checked={fieldResolutions[comparison.field] === 'canonical'}
+                                        onChange={() => setResolution(comparison.field, 'canonical')}
+                                        aria-label={`Use this: ${comparison.canonicalValue || 'blank'}`}
+                                      />
+                                      <span aria-hidden="true">Use this</span>
+                                    </label>
+                                  </div>
+                                  <div className={styles.comparisonCell}>
+                                    <span className={styles.cellValue}>{comparison.duplicateValue || 'blank'}</span>
+                                    <label className={styles.cellChoice}>
+                                      <input
+                                        type="radio"
+                                        name={comparison.field}
+                                        checked={fieldResolutions[comparison.field] === `duplicate:${comparison.duplicatePersonId}`}
+                                        onChange={() => setResolution(comparison.field, `duplicate:${comparison.duplicatePersonId}`)}
+                                        aria-label={`Use this: ${comparison.duplicateValue || 'blank'}`}
+                                      />
+                                      <span aria-hidden="true">Use this</span>
+                                    </label>
+                                  </div>
+                                </div>
                                 {comparison.status === 'missing' && (!comparison.canonicalValue || !comparison.duplicateValue) && (
-                                  <label>
+                                  <label className={styles.blankChoice}>
                                     <input
                                       type="radio"
                                       name={comparison.field}
@@ -440,6 +478,7 @@ export default function PeopleDedupPage() {
                       <span><span aria-hidden="true">{STATUS_META.possible.icon}</span> Possible match — similar but not identical; confirm which to keep.</span>
                       <span><span aria-hidden="true">{STATUS_META.different.icon}</span> Different — values conflict; a choice is required.</span>
                       <span><span aria-hidden="true">{STATUS_META.missing.icon}</span> Missing — only one side has this fact.</span>
+                      <span><span aria-hidden="true">{CONTEXT_META.icon}</span> Shared context — relationships and facts like this are kept from both records; no choice needed.</span>
                     </div>
 
                     <div className={styles.transferGrid}>

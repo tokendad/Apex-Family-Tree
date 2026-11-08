@@ -226,37 +226,89 @@
 
 .comparisonRow {
   display: grid;
-  gap: var(--space-2);
+  grid-template-columns: minmax(140px, 200px) 1fr;
+  align-items: start;
+  gap: var(--space-1) var(--space-3);
   padding: var(--space-3);
   border: 1px solid var(--color-gray-200);
   border-radius: var(--radius-md);
+  /* Each status sets --row-bg/--row-border/--row-ink below. The dark-theme
+     block overrides the same three variables so the row never ends up with
+     light-theme-only text (e.g. inverted white) on a light-theme-only
+     background (see issue #74 — that combination is what made night mode
+     unreadable). */
+  background: var(--row-bg, var(--color-bg-primary));
+  border-color: var(--row-border, var(--color-gray-200));
+  color: var(--row-ink, var(--color-text-primary));
 }
 
 .rowMatch {
-  background: var(--color-success-bg, #f0fdf4);
-  border-color: var(--color-success, #166534);
+  --row-bg: #f0fdf4;
+  --row-border: #16a34a;
+  --row-ink: #14532d;
+  --chip-bg: rgba(22, 163, 74, 0.15);
 }
 
 .rowPossible {
-  background: #fefce8;
-  border-color: #ca8a04;
+  --row-bg: #fefce8;
+  --row-border: #ca8a04;
+  --row-ink: #713f12;
+  --chip-bg: rgba(202, 138, 4, 0.15);
 }
 
 .rowDifferent {
-  background: var(--color-error-bg, #fef2f2);
-  border-color: var(--color-error);
+  --row-bg: #fef2f2;
+  --row-border: #dc2626;
+  --row-ink: #7f1d1d;
+  --chip-bg: rgba(220, 38, 38, 0.15);
 }
 
 .rowMissing {
-  background: #eff6ff;
-  border-color: #2563eb;
+  --row-bg: #eff6ff;
+  --row-border: #2563eb;
+  --row-ink: #1e3a8a;
+  --chip-bg: rgba(37, 99, 235, 0.15);
+}
+
+.rowContext {
+  --row-bg: var(--color-bg-secondary);
+  --row-border: var(--color-gray-300);
+  --row-ink: var(--color-text-secondary);
+  --chip-bg: rgba(107, 114, 128, 0.15);
+}
+
+:global(:root[data-theme='dark']) .rowMatch {
+  --row-bg: #0f2a1a;
+  --row-border: #22c55e;
+  --row-ink: #86efac;
+}
+
+:global(:root[data-theme='dark']) .rowPossible {
+  --row-bg: #2a2410;
+  --row-border: #eab308;
+  --row-ink: #fde68a;
+}
+
+:global(:root[data-theme='dark']) .rowDifferent {
+  --row-bg: #2a1414;
+  --row-border: #f87171;
+  --row-ink: #fca5a5;
+}
+
+:global(:root[data-theme='dark']) .rowMissing {
+  --row-bg: #122236;
+  --row-border: #60a5fa;
+  --row-ink: #93c5fd;
 }
 
 .comparisonLabel {
+  grid-column: 1;
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  padding-top: var(--space-2);
   font-weight: var(--font-weight-semibold);
+  color: inherit;
 }
 
 .statusIcon {
@@ -266,7 +318,8 @@
   width: 1.25em;
   height: 1.25em;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--chip-bg, rgba(0, 0, 0, 0.08));
+  color: inherit;
   font-size: var(--font-size-xs);
 }
 
@@ -275,25 +328,65 @@
   font-weight: var(--font-weight-semibold);
 }
 
-.comparisonReadOnly {
+.comparisonBody {
+  grid-column: 2;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: 1fr 1fr;
   gap: var(--space-2);
+}
+
+.comparisonReadOnly {
+  display: contents;
   margin: 0;
   font-size: var(--font-size-sm);
 }
 
 .comparisonCaption {
   grid-column: 1 / -1;
-  color: var(--color-text-secondary);
+  color: inherit;
+  opacity: 0.8;
   font-size: var(--font-size-xs);
 }
 
 .comparisonChoices {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
+  display: contents;
   font-size: var(--font-size-sm);
+}
+
+.comparisonCell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--row-border, var(--color-gray-200));
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+}
+
+.cellValue {
+  overflow-wrap: anywhere;
+}
+
+.cellChoice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.blankChoice {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-xs);
+  color: inherit;
+  cursor: pointer;
 }
 
 .legend {
@@ -383,5 +476,18 @@
 
   .page {
     padding: var(--space-4);
+  }
+
+  .comparisonRow {
+    grid-template-columns: 1fr;
+  }
+
+  .comparisonLabel,
+  .comparisonBody {
+    grid-column: 1;
+  }
+
+  .comparisonBody {
+    grid-template-columns: 1fr;
   }
 }
