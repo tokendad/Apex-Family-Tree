@@ -208,6 +208,39 @@ describe('person de-duplication service', () => {
     });
   });
 
+  it('groups a scanned pair where one record is missing a surname', () => {
+    db.prepare('INSERT INTO persons (id, sex, is_living) VALUES (?, ?, ?)').run('oneca-full', 'F', 0);
+    db.prepare('INSERT INTO persons (id, sex, is_living) VALUES (?, ?, ?)').run('oneca-bare', 'F', 0);
+    db.prepare('INSERT INTO names (id, person_id, given_name, surname, is_primary) VALUES (?, ?, ?, ?, 1)')
+      .run('oneca-full-name', 'oneca-full', 'Oneca', 'Navaree');
+    db.prepare('INSERT INTO names (id, person_id, given_name, surname, is_primary) VALUES (?, ?, ?, ?, 1)')
+      .run('oneca-bare-name', 'oneca-bare', 'Oneca', null);
+
+    const scan = scanPeopleDuplicates();
+    const group = scan.groups.find((g) => g.people.some((p) => p.id === 'oneca-full'));
+
+    expect(group).toBeDefined();
+    expect(group!.people.map((p) => p.id).sort()).toEqual(['oneca-bare', 'oneca-full']);
+    expect(group!.confidence).toBe('low');
+    expect(group!.reasons).toContain('Same given name; one record has no surname');
+  });
+
+  it('groups a scanned pair whose names are phonetically, not exactly, alike', () => {
+    db.prepare('INSERT INTO persons (id, sex, is_living) VALUES (?, ?, ?)').run('stephen', 'M', 0);
+    db.prepare('INSERT INTO persons (id, sex, is_living) VALUES (?, ?, ?)').run('steven', 'M', 0);
+    db.prepare('INSERT INTO names (id, person_id, given_name, surname, is_primary) VALUES (?, ?, ?, ?, 1)')
+      .run('stephen-name', 'stephen', 'Stephen', 'Harper');
+    db.prepare('INSERT INTO names (id, person_id, given_name, surname, is_primary) VALUES (?, ?, ?, ?, 1)')
+      .run('steven-name', 'steven', 'Steven', 'Harper');
+
+    const scan = scanPeopleDuplicates();
+    const group = scan.groups.find((g) => g.people.some((p) => p.id === 'stephen'));
+
+    expect(group).toBeDefined();
+    expect(group!.people.map((p) => p.id).sort()).toEqual(['stephen', 'steven']);
+    expect(group!.reasons).toContain('Compatible Soundex names');
+  });
+
   it('previews transfer counts and field comparisons before applying a merge', () => {
     const preview = previewPeopleMerge({
       groupId: 'dupe__keep',

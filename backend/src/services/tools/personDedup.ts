@@ -287,15 +287,28 @@ function classifyGroup(rows: PersonFactRow[]): { confidence: PeopleDuplicateConf
   const deathYears = new Set(rows.map((row) => yearFromSortKey(row.death_sort) ?? yearFromDate(row.death_date)).filter(Boolean));
   const reasons: string[] = [];
 
+  const givenNames = new Set(rows.map((row) => normalizedGiven(row.given_name)).filter(Boolean));
+  const surnamePresence = new Set(rows.map(hasSurname));
+
   if (normalizedNames.size === 1) reasons.push('Same normalized primary name');
   if (birthYears.size === 1 && birthYears.size > 0) reasons.push('Same birth year');
   if (deathYears.size === 1 && deathYears.size > 0) reasons.push('Same death year');
   if (soundexNames.size === 1 && normalizedNames.size > 1) reasons.push('Compatible Soundex names');
+  if (normalizedNames.size > 1 && soundexNames.size > 1 && givenNames.size === 1 && surnamePresence.size > 1) {
+    reasons.push('Same given name; one record has no surname');
+  }
 
   if (normalizedNames.size === 1 && birthYears.size === 1 && birthYears.size > 0) {
     return { confidence: 'strong', reasons };
   }
   if ((normalizedNames.size === 1 || soundexNames.size === 1) && (birthYears.size === 1 || deathYears.size === 1)) {
+    return { confidence: 'partial', reasons };
+  }
+  // The missing-surname rule has no spelling signal at all -- it only ever
+  // fires on bare given-name agreement -- so it is promoted to 'partial'
+  // only with a birth/death year to corroborate it. Without one it stays
+  // 'low', same as any other same-given-name coincidence.
+  if (givenNames.size === 1 && surnamePresence.size > 1 && (birthYears.size === 1 || deathYears.size === 1)) {
     return { confidence: 'partial', reasons };
   }
   return { confidence: 'low', reasons };
@@ -307,26 +320,133 @@ function matchScore(rows: PersonFactRow[]): number | null {
   const soundexNames = new Set(rows.map((row) => nameSoundex(row.given_name, row.surname)));
   const birthYears = new Set(rows.map((row) => yearFromSortKey(row.birth_sort) ?? yearFromDate(row.birth_date)).filter(Boolean));
   const deathYears = new Set(rows.map((row) => yearFromSortKey(row.death_sort) ?? yearFromDate(row.death_date)).filter(Boolean));
+  const givenNames = new Set(rows.map((row) => normalizedGiven(row.given_name)).filter(Boolean));
+  const surnamePresence = new Set(rows.map(hasSurname));
 
   let score = 0;
   if (normalizedNames.size === 1) score += 50;
   else if (soundexNames.size === 1) score += 25;
+  else if (givenNames.size === 1 && surnamePresence.size > 1) score += 15;
   if (birthYears.size === 1 && birthYears.size > 0) score += 25;
   if (deathYears.size === 1 && deathYears.size > 0) score += 25;
 
   return Math.min(100, Math.round(score / 5) * 5);
 }
 
+/* ── Fuzzy scan grouping ──────────────────────────────────────────────────
+   scanPeopleDuplicates used to bucket people by an exact key (normalized
+   full name + birth year), so a group could only ever form between people
+   whose names were character-for-character identical once lowercased. That
+   missed phonetic spelling variants (Catherine/Katherine) entirely, and it
+   missed the much more common case of an incomplete record: one side has no
+   surname at all (e.g. "Oneca" vs "Oneca NAVAREE" -- see issue #74 review).
+
+   The fix is two-stage: a loose blocking key groups people into candidate
+   pools cheaply (so this stays roughly O(n) over the tree rather than
+   comparing every person to every other person), and isCandidatePair then
+   decides, pairwise and only within a pool, whether two people are plausibly
+   the same. Connected pairs are merged with a union-find into the final
+   groups, same as the old exact-bucket groups were. */
+
+function normalizedGiven(given: string | null): string {
+  return normalizeName(given, null);
+}
+
+function hasSurname(row: PersonFactRow): boolean {
+  return !!(row.surname && row.surname.trim());
+}
+
+/* Given-name soundex is deliberately the primary key, not full-name soundex
+   or birth year: birth year is frequently missing or unreliable on these
+   records, and a missing surname (the "Oneca" case) means the two sides
+   would never share a full-name-soundex key either. A record with no given
+   name at all falls back to a surname-soundex key so it still gets a chance
+   at being compared -- the old exact-match rule covered it; dropping it
+   would be a regression, not just a missed improvement. */
+function blockingKey(row: PersonFactRow): string | null {
+  const givenKey = soundex(row.given_name ?? '');
+  if (givenKey) return `given:${givenKey}`;
+  const surnameKey = soundex(row.surname ?? '');
+  return surnameKey ? `surname:${surnameKey}` : null;
+}
+
+/* Any one of three independent signals is enough to treat two people in the
+   same block as a candidate pair -- classifyGroup/matchScore decide how
+   confident that candidate is afterwards, this only decides whether to
+   surface it at all:
+     - identical normalized full name (the original exact rule)
+     - phonetically identical full name (soundex on given AND surname)
+     - same given name where exactly one side has no surname recorded */
+function isCandidatePair(a: PersonFactRow, b: PersonFactRow): boolean {
+  const normA = normalizeName(a.given_name, a.surname);
+  const normB = normalizeName(b.given_name, b.surname);
+  if (!normA || !normB) return false;
+  if (normA === normB) return true;
+  if (nameSoundex(a.given_name, a.surname) === nameSoundex(b.given_name, b.surname)) return true;
+
+  const givenA = normalizedGiven(a.given_name);
+  const givenB = normalizedGiven(b.given_name);
+  if (!givenA || givenA !== givenB) return false;
+  return hasSurname(a) !== hasSurname(b);
+}
+
+/* Minimal union-find: just enough to merge pairwise candidate matches into
+   connected groups (so A-B and B-C collapse into one {A,B,C} group) without
+   pulling in a dependency for it. */
+class PersonClusters {
+  private parent = new Map<string, string>();
+
+  add(id: string): void {
+    if (!this.parent.has(id)) this.parent.set(id, id);
+  }
+
+  find(id: string): string {
+    let root = id;
+    while (this.parent.get(root) !== root) root = this.parent.get(root) as string;
+    let cur = id;
+    while (cur !== root) {
+      const next = this.parent.get(cur) as string;
+      this.parent.set(cur, root);
+      cur = next;
+    }
+    return root;
+  }
+
+  union(a: string, b: string): void {
+    const rootA = this.find(a);
+    const rootB = this.find(b);
+    if (rootA !== rootB) this.parent.set(rootA, rootB);
+  }
+}
+
 export function scanPeopleDuplicates(): PeopleDuplicateScan {
   const rows = findPersonFacts();
-  const buckets = new Map<string, PersonFactRow[]>();
 
+  const blocks = new Map<string, PersonFactRow[]>();
   for (const row of rows) {
-    const normalized = normalizeName(row.given_name, row.surname);
-    if (!normalized) continue;
-    const birthYear = yearFromSortKey(row.birth_sort) ?? yearFromDate(row.birth_date) ?? 'unknown';
-    const key = `${normalized}|${birthYear}`;
-    buckets.set(key, [...(buckets.get(key) ?? []), row]);
+    const key = blockingKey(row);
+    if (!key) continue; // no given name or surname at all -- nothing to block on
+    blocks.set(key, [...(blocks.get(key) ?? []), row]);
+  }
+
+  const clusters = new PersonClusters();
+  for (const block of blocks.values()) {
+    for (const row of block) clusters.add(row.id);
+    for (let i = 0; i < block.length; i++) {
+      for (let j = i + 1; j < block.length; j++) {
+        if (isCandidatePair(block[i], block[j])) clusters.union(block[i].id, block[j].id);
+      }
+    }
+  }
+
+  // blockingKey gives each row exactly one block, so re-keying by cluster
+  // root here can't duplicate a person across groups.
+  const buckets = new Map<string, PersonFactRow[]>();
+  for (const block of blocks.values()) {
+    for (const row of block) {
+      const root = clusters.find(row.id);
+      buckets.set(root, [...(buckets.get(root) ?? []), row]);
+    }
   }
 
   const groups = [...buckets.values()]
