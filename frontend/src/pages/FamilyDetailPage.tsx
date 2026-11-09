@@ -261,6 +261,14 @@ const FamilyDetailPage: React.FC = () => {
     void fetchMedia();
   }, [fetchMedia]);
 
+  const openMediaUpload = async () => {
+    const result = await openModal<FamilyMedia>('MediaUploadModal', {
+      familyId: id,
+      targetLabel: family ? familyHeading(family) : 'this family',
+    });
+    if (result.action === 'created') void fetchMedia();
+  };
+
   const openMedia = async (item: FamilyMedia) => {
     await openModal('MediaEditor', {
       mediaId: item.id,
@@ -838,11 +846,17 @@ const FamilyDetailPage: React.FC = () => {
               <section className={archiveStyles.section} aria-labelledby="family-media-heading">
                 <div className={archiveStyles.sectionHeader}>
                   <h2 className={archiveStyles.sectionTitle} id="family-media-heading">Media</h2>
+                  {canEdit && (
+                    <Button variant="secondary" size="sm" onClick={() => { void openMediaUpload(); }}>
+                      Add media
+                    </Button>
+                  )}
                 </div>
                 {media.length === 0 ? (
                   <p className={archiveStyles.muted}>
-                    Nothing attached yet. In the Media gallery, select photographs and link them to
-                    this family — a photograph of one occasion belongs to that event instead.
+                    Nothing attached yet. Add a photo or document above, or go to the Media gallery
+                    to link one already in the archive — a photograph of one occasion belongs to
+                    that event instead.
                   </p>
                 ) : (
                   <div className={archiveStyles.mediaGrid}>

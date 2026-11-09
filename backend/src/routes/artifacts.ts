@@ -5,8 +5,11 @@ import { requireRole } from '../middleware/auth.js';
 import { recordChange } from '../services/audit.js';
 import { validate } from '../middleware/validate.js';
 import { ArtifactRepository } from '../repositories/ArtifactRepository.js';
+import { MediaRepository } from '../repositories/MediaRepository.js';
 import type { ArchivePrivacyLevel } from '../types/archive.js';
 import type { ArtifactFile } from '../types/artifact.js';
+import { handleSingleUpload } from '../services/uploads.js';
+import { ensureThumbnail } from '../services/thumbnails.js';
 
 export const artifactsRouter = Router();
 
@@ -238,6 +241,80 @@ artifactsRouter.post(
       res.status(201).json(artifact);
     } catch {
       res.status(500).json({ error: 'Failed to create artifact' });
+    }
+  },
+);
+
+// POST /artifacts/:id/file — Attach a file to an artifact that does not have one
+//
+// The missing primitive #46 describes: a bare artifact created by POST /
+// above can never get a file any other way, since nothing but the media-
+// upload bridge (syncArtifact) ever wrote an artifact_files row. One primary
+// file per artifact, so this refuses once one exists rather than adding a
+// second the artifact page would never show (findPrimaryFile takes the
+// oldest and ignores the rest).
+//
+// Gives the artifact a media_items row under its own id, via
+// MediaRepository.attachFileToExistingArtifact, rather than writing
+// artifact_files alone: the upload lands in MEDIA_PATH/photos like any other,
+// and without a media_items row the next directory scan would not recognise
+// it and would catalogue it a second time as an unrelated new artifact.
+artifactsRouter.post(
+  '/:id/file',
+  requireRole('admin', 'editor', 'limited_editor'),
+  // Checked before multer ever runs, not after: a 404 or 409 found once the
+  // file is already on disk would still have written it into MEDIA_PATH/photos
+  // with no media_items row to go with it -- exactly the orphan the next
+  // directory scan would catalogue as an unrelated second artifact.
+  (req, res, next) => {
+    const repo = new ArtifactRepository();
+    const id = paramStr(req.params.id);
+
+    if (!repo.findById(id)) {
+      res.status(404).json({ error: 'Artifact not found' });
+      return;
+    }
+    if (repo.findPrimaryFile(id)) {
+      res.status(409).json({ error: 'Artifact already has a file' });
+      return;
+    }
+    next();
+  },
+  handleSingleUpload('file'),
+  (req, res) => {
+    try {
+      if (!req.file) {
+        res.status(400).json({ error: 'No file uploaded' });
+        return;
+      }
+
+      const id = paramStr(req.params.id);
+      const mediaRepo = new MediaRepository();
+      const media = mediaRepo.attachFileToExistingArtifact(id, {
+        filename: req.file.filename,
+        original_filename: req.file.originalname,
+        mime_type: req.file.mimetype,
+        file_size: req.file.size,
+        file_path: req.file.path,
+        uploaded_by: req.user!.userId,
+      });
+
+      const repo = new ArtifactRepository();
+      ensureThumbnail(media)
+        .then(() => {
+          res.status(201).json(repo.findPrimaryFile(id));
+        })
+        .catch(() => {
+          res.status(201).json(repo.findPrimaryFile(id));
+        });
+    } catch {
+      // The write into media_items/artifact_files failed after multer had
+      // already put the file on disk; left behind, it would be the exact
+      // orphan the pre-check above exists to prevent.
+      if (req.file) {
+        fs.unlink(req.file.path, () => undefined);
+      }
+      res.status(500).json({ error: 'Failed to attach file' });
     }
   },
 );

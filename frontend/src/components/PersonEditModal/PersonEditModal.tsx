@@ -12,6 +12,7 @@ import {
   sortEventsForTimeline,
 } from '@/utils/eventTypes';
 import { useModal } from '@/components/modals/useModal';
+import { usePermissions } from '@/hooks/usePermissions';
 import {
   EventSourceFields,
   EventSourceLink,
@@ -288,6 +289,7 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
   const [addEventError, setAddEventError] = useState<string | null>(null);
 
   const { openModal } = useModal();
+  const { canEdit } = usePermissions();
 
   // ── Notes ──
   const [notesValue, setNotesValue] = useState('');
@@ -1619,12 +1621,34 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
 
   // ─── Tab: Media ────────────────────────────────────────────────────────────
 
-  const renderMediaTab = () => {
-    if (media.length === 0) {
-      return <p className={styles.emptyState}>No media linked to this person.</p>;
-    }
+  const refetchMedia = async () => {
+    if (!personId) return;
+    const res = await fetch(`/api/v1/media/people/${personId}/media`, { credentials: 'include' });
+    const med = await res.json();
+    setMedia(Array.isArray(med) ? (med as MediaItem[]) : []);
+  };
 
-    return (
+  const openMediaUpload = async () => {
+    if (!personId) return;
+    const result = await openModal('MediaUploadModal', {
+      personId,
+      targetLabel: primaryNameEntry ? fullName(primaryNameEntry) : 'this person',
+    });
+    if (result.action === 'created') refetchMedia().catch(console.error);
+  };
+
+  const renderMediaTab = () => (
+    <>
+      {canEdit && (
+        <div className={styles.saveRow}>
+          <Button variant="secondary" size="sm" onClick={() => { void openMediaUpload(); }}>
+            Add media
+          </Button>
+        </div>
+      )}
+      {media.length === 0 ? (
+        <p className={styles.emptyState}>No media linked to this person.</p>
+      ) : (
       <div className={styles.mediaGrid}>
         {media.map((item) => (
           <a
@@ -1640,8 +1664,9 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
           </a>
         ))}
       </div>
-    );
-  };
+      )}
+    </>
+  );
 
   // ─── Tab: Notes ────────────────────────────────────────────────────────────
 

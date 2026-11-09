@@ -1,8 +1,6 @@
 import { Router } from 'express';
-import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import crypto from 'crypto';
 import { requireRole } from '../middleware/auth.js';
 import { MediaRepository } from '../repositories/MediaRepository.js';
 import { PersonRepository } from '../repositories/PersonRepository.js';
@@ -14,6 +12,7 @@ import { recordBulk } from '../services/audit.js';
 import { runWithFlags } from '../services/requestContext.js';
 import { backfillThumbnails, ensureThumbnail, THUMBNAIL_MIME } from '../services/thumbnails.js';
 import { createLogger } from '../services/logger.js';
+import { handleSingleUpload } from '../services/uploads.js';
 
 export const mediaRouter = Router();
 
@@ -79,62 +78,11 @@ function parseRegionBody(body: Record<string, unknown>, partial = false): {
   return { person_id: personId, x, y, width, height };
 }
 
-const ALLOWED_MIME_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/gif',
-  'image/webp',
-  'application/pdf',
-];
-
-const storage = multer.diskStorage({
-  destination(_req, _file, cb) {
-    const uploadDir = getMediaPath('photos');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename(_req, file, cb) {
-    const ext = path.extname(file.originalname);
-    const uniqueName = crypto.randomBytes(16).toString('hex') + ext;
-    cb(null, uniqueName);
-  },
-});
-
-const upload = multer({
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
-  fileFilter(_req, file, cb) {
-    if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error(`File type ${file.mimetype} not allowed`));
-    }
-  },
-});
-
 // POST /media/upload — Upload media file (with optional entity linking)
 mediaRouter.post(
   '/upload',
   requireRole('admin', 'editor', 'limited_editor'),
-  (req, res, next) => {
-    upload.single('file')(req, res, (err) => {
-      if (err instanceof multer.MulterError) {
-        if (err.code === 'LIMIT_FILE_SIZE') {
-          res.status(400).json({ error: 'File too large. Maximum size is 10MB' });
-          return;
-        }
-        res.status(400).json({ error: err.message });
-        return;
-      }
-      if (err) {
-        res.status(400).json({ error: err.message });
-        return;
-      }
-      next();
-    });
-  },
+  handleSingleUpload('file'),
   (req, res) => {
     try {
       if (!req.file) {

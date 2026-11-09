@@ -1,5 +1,5 @@
 import React, { FormEvent, useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import AppShell from '@/components/AppShell/AppShell';
 import Navbar from '@/components/Navbar/Navbar';
 import Button from '@/components/Button/Button';
@@ -233,14 +233,60 @@ function formatBytes(bytes: number | null): string | null {
  * archive is expected to hold PDFs and other documents even though every file
  * in it today is a JPEG.
  */
-const ArtifactFileView: React.FC<{ artifact: ArtifactRecord }> = ({ artifact }) => {
+const ArtifactFileView: React.FC<{
+  artifact: ArtifactRecord;
+  canEdit: boolean;
+  initialError?: string | null;
+  onAttached: (updated: ArtifactRecord) => void;
+}> = ({ artifact, canEdit, initialError = null, onAttached }) => {
   const [failed, setFailed] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(initialError);
 
   const file = artifact.files?.find((f) => f.file_role === 'primary') ?? artifact.files?.[0];
+
+  const handleAttach = async (selected: File | null) => {
+    if (!selected) return;
+    setIsUploading(true);
+    setUploadError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', selected);
+      const res = await fetch(`/api/v1/artifacts/${artifact.id}/file`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? `Failed to attach file (${res.status})`);
+      }
+      const refreshed = await fetch(`/api/v1/artifacts/${artifact.id}`);
+      if (refreshed.ok) onAttached(await refreshed.json() as ArtifactRecord);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Failed to attach file');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   if (!file) {
     return (
       <section className={styles.detailCard}>
         <p className={styles.muted}>No file is attached to this artifact.</p>
+        {canEdit && (
+          <>
+            <label className={styles.field}>
+              <span>Attach a file (up to 10MB — JPEG, PNG, GIF, WebP, or PDF)</span>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp,application/pdf"
+                disabled={isUploading}
+                onChange={(e) => { void handleAttach(e.target.files?.[0] ?? null); }}
+              />
+            </label>
+            {uploadError && <p className={styles.error}>{uploadError}</p>}
+          </>
+        )}
       </section>
     );
   }
@@ -289,6 +335,11 @@ const ArtifactFileView: React.FC<{ artifact: ArtifactRecord }> = ({ artifact }) 
 const ArtifactDetailPage: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  // Set when New Artifact created the record but the file attach that
+  // followed it failed -- carried across the navigate rather than attempted
+  // again from a form that still holds the same (likely oversized) file.
+  const attachErrorFromCreate = (location.state as { attachError?: string } | null)?.attachError ?? null;
   const { canEdit, canDelete } = usePermissions();
   // Collection membership lives in collection_items, not in relationships,
   // so it is loaded separately from connectedObjects (#26).
@@ -742,7 +793,12 @@ const ArtifactDetailPage: React.FC = () => {
                 </form>
               ) : (
                 <>
-                <ArtifactFileView artifact={artifact} />
+                <ArtifactFileView
+                  artifact={artifact}
+                  canEdit={canEdit}
+                  initialError={attachErrorFromCreate}
+                  onAttached={setArtifact}
+                />
                 <section className={styles.detailCard}>
                   <DetailRow label="Artifact Type" value={artifact.artifact_type_name} />
                   <DetailRow label="Evidence Classification" value={artifact.evidence_classification_name} />
