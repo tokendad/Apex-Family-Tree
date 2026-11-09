@@ -362,6 +362,55 @@ export class MediaRepository extends BaseRepository {
     }
   }
 
+  /**
+   * Give an existing, fileless artifact (one created by `POST /artifacts`,
+   * which writes only archive_objects/artifacts) a media_items row under its
+   * own id, and the matching artifact_files row the bridge convention
+   * expects (`artifact_file_media_${id}`).
+   *
+   * This is the other half of #46's `POST /artifacts/:id/file`: without it,
+   * a file written straight into MEDIA_PATH/photos with no media_items row
+   * would be picked up by the next directory scan as an unrelated new file
+   * and catalogued as a second artifact for the same bytes -- scanDirectory
+   * matches on media_items.file_path, and has no idea artifact_files exists.
+   *
+   * Deliberately not syncArtifact(): that method's "already exists" branch
+   * only updates a bridge row it finds already there (there is none yet,
+   * on a first attach) and would overwrite the title the artifact already
+   * carries with the uploaded filename.
+   */
+  attachFileToExistingArtifact(artifactId: string, data: {
+    filename: string;
+    original_filename: string;
+    mime_type: string;
+    file_size: number;
+    file_path: string;
+    uploaded_by?: string;
+  }): MediaItem {
+    const now = this.now();
+    this.db.transaction(() => {
+      this.db.prepare(
+        `INSERT INTO media_items
+           (id, filename, original_filename, mime_type, file_size, file_path, uploaded_by, is_external, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+      ).run(
+        artifactId, data.filename, data.original_filename, data.mime_type, data.file_size,
+        data.file_path, data.uploaded_by ?? null, now, now,
+      );
+
+      this.db.prepare(
+        `INSERT INTO artifact_files
+           (id, artifact_id, file_role, storage_provider, storage_path, original_filename, mime_type, size_bytes, created_at)
+         VALUES (?, ?, 'primary', 'local', ?, ?, ?, ?, ?)`,
+      ).run(
+        `artifact_file_media_${artifactId}`, artifactId, data.file_path,
+        data.original_filename, data.mime_type, data.file_size, now,
+      );
+    })();
+
+    return this.findById(artifactId)!;
+  }
+
   create(data: {
     filename: string;
     original_filename: string;

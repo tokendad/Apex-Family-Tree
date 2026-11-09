@@ -909,6 +909,18 @@ const PersonDetailPage: React.FC = () => {
     ? person.displayName?.trim() || person.display_name?.trim() || (primary ? fullName(primary) : 'Unknown Person')
     : '';
 
+  const handleAddMedia = async () => {
+    if (!id) return;
+    const result = await openModal('MediaUploadModal', {
+      personId: id,
+      targetLabel: displayTitle || 'this person',
+    });
+    if (result.action === 'created') {
+      void fetchMedia();
+      void fetchConnectedObjects();
+    }
+  };
+
   const handleAddFamily = async () => {
     const result = await openModal<FamilySummary>('FamilyEditor', {
       mode: 'create',
@@ -1704,12 +1716,19 @@ const PersonDetailPage: React.FC = () => {
                 See personArtifacts above for why they are joined rather than
                 listed separately. */}
             <section className={styles.section} aria-labelledby="artifacts-heading">
-              <h2 className={styles.sectionTitle} id="artifacts-heading">
-                Artifacts
-                {personArtifacts.length > 0 && (
-                  <span className={styles.countBadge}>{personArtifacts.length}</span>
+              <div className={styles.sectionHeader}>
+                <h2 className={styles.sectionTitle} id="artifacts-heading">
+                  Artifacts
+                  {personArtifacts.length > 0 && (
+                    <span className={styles.countBadge}>{personArtifacts.length}</span>
+                  )}
+                </h2>
+                {canCreate && (
+                  <Button variant="secondary" size="sm" onClick={() => { void handleAddMedia(); }}>
+                    Add media
+                  </Button>
                 )}
-              </h2>
+              </div>
 
               {mediaLoading || connectedObjectsLoading ? (
                 <div className={styles.skeletonLine} aria-hidden="true" />
