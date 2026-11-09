@@ -3,20 +3,36 @@
 A self-hosted family genealogy web application that puts you in full control of your family's history. Runs as a single Docker container with an embedded SQLite database — no external services required.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Docker](https://img.shields.io/badge/Docker-neuman1812%2FApexFamily-blue?logo=docker)](https://hub.docker.com/r/neuman1812/ApexFamily)
+[![Docker](https://img.shields.io/badge/Docker-neuman1812%2Fapex__family__tree-blue?logo=docker)](https://hub.docker.com/r/neuman1812/apex_family_tree)
 
 ---
 
 ## Features
 
+**Tree & people**
 - 🌳 **Interactive SVG family tree canvas** with pan, zoom, and generation controls
 - 👤 **4-step person creation wizard** with relationship linking
+- 🧹 **People Merge & De-duplication** — scan for likely duplicate people, compare every field side by side, merge only after review, and mark reviewed pairs as different people so they stop resurfacing
+- ⚠️ **Tree Issues** — automated data-quality checks (e.g. multiple active marriages) with a review and dismissal workflow
+
+**Archive & research**
+- 🗂️ **Artifact catalog** — photos, documents, and other preserved items with evidence classification, provenance, identification history, and file attachments
+- 📜 **Claims** — track historical conclusions separately from the artifacts that support, contradict, or mention them
+- 📚 **Sources & citations** — document the evidence behind every person and event
+- 📁 **Collections** — curate people, artifacts, events, places, and stories into narrative groupings
+- 📖 **Stories** — preserve oral histories and narrative context that structured records can't hold
+- 📍 **Places** — reusable locations connected to events, people, artifacts, and stories
+- 🔗 **Relationship graph** — connect any two archive records with typed, role-aware relationships, not just family ties
+- 🔍 **Full-text search** across the whole archive — people, artifacts, events, places, stories, claims, collections, and more
+
+**Import, export & media**
 - 📥 **GEDCOM 5.5.1 and 7.0** import/export for compatibility with other genealogy software
+- 📷 **Media management** with photo/document uploads, thumbnails, and person/family tagging
+
+**Administration**
 - 🔒 **Role-based access control** — Admin, Editor, Limited Editor, Viewer
 - ✉️ **User invitation system** with email-based onboarding
-- 📷 **Media management** with photo uploads and thumbnails
-- 📚 **Source and citation tracking** for documenting research
-- 🔍 **Full-text search** across all persons
+- 📝 **Audit log** — every change to the archive, what changed, and who changed it
 - ⚙️ **Admin dashboard** with user management, app settings, and feature flags
 - 💾 **Automatic database backups** with configurable retention
 - ☁️ **Optional Google Cloud integration** — GCS storage, Secret Manager, Cloud Logging
@@ -29,12 +45,12 @@ A self-hosted family genealogy web application that puts you in full control of 
 
 ```bash
 docker run -d \
-  --name ApexFamily \
+  --name apex-family-tree \
   -p 3000:3000 \
   -v ./data:/app/data \
   -e APP_SECRET=$(openssl rand -base64 32) \
   -e JWT_SECRET=$(openssl rand -base64 32) \
-  neuman1812/ApexFamily:latest
+  neuman1812/apex_family_tree:latest
 ```
 
 Then visit **http://localhost:3000** to create your admin account.
@@ -48,7 +64,7 @@ Create a `docker-compose.yml`:
 ```yaml
 services:
   apex-family-tree:
-    image: neuman1812/ApexFamily:latest
+    image: neuman1812/apex_family_tree:latest
     container_name: apex-family-tree
     ports:
       - "${PORT:-3000}:3000"
