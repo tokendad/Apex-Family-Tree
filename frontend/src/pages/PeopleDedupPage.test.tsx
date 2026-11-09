@@ -106,6 +106,9 @@ beforeEach(() => {
     if (url.endsWith('/apply')) {
       return { ok: true, json: async () => ({ ...previewResponse, mergedPersonIds: ['dupe'] }) } as Response;
     }
+    if (url.endsWith('/dismiss')) {
+      return { ok: true, json: async () => ({ dismissed: 1 }) } as Response;
+    }
     return { ok: false, json: async () => ({ error: 'unexpected url' }) } as Response;
   });
 });
@@ -144,5 +147,29 @@ describe('PeopleDedupPage', () => {
       );
     });
     expect(await screen.findByText(/Merged 1 duplicate person/)).toBeInTheDocument();
+  });
+
+  it('dismisses a group as different people and removes it from the list (#76)', async () => {
+    render(<PeopleDedupPage />, { wrapper: MemoryRouter });
+
+    fireEvent.click(screen.getByRole('button', { name: /scan for duplicates/i }));
+    await waitFor(() => expect(screen.getAllByText('Strong')).toHaveLength(2));
+
+    fireEvent.click(screen.getByRole('button', { name: /not duplicates/i }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/v1/tools/people-dedup/dismiss',
+        expect.objectContaining({
+          method: 'POST',
+          body: JSON.stringify({ groupId: 'dupe__keep', personIds: ['keep', 'dupe'] }),
+        }),
+      );
+    });
+
+    // The group's own only instance of its name is the group-list entry;
+    // once dismissed the whole review panel for it is gone too.
+    await waitFor(() => expect(screen.queryByText(/Review candidate group/i)).not.toBeInTheDocument());
+    expect(screen.getByText(/No scan results yet/i)).toBeInTheDocument();
   });
 });

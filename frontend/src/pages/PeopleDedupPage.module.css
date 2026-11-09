@@ -411,7 +411,8 @@
 
 .primaryButton,
 .secondaryButton,
-.dangerButton {
+.dangerButton,
+.ghostButton {
   border: 0;
   border-radius: var(--radius-md);
   padding: var(--space-2) var(--space-4);
@@ -430,11 +431,32 @@
   color: white;
 }
 
+/* Dismissing a group as "not duplicates" is a neutral, reviewed judgment,
+   not a step toward the merge flow -- it gets its own low-emphasis style
+   rather than reading as a variant of Preview/Confirm Merge. */
+.ghostButton {
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-gray-200);
+}
+
+.ghostButton:hover:not(:disabled) {
+  color: var(--color-text-primary);
+  border-color: var(--color-gray-300, var(--color-gray-200));
+}
+
 .primaryButton:disabled,
 .secondaryButton:disabled,
-.dangerButton:disabled {
+.dangerButton:disabled,
+.ghostButton:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.actionsRow {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
 }
 
 .error,

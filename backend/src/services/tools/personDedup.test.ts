@@ -7,7 +7,7 @@ vi.mock('../../db/connection.js', () => ({
   getDatabase: () => db,
 }));
 
-const { applyPeopleMerge, previewPeopleMerge, scanPeopleDuplicates } = await import('./personDedup.js');
+const { applyPeopleMerge, dismissDuplicateGroup, previewPeopleMerge, scanPeopleDuplicates } = await import('./personDedup.js');
 
 function seedSchema(database: Database.Database) {
   database.pragma('foreign_keys = ON');
@@ -134,6 +134,15 @@ function seedSchema(database: Database.Database) {
       scope_person_id TEXT REFERENCES persons(id),
       status TEXT NOT NULL DEFAULT 'pending'
     );
+
+    CREATE TABLE dismissed_duplicate_pairs (
+      person_a_id TEXT NOT NULL REFERENCES persons(id) ON DELETE CASCADE,
+      person_b_id TEXT NOT NULL REFERENCES persons(id) ON DELETE CASCADE,
+      dismissed_by TEXT,
+      dismissed_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (person_a_id, person_b_id),
+      CHECK (person_a_id < person_b_id)
+    );
   `);
 }
 
@@ -206,6 +215,55 @@ describe('person de-duplication service', () => {
       sourceCount: 2,
       mediaCount: 1,
     });
+  });
+
+  it('dismisses a group as different people so it stops surfacing (#76)', () => {
+    const before = scanPeopleDuplicates();
+    const group = before.groups[0];
+
+    const result = dismissDuplicateGroup({
+      groupId: group.id,
+      personIds: group.people.map((p) => p.id),
+      dismissedBy: 'user-1',
+    });
+    expect(result.dismissed).toBe(1); // one pair for a group of two
+
+    const after = scanPeopleDuplicates();
+    expect(after.groups).toHaveLength(0);
+
+    expect(
+      db.prepare('SELECT person_a_id, person_b_id, dismissed_by FROM dismissed_duplicate_pairs').all(),
+    ).toEqual([{ person_a_id: 'dupe', person_b_id: 'keep', dismissed_by: 'user-1' }]);
+  });
+
+  it('dismissing is idempotent', () => {
+    const group = scanPeopleDuplicates().groups[0];
+    const personIds = group.people.map((p) => p.id);
+
+    const first = dismissDuplicateGroup({ groupId: group.id, personIds });
+    const second = dismissDuplicateGroup({ groupId: group.id, personIds });
+
+    expect(first.dismissed).toBe(1);
+    expect(second.dismissed).toBe(0);
+  });
+
+  it('rejects a groupId that does not match the given people', () => {
+    const group = scanPeopleDuplicates().groups[0];
+    expect(() =>
+      dismissDuplicateGroup({ groupId: 'not-the-real-id', personIds: group.people.map((p) => p.id) }),
+    ).toThrow('groupId does not match selected people');
+  });
+
+  it('rejects fewer than two people', () => {
+    expect(() => dismissDuplicateGroup({ groupId: 'keep', personIds: ['keep'] })).toThrow(
+      'At least two people are required',
+    );
+  });
+
+  it('rejects a person that does not exist', () => {
+    expect(() =>
+      dismissDuplicateGroup({ groupId: 'ghost__keep', personIds: ['ghost', 'keep'] }),
+    ).toThrow('Person not found: ghost');
   });
 
   it('groups a scanned pair where one record is missing a surname', () => {

@@ -39,6 +39,7 @@ vi.mock('../services/tools/personDedup.js', () => ({
     },
     mergedPersonIds: input.duplicatePersonIds,
   })),
+  dismissDuplicateGroup: vi.fn((input) => ({ dismissed: input.personIds.length - 1 })),
 }));
 
 vi.mock('../services/tools/treeIssues.js', () => ({
@@ -82,6 +83,7 @@ vi.mock('../services/tools/treeIssues.js', () => ({
 }));
 
 const { toolsRouter } = await import('./tools.js');
+const { dismissDuplicateGroup } = await import('../services/tools/personDedup.js');
 
 let server: Server;
 let baseUrl: string;
@@ -174,6 +176,51 @@ describe('tools routes', () => {
     expect(response.status).toBe(400);
     const body = await response.json() as { error?: string };
     expect(body.error).toContain('canonicalPersonId');
+  });
+
+  it('allows admins to dismiss a group as different people, recording who did it', async () => {
+    const response = await fetch(`${baseUrl}/api/v1/tools/people-dedup/dismiss`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-role': 'admin',
+      },
+      body: JSON.stringify({ groupId: 'g1', personIds: ['p1', 'p2'] }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ dismissed: 1 });
+    expect(dismissDuplicateGroup).toHaveBeenCalledWith(
+      expect.objectContaining({ groupId: 'g1', personIds: ['p1', 'p2'], dismissedBy: 'user-1' }),
+    );
+  });
+
+  it('rejects editors from dismissing a duplicate group', async () => {
+    const response = await fetch(`${baseUrl}/api/v1/tools/people-dedup/dismiss`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-role': 'editor',
+      },
+      body: JSON.stringify({ groupId: 'g1', personIds: ['p1', 'p2'] }),
+    });
+
+    expect(response.status).toBe(403);
+  });
+
+  it('returns a structured 400 when dismiss is missing personIds', async () => {
+    const response = await fetch(`${baseUrl}/api/v1/tools/people-dedup/dismiss`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-test-role': 'admin',
+      },
+      body: JSON.stringify({ groupId: 'g1', personIds: ['p1'] }),
+    });
+
+    expect(response.status).toBe(400);
+    const body = await response.json() as { error?: string };
+    expect(body.error).toContain('personIds');
   });
 
   it('allows admins to read tree issue summaries', async () => {
