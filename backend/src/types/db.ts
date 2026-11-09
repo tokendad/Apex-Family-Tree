@@ -320,6 +320,25 @@ export interface FeatureFlag {
   updated_at: string;
 }
 
+// ─── AI ─────────────────────────────────────────────────────────────────────
+
+export interface AiJob {
+  id: string;
+  kind: 'transcribe' | 'extract';
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  requested_by: string | null;
+  provider: string;
+  model: string;
+  input_ref: string | null;
+  result_json: string | null;
+  error_message: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
 // ─── Audit & Backup ────────────────────────────────────────────────────────
 
 export interface AuditLogEntry {

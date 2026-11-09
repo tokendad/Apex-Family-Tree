@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getDatabase } from '../db/connection.js';
 import { createLogger } from '../services/logger.js';
+import { SettingsRepository } from '../repositories/SettingsRepository.js';
 
 export const instanceRouter = Router();
 const logger = createLogger();
@@ -17,6 +18,13 @@ const DEFAULTS: Record<(typeof PUBLIC_KEYS)[number], string> = {
   gedcom_default_version: '5.5.1',
 };
 
+/* Same reasoning as PUBLIC_KEYS, for feature_flags instead of app_settings:
+   GET /admin/features is admin-only, so this is the only way a non-admin's
+   browser can learn whether an opt-in feature is on before showing its UI
+   (e.g. the Transcribe/AI Assistant buttons). An explicit list, not every
+   flag, so a future admin-only flag isn't accidentally exposed by default. */
+const PUBLIC_FLAGS = ['ai_transcription', 'ai_intake'] as const;
+
 // GET /api/v1/instance — the instance's own description, for the About page.
 instanceRouter.get('/', (_req, res) => {
   try {
@@ -30,7 +38,12 @@ instanceRouter.get('/', (_req, res) => {
       PUBLIC_KEYS.map(key => [key, stored.get(key)?.trim() || DEFAULTS[key]]),
     );
 
-    res.json(settings);
+    const settingsRepo = new SettingsRepository();
+    const features = Object.fromEntries(
+      PUBLIC_FLAGS.map(key => [key, settingsRepo.isFlagEnabled(key)]),
+    );
+
+    res.json({ ...settings, features });
   } catch (error) {
     logger.error('Failed to read instance settings', error);
     res.status(500).json({ error: 'Failed to read instance settings' });

@@ -15,7 +15,8 @@ let app: express.Express;
 
 beforeEach(() => {
   db = new Database(':memory:');
-  db.exec('CREATE TABLE app_settings (key TEXT PRIMARY KEY, value TEXT)');
+  db.exec('CREATE TABLE app_settings (key TEXT PRIMARY KEY, value TEXT, value_type TEXT NOT NULL DEFAULT \'string\')');
+  db.exec('CREATE TABLE feature_flags (key TEXT PRIMARY KEY, enabled INTEGER NOT NULL DEFAULT 0)');
   const insert = db.prepare('INSERT INTO app_settings (key, value) VALUES (?, ?)');
   insert.run('instance_name', 'The Lefort Archive');
   insert.run('instance_timezone', 'America/New_York');
@@ -23,6 +24,7 @@ beforeEach(() => {
   insert.run('smtp_pass', 'hunter2');
   insert.run('smtp_host', 'smtp.example.com');
   insert.run('allow_registration', 'false');
+  db.prepare('INSERT INTO feature_flags (key, enabled) VALUES (?, ?)').run('ai_transcription', 1);
 
   app = express();
   app.use('/instance', instanceRouter);
@@ -43,16 +45,23 @@ describe('GET /instance', () => {
      reads it without requiring an admin, so it answers with a fixed list of
      keys rather than filtering the table -- and this is the test that would
      fail if someone ever changed it to a filter. */
-  it('returns those three keys and nothing else', async () => {
+  it('returns those three keys, a features object, and nothing else', async () => {
     const res = await request(app).get('/instance').expect(200);
 
     expect(Object.keys(res.body).sort()).toEqual([
+      'features',
       'gedcom_default_version',
       'instance_name',
       'instance_timezone',
     ]);
     expect(JSON.stringify(res.body)).not.toContain('hunter2');
     expect(JSON.stringify(res.body)).not.toContain('smtp.example.com');
+  });
+
+  it('exposes only the allowlisted feature flags, reflecting their stored state', async () => {
+    const res = await request(app).get('/instance').expect(200);
+
+    expect(res.body.features).toEqual({ ai_transcription: true, ai_intake: false });
   });
 
   it('falls back to defaults when a setting is missing or blank', async () => {

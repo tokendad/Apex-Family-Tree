@@ -69,3 +69,75 @@ describe('AdminSettingsPage name display format', () => {
     );
   });
 });
+
+describe('AdminSettingsPage AI tab', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('saves provider/model but omits the API key when the field is left blank', async () => {
+    const fetchMock = mockSettingsFetch();
+    render(<AdminSettingsPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'AI' }));
+    fireEvent.click(screen.getByRole('button', { name: /save ai settings/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/admin/settings',
+        expect.objectContaining({
+          method: 'PUT',
+          body: JSON.stringify({ settings: { llm_provider: 'anthropic', llm_model: 'claude-opus-5-5' } }),
+        }),
+      );
+    });
+  });
+
+  it('includes the API key in the save payload once the user types one', async () => {
+    const fetchMock = mockSettingsFetch();
+    render(<AdminSettingsPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'AI' }));
+    fireEvent.change(screen.getByLabelText('API Key'), { target: { value: 'sk-test-123' } });
+    fireEvent.click(screen.getByRole('button', { name: /save ai settings/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/admin/settings',
+        expect.objectContaining({
+          method: 'PUT',
+          body: JSON.stringify({
+            settings: { llm_provider: 'anthropic', llm_model: 'claude-opus-5-5', llm_api_key: 'sk-test-123' },
+          }),
+        }),
+      );
+    });
+  });
+
+  it('never pre-fills the API key field from a loaded (masked) setting', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/v1/admin/settings') && init?.method !== 'PUT') {
+        return {
+          ok: true,
+          json: async () => ({
+            settings: [
+              { key: 'llm_provider', value: 'anthropic', value_type: 'string', description: null },
+              { key: 'llm_model', value: 'claude-opus-5-5', value_type: 'string', description: null },
+              { key: 'llm_api_key', value: '••••••••', value_type: 'encrypted', description: null },
+            ],
+          }),
+        } as Response;
+      }
+      if (url.endsWith('/api/v1/admin/features')) {
+        return { ok: true, json: async () => ({ flags: [] }) } as Response;
+      }
+      return { ok: false, json: async () => ({ error: 'Unexpected request' }) } as Response;
+    });
+    render(<AdminSettingsPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'AI' }));
+
+    expect((screen.getByLabelText('API Key') as HTMLInputElement).value).toBe('');
+  });
+});

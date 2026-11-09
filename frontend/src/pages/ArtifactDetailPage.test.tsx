@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import ArtifactDetailPage from './ArtifactDetailPage';
 import { PageActionsProvider, usePageActionsValue } from '@/contexts/PageActionsContext';
@@ -155,6 +155,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   fetchMock.mockImplementation((url: string) => baseFetch(url));
   global.fetch = fetchMock;
+});
+
+afterEach(() => {
+  // A test that uses fake timers and then fails mid-test would otherwise
+  // leak them into every later test in this file.
+  vi.useRealTimers();
 });
 
 // Stand-in for the topbar chrome: renders the page-registered Actions menu.
@@ -630,6 +636,128 @@ describe('ArtifactDetailPage — the artifact\'s own file (#22)', () => {
         const put = fetchMock.mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === 'PUT');
         expect(put).toBeTruthy();
         expect(JSON.parse((put![1] as RequestInit).body as string).transcription).toBeNull();
+      });
+    });
+
+    describe('AI transcribe (#75)', () => {
+      const withFile = {
+        ...artifact,
+        files: [{ id: 'file-1', file_role: 'primary', storage_path: '/x/scan.jpg', original_filename: 'scan.jpg', mime_type: 'image/jpeg', size_bytes: 123 }],
+      };
+
+      function fetchWithInstance(featuresOn: boolean, artifactOverride: unknown = withFile) {
+        return (url: string, init?: RequestInit) => {
+          if (url === '/api/v1/artifacts/artifact-1' && init?.method !== 'PUT') {
+            return Promise.resolve({ ok: true, json: async () => artifactOverride });
+          }
+          if (url === '/api/v1/instance') {
+            return Promise.resolve({ ok: true, json: async () => ({ features: { ai_transcription: featuresOn } }) });
+          }
+          return baseFetch(url);
+        };
+      }
+
+      it('does not show the button when the flag is off', async () => {
+        fetchMock.mockImplementation(fetchWithInstance(false));
+        renderPage();
+        fireEvent.click(await screen.findByRole('tab', { name: /transcript/i }));
+
+        await screen.findByText(/no transcript yet/i);
+        expect(screen.queryByRole('button', { name: /transcribe with ai/i })).not.toBeInTheDocument();
+      });
+
+      it('does not show the button when the artifact has no file', async () => {
+        fetchMock.mockImplementation(fetchWithInstance(true, artifact));
+        renderPage();
+        fireEvent.click(await screen.findByRole('tab', { name: /transcript/i }));
+
+        await screen.findByText(/no transcript yet/i);
+        expect(screen.queryByRole('button', { name: /transcribe with ai/i })).not.toBeInTheDocument();
+      });
+
+      it('shows the button when the flag is on and a file is attached', async () => {
+        fetchMock.mockImplementation(fetchWithInstance(true));
+        renderPage();
+        fireEvent.click(await screen.findByRole('tab', { name: /transcript/i }));
+
+        expect(await screen.findByRole('button', { name: /transcribe with ai/i })).toBeInTheDocument();
+      });
+
+      it('populates the draft from the completed job without saving it', async () => {
+        fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+          if (url === '/api/v1/artifacts/artifact-1/transcribe' && init?.method === 'POST') {
+            return Promise.resolve({ ok: true, json: async () => ({ jobId: 'job-1' }) });
+          }
+          if (url === '/api/v1/ai/jobs/job-1') {
+            return Promise.resolve({
+              ok: true,
+              json: async () => ({ status: 'completed', result_json: JSON.stringify({ text: 'AI read this', truncated: false }), error_message: null }),
+            });
+          }
+          return fetchWithInstance(true)(url, init);
+        });
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+
+        renderPage();
+        fireEvent.click(await screen.findByRole('tab', { name: /transcript/i }));
+        fireEvent.click(await screen.findByRole('button', { name: /transcribe with ai/i }));
+
+        await vi.advanceTimersByTimeAsync(2000);
+
+        const box = await screen.findByLabelText(/transcript/i);
+        expect((box as HTMLTextAreaElement).value).toBe('AI read this');
+        // Lands in the editor as a draft only -- no PUT has gone out for it.
+        expect(fetchMock.mock.calls.some(([, i]) => (i as RequestInit | undefined)?.method === 'PUT')).toBe(false);
+      });
+
+      it('warns, but still fills the draft, when the transcript was truncated', async () => {
+        fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+          if (url === '/api/v1/artifacts/artifact-1/transcribe' && init?.method === 'POST') {
+            return Promise.resolve({ ok: true, json: async () => ({ jobId: 'job-3' }) });
+          }
+          if (url === '/api/v1/ai/jobs/job-3') {
+            return Promise.resolve({
+              ok: true,
+              json: async () => ({ status: 'completed', result_json: JSON.stringify({ text: 'cut off mid', truncated: true }), error_message: null }),
+            });
+          }
+          return fetchWithInstance(true)(url, init);
+        });
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+
+        renderPage();
+        fireEvent.click(await screen.findByRole('tab', { name: /transcript/i }));
+        fireEvent.click(await screen.findByRole('button', { name: /transcribe with ai/i }));
+
+        await vi.advanceTimersByTimeAsync(2000);
+
+        const box = await screen.findByLabelText(/transcript/i);
+        expect((box as HTMLTextAreaElement).value).toBe('cut off mid');
+        expect(await screen.findByText(/cut off before the document finished/i)).toBeInTheDocument();
+      });
+
+      it('surfaces a failed job as an error, not a silent no-op', async () => {
+        fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+          if (url === '/api/v1/artifacts/artifact-1/transcribe' && init?.method === 'POST') {
+            return Promise.resolve({ ok: true, json: async () => ({ jobId: 'job-2' }) });
+          }
+          if (url === '/api/v1/ai/jobs/job-2') {
+            return Promise.resolve({
+              ok: true,
+              json: async () => ({ status: 'failed', result_json: null, error_message: 'provider exploded' }),
+            });
+          }
+          return fetchWithInstance(true)(url, init);
+        });
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+
+        renderPage();
+        fireEvent.click(await screen.findByRole('tab', { name: /transcript/i }));
+        fireEvent.click(await screen.findByRole('button', { name: /transcribe with ai/i }));
+
+        await vi.advanceTimersByTimeAsync(2000);
+
+        expect(await screen.findByText('provider exploded')).toBeInTheDocument();
       });
     });
   });

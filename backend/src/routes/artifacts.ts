@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { Router, type Response } from 'express';
-import { requireRole } from '../middleware/auth.js';
+import { requireRole, requireFlag } from '../middleware/auth.js';
 import { recordChange } from '../services/audit.js';
 import { validate } from '../middleware/validate.js';
 import { ArtifactRepository } from '../repositories/ArtifactRepository.js';
@@ -10,6 +10,10 @@ import type { ArchivePrivacyLevel } from '../types/archive.js';
 import type { ArtifactFile } from '../types/artifact.js';
 import { handleSingleUpload } from '../services/uploads.js';
 import { ensureThumbnail } from '../services/thumbnails.js';
+import { runAiJob } from '../services/aiJobs.js';
+import { createLLMProvider } from '../providers/llm/factory.js';
+import { LLMProviderError } from '../providers/llm/LLMProvider.js';
+import { SettingsRepository } from '../repositories/SettingsRepository.js';
 
 export const artifactsRouter = Router();
 
@@ -159,6 +163,75 @@ artifactsRouter.get('/:id/file', (req, res) => {
     res.status(500).json({ error: 'Failed to serve artifact file' });
   }
 });
+
+// POST /artifacts/:id/transcribe — Issue #75: send the artifact's primary
+// file to the configured LLM for OCR/transcription.
+//
+// Deliberately writes nothing: the result is handed back through the job's
+// result_json for the client to drop into the existing transcript edit
+// field, which is saved through the existing PUT /artifacts/:id -- same
+// "no silent writes" principle as #73's intake pipeline, just with no
+// staging table needed since there's only one fact here, not a list of them.
+artifactsRouter.post(
+  '/:id/transcribe',
+  requireRole('admin', 'editor'),
+  requireFlag('ai_transcription'),
+  async (req, res) => {
+    try {
+      const repo = new ArtifactRepository();
+      const id = paramStr(req.params.id);
+
+      const artifact = repo.findById(id);
+      if (!artifact) {
+        res.status(404).json({ error: 'Artifact not found' });
+        return;
+      }
+
+      const file = repo.findPrimaryFile(id);
+      if (!file) {
+        res.status(404).json({ error: 'Artifact has no primary file' });
+        return;
+      }
+      if (file.storage_provider !== 'local') {
+        res.status(501).json({ error: `Unsupported storage provider: ${file.storage_provider}` });
+        return;
+      }
+      const absolute = path.resolve(file.storage_path);
+      if (!fs.existsSync(absolute)) {
+        res.status(404).json({ error: 'Artifact file not found on disk' });
+        return;
+      }
+      if (!file.mime_type) {
+        res.status(400).json({ error: 'Artifact file has no recorded mime type' });
+        return;
+      }
+
+      const provider = await createLLMProvider();
+      const settings = new SettingsRepository();
+      const providerId = settings.getSettingValue('llm_provider') || 'anthropic';
+      const model = settings.getSettingValue('llm_model') || 'unknown';
+      const mimeType = file.mime_type;
+      const bytes = fs.readFileSync(absolute);
+
+      const job = runAiJob('transcribe', req.user!.userId, providerId, model, id, async () => {
+        const result = await provider.transcribe({ bytes, mediaType: mimeType });
+        return {
+          data: { text: result.text, truncated: result.truncated },
+          inputTokens: result.inputTokens,
+          outputTokens: result.outputTokens,
+        };
+      });
+
+      res.status(202).json({ jobId: job.id });
+    } catch (error) {
+      if (error instanceof LLMProviderError && error.kind === 'auth') {
+        res.status(400).json({ error: error.message });
+        return;
+      }
+      res.status(500).json({ error: 'Failed to start transcription' });
+    }
+  },
+);
 
 // GET /artifacts/:id/thumbnail — Serve a card-sized version of the artifact
 //

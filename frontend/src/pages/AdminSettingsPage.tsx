@@ -4,7 +4,7 @@ import { Label, Input, Select } from '@/components/Form';
 import FormGroup from '@/components/Form/FormGroup';
 import styles from './AdminSettingsPage.module.css';
 
-type Tab = 'instance' | 'smtp' | 'features';
+type Tab = 'instance' | 'smtp' | 'ai' | 'features';
 
 const DEFAULT_NAME_FORMAT = '%t %f %m %s %x';
 const SAMPLE_NAME = {
@@ -63,12 +63,18 @@ function AdminSettingsPage() {
   const [smtpPass, setSmtpPass] = useState('');
   const [smtpFrom, setSmtpFrom] = useState('');
 
+  // AI / LLM settings
+  const [llmProvider, setLlmProvider] = useState('anthropic');
+  const [llmModel, setLlmModel] = useState('claude-opus-5-5');
+  const [llmApiKey, setLlmApiKey] = useState('');
+
   // Feature flags
   const [flags, setFlags] = useState<FeatureFlag[]>([]);
 
   const [savingInstance, setSavingInstance] = useState(false);
   const [savingNameFormat, setSavingNameFormat] = useState(false);
   const [savingSmtp, setSavingSmtp] = useState(false);
+  const [savingAi, setSavingAi] = useState(false);
 
   const loadSettings = useCallback(async () => {
     try {
@@ -90,6 +96,10 @@ function AdminSettingsPage() {
       setSmtpUser(settingsMap.get('smtp_user')?.value || '');
       setSmtpPass('');
       setSmtpFrom(settingsMap.get('smtp_from')?.value || '');
+
+      setLlmProvider(settingsMap.get('llm_provider')?.value || 'anthropic');
+      setLlmModel(settingsMap.get('llm_model')?.value || 'claude-opus-5-5');
+      setLlmApiKey('');
 
       setError('');
     } catch {
@@ -181,6 +191,41 @@ function AdminSettingsPage() {
     }
   };
 
+  const saveAiSettings = async () => {
+    clearMessages();
+    setSavingAi(true);
+    try {
+      const settings: Record<string, string> = {
+        llm_provider: llmProvider,
+        llm_model: llmModel,
+      };
+      // Same "leave blank to keep current" rule as the SMTP password: the
+      // field never echoes the stored key back, so an empty submit must not
+      // overwrite it with nothing.
+      if (llmApiKey) {
+        settings.llm_api_key = llmApiKey;
+      }
+
+      const res = await fetch('/api/v1/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ settings }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || 'Failed to save AI settings');
+        return;
+      }
+      setLlmApiKey('');
+      setSuccess('AI settings saved.');
+    } catch {
+      setError('Failed to save AI settings');
+    } finally {
+      setSavingAi(false);
+    }
+  };
+
   const saveNameFormat = async () => {
     clearMessages();
     if (nameFormat.includes('%D')) {
@@ -254,6 +299,12 @@ function AdminSettingsPage() {
           onClick={() => { setActiveTab('smtp'); clearMessages(); }}
         >
           Email (SMTP)
+        </button>
+        <button
+          className={activeTab === 'ai' ? styles.tabActive : styles.tab}
+          onClick={() => { setActiveTab('ai'); clearMessages(); }}
+        >
+          AI
         </button>
         <button
           className={activeTab === 'features' ? styles.tabActive : styles.tab}
@@ -418,6 +469,55 @@ function AdminSettingsPage() {
           <div className={styles.saveRow}>
             <Button variant="primary" size="sm" onClick={saveSmtpSettings} loading={savingSmtp}>
               Save SMTP Settings
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'ai' && (
+        <div className={styles.section}>
+          <h2 className={styles.sectionTitle}>AI / LLM Configuration</h2>
+          <p className={styles.sectionHint}>
+            Powers AI-assisted transcription and the Research Intake assistant. Both features stay off until you
+            also enable their feature flags on the Features tab, and sending a document or text through them means
+            it leaves this server for the configured provider&rsquo;s API.
+          </p>
+          <div className={styles.fieldGroup}>
+            <div className={styles.fieldRow}>
+              <FormGroup>
+                <Label htmlFor="llm-provider">Provider</Label>
+                <Select
+                  id="llm-provider"
+                  value={llmProvider}
+                  onChange={e => setLlmProvider(e.target.value)}
+                >
+                  <option value="anthropic">Anthropic (Claude)</option>
+                </Select>
+              </FormGroup>
+              <FormGroup>
+                <Label htmlFor="llm-model">Model</Label>
+                <Input
+                  id="llm-model"
+                  value={llmModel}
+                  onChange={e => setLlmModel(e.target.value)}
+                  placeholder="claude-opus-5-5"
+                />
+              </FormGroup>
+            </div>
+            <FormGroup>
+              <Label htmlFor="llm-api-key">API Key</Label>
+              <Input
+                id="llm-api-key"
+                type="password"
+                value={llmApiKey}
+                onChange={e => setLlmApiKey(e.target.value)}
+                placeholder="Leave blank to keep current"
+              />
+            </FormGroup>
+          </div>
+          <div className={styles.saveRow}>
+            <Button variant="primary" size="sm" onClick={saveAiSettings} loading={savingAi}>
+              Save AI Settings
             </Button>
           </div>
         </div>
