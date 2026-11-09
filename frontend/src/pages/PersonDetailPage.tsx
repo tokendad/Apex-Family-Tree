@@ -1723,7 +1723,7 @@ const PersonDetailPage: React.FC = () => {
                     <span className={styles.countBadge}>{personArtifacts.length}</span>
                   )}
                 </h2>
-                {canEdit && (
+                {canCreate && (
                   <Button variant="secondary" size="sm" onClick={() => { void handleAddMedia(); }}>
                     Add media
                   </Button>

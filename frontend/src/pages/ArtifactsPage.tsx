@@ -210,26 +210,35 @@ const ArtifactsPage: React.FC = () => {
       const created = await res.json() as ArtifactRecord;
 
       if (createFile) {
-        const fileForm = new FormData();
-        fileForm.append('file', createFile);
-        const fileRes = await fetch(`/api/v1/artifacts/${created.id}/file`, {
-          method: 'POST',
-          body: fileForm,
-        });
-        if (!fileRes.ok) {
-          const body = await fileRes.json().catch(() => ({})) as { error?: string };
-          // The artifact itself was created successfully; only the file
-          // attach failed -- commonly the 10MB limit. Navigating away (rather
-          // than leaving the form open with the same file still selected)
-          // matters: a second click of Create here would make a second,
-          // fileless artifact rather than retrying the attach. The artifact's
-          // own page already offers an "Attach a file" control to recover.
+        // The artifact itself was created successfully the moment the POST
+        // above resolved. Any failure attaching the file from here on --
+        // a non-OK response, or the fetch itself rejecting on a dropped
+        // connection -- must still navigate away rather than leave the form
+        // (and the same File object) in place: a second click of Create
+        // would make a second, fileless artifact rather than retrying the
+        // attach. The artifact's own page already offers an "Attach a file"
+        // control to recover, which is where this sends the user either way.
+        let attachError: string | null = null;
+        try {
+          const fileForm = new FormData();
+          fileForm.append('file', createFile);
+          const fileRes = await fetch(`/api/v1/artifacts/${created.id}/file`, {
+            method: 'POST',
+            body: fileForm,
+          });
+          if (!fileRes.ok) {
+            const body = await fileRes.json().catch(() => ({})) as { error?: string };
+            attachError = body.error ?? 'Artifact created, but the file failed to attach.';
+          }
+        } catch {
+          attachError = 'Artifact created, but the file failed to attach: network error.';
+        }
+
+        if (attachError) {
           setForm({ ...EMPTY_FORM, artifact_type_id: artifactTypes[0]?.id ?? '' });
           setCreateFile(null);
           setShowCreate(false);
-          navigate(`/artifacts/${created.id}`, {
-            state: { attachError: body.error ?? 'Artifact created, but the file failed to attach.' },
-          });
+          navigate(`/artifacts/${created.id}`, { state: { attachError } });
           return;
         }
       }

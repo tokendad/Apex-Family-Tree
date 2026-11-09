@@ -846,7 +846,7 @@ const FamilyDetailPage: React.FC = () => {
               <section className={archiveStyles.section} aria-labelledby="family-media-heading">
                 <div className={archiveStyles.sectionHeader}>
                   <h2 className={archiveStyles.sectionTitle} id="family-media-heading">Media</h2>
-                  {canEdit && (
+                  {canCreate && (
                     <Button variant="secondary" size="sm" onClick={() => { void openMediaUpload(); }}>
                       Add media
                     </Button>

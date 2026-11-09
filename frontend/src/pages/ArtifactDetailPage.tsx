@@ -235,10 +235,15 @@ function formatBytes(bytes: number | null): string | null {
  */
 const ArtifactFileView: React.FC<{
   artifact: ArtifactRecord;
-  canEdit: boolean;
+  /* Whether to offer the "attach a file" control -- matches POST
+     /artifacts/:id/file's own role check (requireRole admin/editor/
+     limited_editor), i.e. canCreate, not canEdit. A limited_editor can
+     already use the New Artifact and Add Media flows this recovers; gating
+     this one spot on canEdit would make it the only one they could not. */
+  canUpload: boolean;
   initialError?: string | null;
   onAttached: (updated: ArtifactRecord) => void;
-}> = ({ artifact, canEdit, initialError = null, onAttached }) => {
+}> = ({ artifact, canUpload, initialError = null, onAttached }) => {
   const [failed, setFailed] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(initialError);
@@ -273,7 +278,7 @@ const ArtifactFileView: React.FC<{
     return (
       <section className={styles.detailCard}>
         <p className={styles.muted}>No file is attached to this artifact.</p>
-        {canEdit && (
+        {canUpload && (
           <>
             <label className={styles.field}>
               <span>Attach a file (up to 10MB — JPEG, PNG, GIF, WebP, or PDF)</span>
@@ -340,7 +345,7 @@ const ArtifactDetailPage: React.FC = () => {
   // followed it failed -- carried across the navigate rather than attempted
   // again from a form that still holds the same (likely oversized) file.
   const attachErrorFromCreate = (location.state as { attachError?: string } | null)?.attachError ?? null;
-  const { canEdit, canDelete } = usePermissions();
+  const { canCreate, canEdit, canDelete } = usePermissions();
   // Collection membership lives in collection_items, not in relationships,
   // so it is loaded separately from connectedObjects (#26).
   const [memberOf, setMemberOf] = useState<CollectionMembership[]>([]);
@@ -795,7 +800,7 @@ const ArtifactDetailPage: React.FC = () => {
                 <>
                 <ArtifactFileView
                   artifact={artifact}
-                  canEdit={canEdit}
+                  canUpload={canCreate}
                   initialError={attachErrorFromCreate}
                   onAttached={setArtifact}
                 />

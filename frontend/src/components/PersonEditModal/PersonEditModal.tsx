@@ -289,7 +289,7 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
   const [addEventError, setAddEventError] = useState<string | null>(null);
 
   const { openModal } = useModal();
-  const { canEdit } = usePermissions();
+  const { canCreate } = usePermissions();
 
   // ── Notes ──
   const [notesValue, setNotesValue] = useState('');
@@ -1639,7 +1639,7 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
 
   const renderMediaTab = () => (
     <>
-      {canEdit && (
+      {canCreate && (
         <div className={styles.saveRow}>
           <Button variant="secondary" size="sm" onClick={() => { void openMediaUpload(); }}>
             Add media
