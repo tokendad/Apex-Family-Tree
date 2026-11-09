@@ -4,8 +4,10 @@ import { recordBulk } from '../services/audit.js';
 import { runWithFlags } from '../services/requestContext.js';
 import {
   applyPeopleMerge,
+  dismissDuplicateGroup,
   previewPeopleMerge,
   scanPeopleDuplicates,
+  type DismissDuplicateGroupInput,
   type PeopleMergeInput,
 } from '../services/tools/personDedup.js';
 import {
@@ -75,6 +77,35 @@ toolsRouter.post('/people-dedup/apply', (req: Request, res: Response) => {
     recordBulk('merge', 'person', input.canonicalPersonId, {
       canonical_person_id: input.canonicalPersonId,
       merged_person_ids: input.duplicatePersonIds,
+      result,
+    });
+
+    res.json(result);
+  } catch (error) {
+    res.status(400).json({ error: String(error instanceof Error ? error.message : error) });
+  }
+});
+
+// Issue #76: mark a reviewed group as different people so it stops
+// resurfacing on future scans, without changing any person record.
+toolsRouter.post('/people-dedup/dismiss', (req: Request, res: Response) => {
+  try {
+    const input = req.body as DismissDuplicateGroupInput;
+    if (!input?.groupId) {
+      res.status(400).json({ error: 'groupId is required' });
+      return;
+    }
+    if (!Array.isArray(input.personIds) || input.personIds.length < 2) {
+      res.status(400).json({ error: 'personIds must include at least two people' });
+      return;
+    }
+    const result = dismissDuplicateGroup({ ...input, dismissedBy: req.user?.userId ?? null });
+
+    // No single person is "the" entity here -- the decision is about the
+    // pairing, not any one of them -- so this is recorded against none,
+    // the same way a scan-wide action would be.
+    recordBulk('dismiss', 'person', null, {
+      person_ids: input.personIds,
       result,
     });
 

@@ -132,6 +132,12 @@ function groupIdFor(ids: string[]): string {
   return [...ids].sort().join('__');
 }
 
+/** Canonical key for an unordered pair, matching how dismissed_duplicate_pairs
+ *  stores and the CHECK(person_a_id < person_b_id) constraint on it. */
+function pairKey(aId: string, bId: string): string {
+  return aId < bId ? `${aId}__${bId}` : `${bId}__${aId}`;
+}
+
 function tableExists(tableName: string): boolean {
   const db = getDatabase();
   const row = db
@@ -419,8 +425,21 @@ class PersonClusters {
   }
 }
 
+/** Pairs a reviewer has already said are different people (#76), keyed the
+ *  same way pairKey produces so a lookup is a single Set.has(). Guarded on
+ *  tableExists like every other optional table this file reads, since the
+ *  narrower fixtures some tests build predate 168. */
+function loadDismissedPairs(): Set<string> {
+  if (!tableExists('dismissed_duplicate_pairs')) return new Set();
+  const rows = getDatabase()
+    .prepare('SELECT person_a_id, person_b_id FROM dismissed_duplicate_pairs')
+    .all() as { person_a_id: string; person_b_id: string }[];
+  return new Set(rows.map((row) => pairKey(row.person_a_id, row.person_b_id)));
+}
+
 export function scanPeopleDuplicates(): PeopleDuplicateScan {
   const rows = findPersonFacts();
+  const dismissed = loadDismissedPairs();
 
   const blocks = new Map<string, PersonFactRow[]>();
   for (const row of rows) {
@@ -434,6 +453,7 @@ export function scanPeopleDuplicates(): PeopleDuplicateScan {
     for (const row of block) clusters.add(row.id);
     for (let i = 0; i < block.length; i++) {
       for (let j = i + 1; j < block.length; j++) {
+        if (dismissed.has(pairKey(block[i].id, block[j].id))) continue;
         if (isCandidatePair(block[i], block[j])) clusters.union(block[i].id, block[j].id);
       }
     }
@@ -468,6 +488,57 @@ export function scanPeopleDuplicates(): PeopleDuplicateScan {
     });
 
   return { groups };
+}
+
+export interface DismissDuplicateGroupInput {
+  groupId: string;
+  personIds: string[];
+  dismissedBy?: string | null;
+}
+
+/**
+ * Record a reviewed group as different people (#76), so none of its pairs
+ * cluster together on a future scan.
+ *
+ * Writes every pairwise combination within the group, not just adjacent
+ * ones: a scan clusters by transitive candidacy (A-B and B-C collapse into
+ * {A,B,C}), so leaving out A-C would let the next scan reassemble the same
+ * group the moment A and C are independently judged a candidate pair.
+ */
+export function dismissDuplicateGroup(input: DismissDuplicateGroupInput): { dismissed: number } {
+  const personIds = [...new Set(input.personIds ?? [])].filter(Boolean);
+  if (!input.groupId) throw new Error('groupId is required');
+  if (personIds.length < 2) throw new Error('At least two people are required');
+
+  const expected = groupIdFor(personIds);
+  if (input.groupId !== expected) throw new Error('groupId does not match selected people');
+
+  const rows = findPersonFacts(personIds);
+  const found = new Set(rows.map((row) => row.id));
+  for (const id of personIds) {
+    if (!found.has(id)) throw new Error(`Person not found: ${id}`);
+  }
+
+  const db = getDatabase();
+  const insert = db.prepare(
+    `INSERT INTO dismissed_duplicate_pairs (person_a_id, person_b_id, dismissed_by)
+     VALUES (?, ?, ?)
+     ON CONFLICT(person_a_id, person_b_id) DO NOTHING`,
+  );
+  const dismissedBy = input.dismissedBy ?? null;
+
+  let dismissed = 0;
+  db.transaction(() => {
+    for (let i = 0; i < personIds.length; i++) {
+      for (let j = i + 1; j < personIds.length; j++) {
+        const a = personIds[i] < personIds[j] ? personIds[i] : personIds[j];
+        const b = personIds[i] < personIds[j] ? personIds[j] : personIds[i];
+        dismissed += insert.run(a, b, dismissedBy).changes;
+      }
+    }
+  })();
+
+  return { dismissed };
 }
 
 function validateInput(input: PeopleMergeInput): string[] {

@@ -142,6 +142,7 @@ export default function PeopleDedupPage() {
   const [result, setResult] = useState<MergeResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dismissing, setDismissing] = useState(false);
 
   const selectedGroup = useMemo(
     () => groups.find((group) => group.id === selectedGroupId) ?? groups[0] ?? null,
@@ -273,6 +274,47 @@ export default function PeopleDedupPage() {
     }
   };
 
+  // #76: let a reviewer say two (or more) people in a group are not the
+  // same person, so this exact pairing stops resurfacing on future scans.
+  // Removes the group from the current list locally rather than re-scanning,
+  // since the scan itself hasn't changed -- only this one group's fate has.
+  const dismissGroup = async () => {
+    if (!selectedGroup) return;
+    setDismissing(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/v1/tools/people-dedup/dismiss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          groupId: selectedGroup.id,
+          personIds: selectedGroup.people.map((person) => person.id),
+        }),
+      });
+      const data = await response.json() as { dismissed?: number; error?: string };
+      if (!response.ok) throw new Error(data.error ?? 'Failed to dismiss group');
+
+      const dismissedIndex = groups.findIndex((group) => group.id === selectedGroup.id);
+      const remaining = groups.filter((group) => group.id !== selectedGroup.id);
+      // Stay at the same position in the list rather than jumping back to the
+      // top: dismissing group 4 of 10 should land on the group that is now
+      // 4th, not restart the review from group 1.
+      const next = remaining[Math.min(dismissedIndex, remaining.length - 1)] ?? null;
+      setGroups(remaining);
+      setSelectedGroupId(next?.id ?? null);
+      setCanonicalPersonId(next?.people[0]?.id ?? null);
+      setPreview(null);
+      setResult(null);
+      setShowReviewMerge(false);
+      setFieldResolutions({});
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to dismiss group');
+    } finally {
+      setDismissing(false);
+    }
+  };
+
   const chooseGroup = (group: DuplicateGroup) => {
     setSelectedGroupId(group.id);
     setCanonicalPersonId(group.people[0]?.id ?? null);
@@ -374,14 +416,24 @@ export default function PeopleDedupPage() {
                   ))}
                 </div>
 
-                <button
-                  className={styles.secondaryButton}
-                  type="button"
-                  onClick={previewMerge}
-                  disabled={!canonicalPersonId || duplicatePersonIds.length === 0 || loading}
-                >
-                  Preview Merge
-                </button>
+                <div className={styles.actionsRow}>
+                  <button
+                    className={styles.secondaryButton}
+                    type="button"
+                    onClick={previewMerge}
+                    disabled={!canonicalPersonId || duplicatePersonIds.length === 0 || loading || dismissing}
+                  >
+                    Preview Merge
+                  </button>
+                  <button
+                    className={styles.ghostButton}
+                    type="button"
+                    onClick={() => { void dismissGroup(); }}
+                    disabled={loading || dismissing}
+                  >
+                    {dismissing ? 'Working...' : 'Not Duplicates — Different People'}
+                  </button>
+                </div>
 
                 {preview && !showReviewMerge && (
                   <div className={styles.preview}>
