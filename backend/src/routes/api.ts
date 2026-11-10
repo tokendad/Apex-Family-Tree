@@ -22,6 +22,7 @@ import { gedcomRouter } from './gedcom.js';
 import { toolsRouter } from './tools.js';
 import { usersRouter } from './users.js';
 import { aiJobsRouter } from './aiJobs.js';
+import { intakeRouter } from './intake.js';
 
 const apiRouter = Router();
 
@@ -52,5 +53,6 @@ apiRouter.use('/v1/instance', instanceRouter);
 apiRouter.use('/v1/gedcom', gedcomRouter);
 apiRouter.use('/v1/tools', toolsRouter);
 apiRouter.use('/v1/ai', aiJobsRouter);
+apiRouter.use('/v1/intake', intakeRouter);
 
 export { apiRouter };

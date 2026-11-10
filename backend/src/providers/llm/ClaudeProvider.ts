@@ -118,7 +118,12 @@ export class ClaudeProvider implements LLMProvider {
 
       const message = await this.client.messages.create({
         model: this.model,
-        max_tokens: 8192,
+        // Intake extraction (#73) repeats a verbatim quote per extracted
+        // fact, so a long pasted document can produce a lot of structured
+        // output; matches transcribe()'s ceiling rather than guessing low
+        // and throwing on truncation (see the max_tokens stop_reason check
+        // below).
+        max_tokens: 16384,
         system: input.systemPrompt,
         messages: [{ role: 'user', content }],
         output_config: {
