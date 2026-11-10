@@ -57,8 +57,18 @@ const ProposalCard: React.FC<ProposalCardProps> = ({ proposal, disabled, onDecid
 
       <ul className={styles.citationList}>
         {citations.map((citation, i) => (
-          <li key={i} className={citation.citationStatus === 'verified' ? styles.citationVerified : styles.citationUnverified}>
+          <li
+            key={i}
+            className={
+              citation.citationStatus === 'verified' ? styles.citationVerified
+                : citation.citationStatus === 'unconfirmed_image' ? styles.citationUnconfirmed
+                  : styles.citationUnverified
+            }
+          >
             “{citation.quote}”
+            {citation.citationStatus === 'unconfirmed_image' && (
+              <span className={styles.citationUnconfirmedLabel}> — from image, verify against the source</span>
+            )}
           </li>
         ))}
       </ul>

@@ -1,5 +1,8 @@
 import Database from 'better-sqlite3';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 let db: Database.Database;
 
@@ -62,16 +65,28 @@ function seedSchema(database: Database.Database) {
     CREATE TABLE claim_evidence (
       id TEXT PRIMARY KEY, claim_id TEXT, evidence_object_id TEXT, evidence_role TEXT,
       evidence_classification_id TEXT, excerpt TEXT, locator TEXT, weight_score INTEGER,
-      confidence_contribution INTEGER, notes TEXT
+      confidence_contribution INTEGER, notes TEXT,
+      UNIQUE (claim_id, evidence_object_id, evidence_role)
     );
     CREATE TABLE confidence_levels (id TEXT PRIMARY KEY, name TEXT, sort_order INTEGER DEFAULT 0);
     CREATE TABLE evidence_classifications (id TEXT PRIMARY KEY, name TEXT, sort_order INTEGER DEFAULT 0);
     CREATE TABLE users (id TEXT PRIMARY KEY);
     CREATE TABLE app_settings (key TEXT PRIMARY KEY, value TEXT);
+    CREATE TABLE media_items (
+      id TEXT PRIMARY KEY, filename TEXT, original_filename TEXT, mime_type TEXT,
+      file_size INTEGER, file_path TEXT, thumbnail_path TEXT, uploaded_by TEXT, is_external INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE artifact_files (
+      id TEXT PRIMARY KEY, artifact_id TEXT, file_role TEXT, storage_provider TEXT DEFAULT 'local',
+      storage_path TEXT, original_filename TEXT, mime_type TEXT, size_bytes INTEGER,
+      width INTEGER, height INTEGER, duration_seconds REAL, created_at TEXT
+    );
 
     CREATE TABLE intake_items (
       id TEXT PRIMARY KEY, created_by TEXT, source_text TEXT NOT NULL, source_artifact_id TEXT,
       source_hash TEXT NOT NULL, ai_job_id TEXT, status TEXT NOT NULL DEFAULT 'pending',
+      source_file_path TEXT, source_file_mime_type TEXT, source_file_original_name TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')), committed_at TEXT
     );
     CREATE TABLE intake_proposals (
@@ -94,15 +109,43 @@ function seedIntakeItem(status: IntakeItemStatus = 'awaiting_review') {
   return { repo, item };
 }
 
+let tmpDir: string;
+
+function seedIntakeItemWithFile(status: IntakeItemStatus = 'awaiting_review') {
+  const filePath = path.join(tmpDir, 'photo.jpg');
+  fs.writeFileSync(filePath, 'fake-jpeg-bytes');
+
+  const repo = new IntakeRepository();
+  const item = repo.createItem({
+    created_by: 'user-1',
+    source_text: '',
+    source_hash: 'filehash1',
+    source_file_path: filePath,
+    source_file_mime_type: 'image/jpeg',
+    source_file_original_name: 'photo.jpg',
+  });
+  repo.setStatus(item.id, status);
+  return { repo, item, filePath };
+}
+
 type IntakeItemStatus = 'pending' | 'extracting' | 'awaiting_review' | 'committed' | 'cancelled' | 'failed';
 
 function verifiedCitation(quote: string) {
   return [{ quote, locator: null, region: null, citationStatus: 'verified' as const }];
 }
 
+function unconfirmedImageCitation(quote: string) {
+  return [{ quote, locator: null, region: null, citationStatus: 'unconfirmed_image' as const }];
+}
+
 beforeEach(() => {
   db = new Database(':memory:');
   seedSchema(db);
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aft-intake-commit-'));
+});
+
+afterEach(() => {
+  fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
 describe('commitIntakeItem', () => {
@@ -136,7 +179,7 @@ describe('commitIntakeItem', () => {
 
     const result = commitIntakeItem(item.id, 'user-1');
 
-    expect(result).toEqual({ committed: 1, conflicts: 0 });
+    expect(result).toMatchObject({ committed: 1, conflicts: 0 });
 
     const person = db.prepare('SELECT * FROM persons').get() as { id: string };
     expect(person).toBeTruthy();
@@ -162,6 +205,37 @@ describe('commitIntakeItem', () => {
     expect(updatedItem.committed_at).toBeTruthy();
   });
 
+  it('bundles multiple citable citations on one proposal into a single claim_evidence row (claim_evidence is UNIQUE per claim+artifact+role)', () => {
+    // A file-based (unconfirmed_image) submission, same as what actually
+    // triggered this bug live: a vision-extracted person proposal with both
+    // a birth and a death quote.
+    const { repo, item } = seedIntakeItemWithFile();
+    const [proposal] = repo.createProposals(item.id, [{
+      proposal_type: 'person',
+      confidence: null,
+      payload: {
+        type: 'person', ref: 'person_1', givenName: 'John', surname: 'Smith', birthDate: '1920', deathDate: '1998',
+        citations: [
+          { quote: 'John Smith was born in 1920', locator: null, region: null, citationStatus: 'unconfirmed_image' },
+          { quote: 'he died in 1998', locator: 'p. 2', region: null, citationStatus: 'unconfirmed_image' },
+        ],
+        matches: [],
+      },
+    }]);
+    repo.recordDecision(proposal.id, 'accept', null);
+
+    // The bug this guards: addEvidence per citation, all with the same
+    // (claim_id, evidence_object_id, evidence_role), violates claim_evidence's
+    // UNIQUE constraint on the second citation and throws out of the
+    // transaction -- commitIntakeItem must not throw here.
+    expect(() => commitIntakeItem(item.id, 'user-1')).not.toThrow();
+
+    const evidenceRows = db.prepare('SELECT * FROM claim_evidence').all() as { excerpt: string }[];
+    expect(evidenceRows).toHaveLength(1);
+    expect(evidenceRows[0].excerpt).toContain('John Smith was born in 1920');
+    expect(evidenceRows[0].excerpt).toContain('he died in 1998');
+  });
+
   it('skips a rejected proposal entirely', () => {
     const { repo, item } = seedIntakeItem();
     const [proposal] = repo.createProposals(item.id, [{
@@ -173,7 +247,7 @@ describe('commitIntakeItem', () => {
 
     const result = commitIntakeItem(item.id, 'user-1');
 
-    expect(result).toEqual({ committed: 0, conflicts: 0 });
+    expect(result).toEqual({ committed: 0, conflicts: 0, sourceArtifactId: null });
     expect(db.prepare('SELECT COUNT(*) AS n FROM persons').get()).toEqual({ n: 0 });
     // No source artifact either -- an all-rejected turn leaves nothing behind.
     expect(db.prepare('SELECT COUNT(*) AS n FROM artifacts').get()).toEqual({ n: 0 });
@@ -199,7 +273,7 @@ describe('commitIntakeItem', () => {
 
     const result = commitIntakeItem(item.id, 'user-1');
 
-    expect(result).toEqual({ committed: 2, conflicts: 0 });
+    expect(result).toMatchObject({ committed: 2, conflicts: 0 });
     const factClaim = db.prepare("SELECT * FROM claims WHERE claim_type = 'fact'").get() as { statement: string };
     expect(factClaim.statement).toBe('John Smith was a sailor.');
   });
@@ -223,7 +297,7 @@ describe('commitIntakeItem', () => {
 
     const result = commitIntakeItem(item.id, 'user-1');
 
-    expect(result).toEqual({ committed: 0, conflicts: 1 });
+    expect(result).toMatchObject({ committed: 0, conflicts: 1 });
     const conflicts = repo.findConflictsByItem(item.id);
     expect(conflicts).toHaveLength(1);
     expect(conflicts[0].field_name).toBe('subjectRef');
@@ -246,7 +320,7 @@ describe('commitIntakeItem', () => {
 
     const result = commitIntakeItem(item.id, 'user-1');
 
-    expect(result).toEqual({ committed: 0, conflicts: 1 });
+    expect(result).toMatchObject({ committed: 0, conflicts: 1 });
     expect(db.prepare('SELECT COUNT(*) AS n FROM persons').get()).toEqual({ n: 0 });
   });
 
@@ -270,7 +344,7 @@ describe('commitIntakeItem', () => {
 
     const result = commitIntakeItem(item.id, 'user-1');
 
-    expect(result).toEqual({ committed: 1, conflicts: 0 });
+    expect(result).toMatchObject({ committed: 1, conflicts: 0 });
     expect(db.prepare('SELECT COUNT(*) AS n FROM persons').get()).toEqual({ n: 1 });
     const committedProposal = repo.findProposalById(proposal.id)!;
     expect(committedProposal.committed_object_id).toBe('p_existing');
@@ -287,7 +361,7 @@ describe('commitIntakeItem', () => {
 
     const result = commitIntakeItem(item.id, 'user-1');
 
-    expect(result).toEqual({ committed: 3, conflicts: 0 });
+    expect(result).toMatchObject({ committed: 3, conflicts: 0 });
     const family = db.prepare('SELECT * FROM families').get() as { spouse1_id: string; spouse2_id: string };
     expect([family.spouse1_id, family.spouse2_id].sort()).toEqual(
       (db.prepare('SELECT id FROM persons ORDER BY id').all() as { id: string }[]).map((r) => r.id).sort(),
@@ -305,7 +379,7 @@ describe('commitIntakeItem', () => {
 
     const result = commitIntakeItem(item.id, 'user-1');
 
-    expect(result).toEqual({ committed: 3, conflicts: 0 });
+    expect(result).toMatchObject({ committed: 3, conflicts: 0 });
     const family = db.prepare('SELECT * FROM families').get() as { id: string };
     const members = db.prepare('SELECT * FROM family_members WHERE family_id = ?').all(family.id) as { role: string }[];
     expect(members).toHaveLength(1);
@@ -349,7 +423,7 @@ describe('commitIntakeItem', () => {
 
     const result = commitIntakeItem(item.id, 'user-1');
 
-    expect(result).toEqual({ committed: 2, conflicts: 0 });
+    expect(result).toMatchObject({ committed: 2, conflicts: 0 });
     const event = db.prepare("SELECT * FROM events WHERE event_type = 'marriage'").get() as { id: string };
     expect(event).toBeTruthy();
     const claim = db.prepare("SELECT * FROM claims WHERE claim_type = 'event'").get() as { id: string };
@@ -375,7 +449,7 @@ describe('commitIntakeItem', () => {
 
     const result = commitIntakeItem(item.id, 'user-1');
 
-    expect(result).toEqual({ committed: 1, conflicts: 1 });
+    expect(result).toMatchObject({ committed: 1, conflicts: 1 });
     const birthEvent = db.prepare("SELECT event_date FROM events WHERE id = 'ev1'").get() as { event_date: string };
     expect(birthEvent.event_date).toBe('1919'); // unchanged
     const conflicts = repo.findConflictsByItem(item.id);
@@ -397,7 +471,95 @@ describe('commitIntakeItem', () => {
 
     const result = commitIntakeItem(item.id, 'user-1');
 
-    expect(result).toEqual({ committed: 0, conflicts: 1 });
+    expect(result).toMatchObject({ committed: 0, conflicts: 1 });
     expect(db.prepare('SELECT COUNT(*) AS n FROM claims').get()).toEqual({ n: 0 });
+  });
+
+  it('attaches the staged upload to the committed artifact via a media_items/artifact_files row (#73 Phase 2)', () => {
+    const { repo, item, filePath } = seedIntakeItemWithFile();
+    const [personProposal, factProposal] = repo.createProposals(item.id, [
+      {
+        proposal_type: 'person',
+        confidence: null,
+        payload: { type: 'person', ref: 'p1', givenName: 'Jane', surname: 'Doe', citations: unconfirmedImageCitation('whatever the model transcribed'), matches: [] },
+      },
+      {
+        proposal_type: 'fact',
+        confidence: null,
+        payload: { type: 'fact', statement: 'Shown in the photo.', subjectRef: 'p1', citations: unconfirmedImageCitation('whatever the model transcribed') },
+      },
+    ]);
+    repo.recordDecision(personProposal.id, 'accept', null);
+    repo.recordDecision(factProposal.id, 'accept', null);
+
+    const result = commitIntakeItem(item.id, 'user-1');
+
+    expect(result).toMatchObject({ committed: 2, conflicts: 0 });
+    expect(result.sourceArtifactId).toBeTruthy();
+
+    const media = db.prepare('SELECT * FROM media_items WHERE id = ?').get(result.sourceArtifactId) as { file_path: string; mime_type: string; original_filename: string };
+    expect(media.file_path).toBe(filePath);
+    expect(media.mime_type).toBe('image/jpeg');
+    expect(media.original_filename).toBe('photo.jpg');
+
+    const artifactFile = db.prepare('SELECT * FROM artifact_files WHERE artifact_id = ?').get(result.sourceArtifactId) as { storage_path: string };
+    expect(artifactFile.storage_path).toBe(filePath);
+
+    // An unconfirmed_image citation is still recorded as evidence -- #73's
+    // "cites or dropped" rule doesn't evaporate at commit just because the
+    // quote couldn't be mechanically checked.
+    const evidenceRows = db.prepare('SELECT * FROM claim_evidence').all() as { excerpt: string; evidence_object_id: string; notes: string }[];
+    expect(evidenceRows).toHaveLength(2);
+    for (const row of evidenceRows) {
+      expect(row.evidence_object_id).toBe(result.sourceArtifactId);
+      expect(row.notes).toMatch(/not mechanically verified/);
+    }
+
+    // The file now belongs to the artifact -- the intake item stops tracking
+    // it as a staged upload.
+    expect(repo.findItemById(item.id)!.source_file_path).toBeNull();
+    expect(fs.existsSync(filePath)).toBe(true); // not deleted -- it's the artifact's file now
+  });
+
+  it('deletes the staged upload instead of creating an artifact when every proposal on a file-based turn is rejected', () => {
+    const { repo, item, filePath } = seedIntakeItemWithFile();
+    const [proposal] = repo.createProposals(item.id, [{
+      proposal_type: 'fact',
+      confidence: null,
+      payload: { type: 'fact', statement: 'Shown in the photo.', subjectRef: 'p1', citations: unconfirmedImageCitation('whatever') },
+    }]);
+    repo.recordDecision(proposal.id, 'reject', null);
+
+    const result = commitIntakeItem(item.id, 'user-1');
+
+    expect(result).toEqual({ committed: 0, conflicts: 0, sourceArtifactId: null });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM media_items').get()).toEqual({ n: 0 });
+    expect(fs.existsSync(filePath)).toBe(false);
+    expect(repo.findItemById(item.id)!.source_file_path).toBeNull();
+  });
+
+  it('keeps an unconfirmed_image citation on an all-rejected file turn from being silently re-verified as unverified', () => {
+    // Guards the sourceTextForVerification fix: re-verifying against ''
+    // instead of null would flip every image-sourced citation to
+    // 'unverified' and change which proposals get flagged at commit.
+    const { repo, item } = seedIntakeItemWithFile();
+    const [proposal] = repo.createProposals(item.id, [{
+      proposal_type: 'fact',
+      confidence: null,
+      payload: { type: 'fact', statement: 'Shown in the photo.', subjectRef: 'p1', citations: unconfirmedImageCitation('whatever the model transcribed') },
+    }]);
+    repo.recordDecision(proposal.id, 'edit', {
+      type: 'fact', statement: 'Edited statement about the photo.', subjectRef: 'p1',
+      citations: unconfirmedImageCitation('a different transcription, still not checkable'),
+    });
+
+    const result = commitIntakeItem(item.id, 'user-1');
+
+    // subjectRef 'p1' was never an accepted person proposal, so this still
+    // conflicts on the unresolved ref -- but NOT on citations, proving the
+    // edited unconfirmed_image citation survived re-verification.
+    expect(result.conflicts).toBe(1);
+    const conflicts = repo.findConflictsByItem(item.id);
+    expect(conflicts[0].field_name).toBe('subjectRef');
   });
 });

@@ -25,12 +25,18 @@ interface TurnProps {
   item: IntakeItem;
   pending: boolean;
   error: string | null;
+  /** An object URL for the file just attached this session, so the reviewer
+   *  can see the image a citation claims to be "from" without yet having a
+   *  server route to stream the staged/committed file back. Only ever set
+   *  for the turn submitted in this panel session -- history loaded from
+   *  GET /intake has no local Blob to build one from. */
+  previewUrl?: string | null;
 }
 
-/** One past submission, rendered as a chat "turn": the pasted text, then the
- *  assistant's reply as a list of structured proposal cards (not free-text
- *  chat) once extraction finishes. */
-const IntakeTurn: React.FC<TurnProps> = ({ item, pending, error }) => {
+/** One past submission, rendered as a chat "turn": the pasted text and/or
+ *  attached file, then the assistant's reply as a list of structured
+ *  proposal cards (not free-text chat) once extraction finishes. */
+const IntakeTurn: React.FC<TurnProps> = ({ item, pending, error, previewUrl }) => {
   const [proposals, setProposals] = useState<IntakeProposal[]>([]);
   const [conflicts, setConflicts] = useState<IntakeConflict[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -82,14 +88,25 @@ const IntakeTurn: React.FC<TurnProps> = ({ item, pending, error }) => {
 
   return (
     <div className={styles.turn}>
-      <div className={styles.userBubble}>{item.source_text}</div>
+      <div className={styles.userBubble}>
+        {item.source_text && <p className={styles.userBubbleText}>{item.source_text}</p>}
+        {item.source_file_original_name && (
+          <div className={styles.userBubbleFile}>
+            {previewUrl && item.source_file_mime_type?.startsWith('image/') ? (
+              <img src={previewUrl} alt={item.source_file_original_name} className={styles.userBubbleImage} />
+            ) : (
+              <span className={styles.fileChip}>📎 {item.source_file_original_name}</span>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className={styles.assistantReply}>
-        {pending && <p className={styles.muted}>Reading the text and looking for citable facts…</p>}
+        {pending && <p className={styles.muted}>Reading the source and looking for citable facts…</p>}
         {!pending && error && <p className={styles.error}>{error}</p>}
 
         {!pending && !error && loaded && proposals.length === 0 && (
-          <p className={styles.muted}>No citable facts found in this text.</p>
+          <p className={styles.muted}>No citable facts found in this source.</p>
         )}
 
         {proposals.map((proposal) => (
@@ -134,17 +151,33 @@ const IntakeTurn: React.FC<TurnProps> = ({ item, pending, error }) => {
   );
 };
 
+// Same five types the backend's ALLOWED_UPLOAD_MIME_TYPES accepts.
+const ACCEPTED_FILE_TYPES = 'image/jpeg,image/png,image/gif,image/webp,application/pdf';
+
 /** The global AI Assistant panel's content (#73). AiAssistantHost portals
  *  this in; it is otherwise a normal component so it's easy to test. */
 const AiAssistantPanel: React.FC = () => {
   const close = useAiAssistantStore((s) => s.close);
   const [items, setItems] = useState<IntakeItem[]>([]);
   const [text, setText] = useState('');
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [pendingItemId, setPendingItemId] = useState<string | null>(null);
   const [errorsByItem, setErrorsByItem] = useState<Record<string, string>>({});
+  const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Object URLs are per-viewer browser memory, not server state -- revoke
+  // them when the panel closes so an attached photo doesn't leak for the
+  // rest of the tab's lifetime.
+  useEffect(() => {
+    return () => {
+      Object.values(previewUrls).forEach((url) => URL.revokeObjectURL(url));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadItems = useCallback(async () => {
     const res = await fetch('/api/v1/intake');
@@ -177,24 +210,50 @@ const AiAssistantPanel: React.FC = () => {
 
   const handleSubmit = async () => {
     const trimmed = text.trim();
-    if (!trimmed) return;
+    if (!trimmed && !attachedFile) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const res = await fetch('/api/v1/intake', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: trimmed }),
-      });
+      let res: Response;
+      if (attachedFile) {
+        const formData = new FormData();
+        formData.append('file', attachedFile);
+        if (trimmed) formData.append('text', trimmed);
+        // No Content-Type header: the browser sets the multipart boundary
+        // itself, and setting it by hand here would omit that boundary.
+        res = await fetch('/api/v1/intake', { method: 'POST', body: formData });
+      } else {
+        res = await fetch('/api/v1/intake', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: trimmed }),
+        });
+      }
       if (!res.ok) {
         const body = await res.json().catch(() => ({})) as { error?: string };
         throw new Error(body.error ?? 'Submission failed');
       }
       const { intakeItemId } = await res.json() as { intakeItemId: string };
+
+      if (attachedFile) {
+        const url = URL.createObjectURL(attachedFile);
+        setPreviewUrls((prev) => ({ ...prev, [intakeItemId]: url }));
+      }
+
       setText('');
+      setAttachedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
       setItems((prev) => (prev.some((item) => item.id === intakeItemId)
         ? prev
-        : [...prev, { id: intakeItemId, source_text: trimmed, status: 'extracting', created_at: new Date().toISOString() }]));
+        : [...prev, {
+            id: intakeItemId,
+            source_text: trimmed,
+            status: 'extracting',
+            created_at: new Date().toISOString(),
+            source_file_path: null,
+            source_file_mime_type: attachedFile?.type ?? null,
+            source_file_original_name: attachedFile?.name ?? null,
+          }]));
       setErrorsByItem((prev) => { const { [intakeItemId]: _omit, ...rest } = prev; return rest; });
       setPendingItemId(intakeItemId);
 
@@ -238,6 +297,7 @@ const AiAssistantPanel: React.FC = () => {
             item={item}
             pending={item.id === pendingItemId}
             error={errorsByItem[item.id] ?? null}
+            previewUrl={previewUrls[item.id] ?? null}
           />
         ))}
       </div>
@@ -245,6 +305,22 @@ const AiAssistantPanel: React.FC = () => {
       {submitError && <p className={styles.error}>{submitError}</p>}
 
       <div className={styles.inputRow}>
+        {attachedFile && (
+          <div className={styles.attachedFileRow}>
+            <span className={styles.fileChip}>📎 {attachedFile.name}</span>
+            <button
+              type="button"
+              className={styles.removeFileButton}
+              aria-label="Remove attached file"
+              onClick={() => {
+                setAttachedFile(null);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+              }}
+            >
+              ×
+            </button>
+          </div>
+        )}
         <textarea
           className={styles.textInput}
           placeholder="Paste research text to analyze…"
@@ -254,13 +330,25 @@ const AiAssistantPanel: React.FC = () => {
           disabled={submitting}
         />
         <div className={styles.inputActions}>
-          <button type="button" className={styles.attachButton} disabled title="Coming in a later update">
-            Attach file
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ACCEPTED_FILE_TYPES}
+            className={styles.hiddenFileInput}
+            onChange={(e) => setAttachedFile(e.target.files?.[0] ?? null)}
+          />
+          <button
+            type="button"
+            className={styles.attachButton}
+            disabled={submitting}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {attachedFile ? 'Change file' : 'Attach file'}
           </button>
           <button
             type="button"
             className={styles.sendButton}
-            disabled={submitting || !text.trim()}
+            disabled={submitting || (!text.trim() && !attachedFile)}
             onClick={() => void handleSubmit()}
           >
             {submitting ? 'Sending…' : 'Send'}

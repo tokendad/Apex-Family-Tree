@@ -1,9 +1,13 @@
 import Database from 'better-sqlite3';
 import express from 'express';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 let db: Database.Database;
+let dataDir: string;
 
 vi.mock('../db/connection.js', () => ({ getDatabase: () => db }));
 
@@ -12,6 +16,12 @@ vi.mock('../providers/llm/factory.js', () => ({
   createLLMProvider: async () => ({ extract: extractMock }),
 }));
 vi.mock('../services/backup.js', () => ({ createPreImportBackup: vi.fn(() => true) }));
+// Real multer writes a real file for the multipart tests below -- staged
+// under a throwaway tmpdir standing in for DATA_DIR, never the real one.
+vi.mock('../services/init.js', () => ({
+  getDataPath: (...segments: string[]) => path.join(dataDir, ...segments),
+  getMediaPath: (...segments: string[]) => path.join(dataDir, 'media', ...segments),
+}));
 
 const { intakeRouter } = await import('./intake.js');
 
@@ -81,10 +91,21 @@ function seedSchema(database: Database.Database) {
     CREATE TABLE claim_evidence (
       id TEXT PRIMARY KEY, claim_id TEXT, evidence_object_id TEXT, evidence_role TEXT,
       evidence_classification_id TEXT, excerpt TEXT, locator TEXT, weight_score INTEGER,
-      confidence_contribution INTEGER, notes TEXT
+      confidence_contribution INTEGER, notes TEXT,
+      UNIQUE (claim_id, evidence_object_id, evidence_role)
     );
     CREATE TABLE confidence_levels (id TEXT PRIMARY KEY, name TEXT, sort_order INTEGER DEFAULT 0);
     CREATE TABLE users (id TEXT PRIMARY KEY);
+    CREATE TABLE media_items (
+      id TEXT PRIMARY KEY, filename TEXT, original_filename TEXT, mime_type TEXT,
+      file_size INTEGER, file_path TEXT, thumbnail_path TEXT, uploaded_by TEXT, is_external INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE TABLE artifact_files (
+      id TEXT PRIMARY KEY, artifact_id TEXT, file_role TEXT, storage_provider TEXT DEFAULT 'local',
+      storage_path TEXT, original_filename TEXT, mime_type TEXT, size_bytes INTEGER,
+      width INTEGER, height INTEGER, duration_seconds REAL, created_at TEXT
+    );
     CREATE TABLE app_settings (key TEXT PRIMARY KEY, value TEXT, value_type TEXT NOT NULL DEFAULT 'string');
     CREATE TABLE feature_flags (key TEXT PRIMARY KEY, enabled INTEGER NOT NULL DEFAULT 0);
 
@@ -97,6 +118,7 @@ function seedSchema(database: Database.Database) {
     CREATE TABLE intake_items (
       id TEXT PRIMARY KEY, created_by TEXT, source_text TEXT NOT NULL, source_artifact_id TEXT,
       source_hash TEXT NOT NULL, ai_job_id TEXT, status TEXT NOT NULL DEFAULT 'pending',
+      source_file_path TEXT, source_file_mime_type TEXT, source_file_original_name TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')), committed_at TEXT
     );
     CREATE TABLE intake_proposals (
@@ -119,10 +141,12 @@ beforeEach(() => {
   db = new Database(':memory:');
   seedSchema(db);
   extractMock.mockReset();
+  dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aft-intake-'));
 });
 
 afterEach(() => {
   vi.useRealTimers();
+  fs.rmSync(dataDir, { recursive: true, force: true });
 });
 
 describe('intake routes', () => {
@@ -180,7 +204,7 @@ describe('intake routes', () => {
 
     const commitRes = await request(buildApp('editor')).post(`/api/v1/intake/${intakeItemId}/commit`);
     expect(commitRes.status).toBe(200);
-    expect(commitRes.body).toEqual({ committed: 1, conflicts: 0 });
+    expect(commitRes.body).toMatchObject({ committed: 1, conflicts: 0 });
 
     const person = db.prepare('SELECT * FROM persons').get() as { id: string } | undefined;
     expect(person).toBeTruthy();
@@ -215,5 +239,77 @@ describe('intake routes', () => {
     const second = await request(buildApp('editor')).post('/api/v1/intake').send({ text });
     expect(second.body.intakeItemId).toBe(first.body.intakeItemId);
     expect(extractMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('accepts a multipart file upload, extracts via the file source, and commits with the file attached to the artifact', async () => {
+    extractMock.mockResolvedValueOnce({
+      data: {
+        proposals: [
+          {
+            type: 'person', ref: 'person_1', givenName: 'Jane', surname: 'Doe',
+            citations: [{ quote: 'anything -- not substring-checked for a file source', locator: null }],
+          },
+          {
+            type: 'fact', statement: 'Shown in the photo.', subjectRef: 'person_1',
+            citations: [{ quote: 'anything -- not substring-checked for a file source', locator: null }],
+          },
+        ],
+      },
+      inputTokens: 20,
+      outputTokens: 10,
+    });
+
+    const submitRes = await request(buildApp('editor'))
+      .post('/api/v1/intake')
+      .attach('file', Buffer.from('fake-jpeg-bytes'), { filename: 'photo.jpg', contentType: 'image/jpeg' });
+    expect(submitRes.status).toBe(202);
+    const intakeItemId = submitRes.body.intakeItemId as string;
+
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(extractMock).toHaveBeenCalledWith(
+      expect.objectContaining({ file: { bytes: expect.any(Buffer), mediaType: 'image/jpeg' } }),
+      expect.anything(),
+    );
+
+    const proposalsRes = await request(buildApp('editor')).get(`/api/v1/intake/${intakeItemId}/proposals`);
+    expect(proposalsRes.body.proposals).toHaveLength(2);
+    expect(proposalsRes.body.proposals[0].payload.citations[0].citationStatus).toBe('unconfirmed_image');
+
+    for (const proposal of proposalsRes.body.proposals) {
+      await request(buildApp('editor'))
+        .post(`/api/v1/intake/${intakeItemId}/proposals/${proposal.id}`)
+        .send({ decision: 'accept' });
+    }
+
+    const commitRes = await request(buildApp('editor')).post(`/api/v1/intake/${intakeItemId}/commit`);
+    expect(commitRes.status).toBe(200);
+    expect(commitRes.body).toMatchObject({ committed: 2, conflicts: 0 });
+
+    const media = db.prepare('SELECT * FROM media_items').get() as { file_path: string; mime_type: string } | undefined;
+    expect(media).toBeTruthy();
+    expect(media!.mime_type).toBe('image/jpeg');
+    expect(fs.existsSync(media!.file_path)).toBe(true);
+
+    const item = (await request(buildApp('editor')).get(`/api/v1/intake/${intakeItemId}`)).body.item;
+    expect(item.source_file_path).toBeNull(); // handed off to the artifact, no longer tracked as staged
+  });
+
+  it('deletes the staged upload when extraction fails for a file submission', async () => {
+    extractMock.mockRejectedValueOnce(new Error('No LLM API key is configured.'));
+
+    const submitRes = await request(buildApp('editor'))
+      .post('/api/v1/intake')
+      .attach('file', Buffer.from('fake-jpeg-bytes'), { filename: 'photo.jpg', contentType: 'image/jpeg' });
+    const intakeItemId = submitRes.body.intakeItemId as string;
+
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const uploadedFiles = fs.readdirSync(path.join(dataDir, 'intake-uploads'));
+    expect(uploadedFiles).toHaveLength(0);
+
+    const item = (await request(buildApp('editor')).get(`/api/v1/intake/${intakeItemId}`)).body.item;
+    expect(item.status).toBe('failed');
+    expect(item.source_file_path).toBeNull();
   });
 });

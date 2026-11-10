@@ -29,7 +29,7 @@ describe('extractProposals', () => {
       },
     ]));
 
-    const result = await extractProposals(SOURCE_TEXT);
+    const result = await extractProposals({ text: SOURCE_TEXT });
 
     expect(result.proposals).toHaveLength(1);
     expect(result.proposals[0].proposal_type).toBe('person');
@@ -47,7 +47,7 @@ describe('extractProposals', () => {
       },
     ]));
 
-    const result = await extractProposals(SOURCE_TEXT);
+    const result = await extractProposals({ text: SOURCE_TEXT });
 
     expect(result.proposals).toHaveLength(0);
   });
@@ -57,7 +57,7 @@ describe('extractProposals', () => {
       { type: 'fact', statement: 'Unsupported claim.', subjectRef: 'person_1', citations: [] },
     ]));
 
-    const result = await extractProposals(SOURCE_TEXT);
+    const result = await extractProposals({ text: SOURCE_TEXT });
 
     expect(result.proposals).toHaveLength(0);
   });
@@ -74,7 +74,7 @@ describe('extractProposals', () => {
       },
     ]));
 
-    const result = await extractProposals(SOURCE_TEXT);
+    const result = await extractProposals({ text: SOURCE_TEXT });
 
     const payload = result.proposals[0].payload as { matches: { personId: string }[] };
     expect(payload.matches).toEqual([{ personId: 'p1', score: 75, reasons: ['Same normalized primary name'], displayName: 'John Smith', birthYear: 1920 }]);
@@ -83,8 +83,35 @@ describe('extractProposals', () => {
   it('returns an empty proposal list when the model finds nothing', async () => {
     extractMock.mockResolvedValueOnce(extractResult([]));
 
-    const result = await extractProposals(SOURCE_TEXT);
+    const result = await extractProposals({ text: SOURCE_TEXT });
 
     expect(result.proposals).toEqual([]);
+  });
+
+  it('marks citations unconfirmed_image (not verified/unverified) for a file source, and still keeps the proposal', async () => {
+    extractMock.mockResolvedValueOnce(extractResult([
+      {
+        type: 'fact',
+        statement: 'John Smith was a sailor.',
+        subjectRef: 'person_1',
+        citations: [{ quote: 'anything at all, not checked against text', locator: null }],
+      },
+    ]));
+
+    const result = await extractProposals({ file: { bytes: Buffer.from('fake-image'), mediaType: 'image/jpeg' } });
+
+    expect(result.proposals).toHaveLength(1);
+    const payload = result.proposals[0].payload as { citations: { citationStatus: string }[] };
+    expect(payload.citations[0].citationStatus).toBe('unconfirmed_image');
+    expect(extractMock).toHaveBeenCalledWith(
+      expect.objectContaining({ file: { bytes: expect.any(Buffer), mediaType: 'image/jpeg' } }),
+      expect.anything(),
+    );
+  });
+
+  it('throws when given neither text nor a file', async () => {
+    const callsBefore = extractMock.mock.calls.length;
+    await expect(extractProposals({})).rejects.toMatchObject({ kind: 'invalid_response' });
+    expect(extractMock.mock.calls.length).toBe(callsBefore);
   });
 });

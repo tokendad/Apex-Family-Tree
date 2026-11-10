@@ -4,7 +4,10 @@ export type ProposalDecisionKind = 'accept' | 'edit' | 'reject';
 export interface Citation {
   quote: string;
   locator?: string | null;
-  citationStatus: 'verified' | 'unverified';
+  /** 'unconfirmed_image' (#73 Phase 2): the source was an uploaded image/PDF,
+   *  so the quote was never substring-checked against anything -- it still
+   *  counts as a citation, just one the reviewer has to confirm by eye. */
+  citationStatus: 'verified' | 'unverified' | 'unconfirmed_image';
 }
 
 export interface IntakeProposal {
@@ -29,9 +32,13 @@ export interface IntakeConflict {
 
 export interface IntakeItem {
   id: string;
+  /** '' for a file-only submission. */
   source_text: string;
   status: 'pending' | 'extracting' | 'awaiting_review' | 'committed' | 'cancelled' | 'failed';
   created_at: string;
+  source_file_path: string | null;
+  source_file_mime_type: string | null;
+  source_file_original_name: string | null;
 }
 
 /** How many proposals in this turn still have no decision -- the commit

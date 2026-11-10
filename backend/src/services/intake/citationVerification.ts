@@ -20,29 +20,40 @@ export function verifyQuote(quote: string, sourceText: string): boolean {
 
 interface CitationLike {
   quote: string;
-  citationStatus: 'verified' | 'unverified';
+  citationStatus: 'verified' | 'unverified' | 'unconfirmed_image';
 }
 
 export interface CitedPayload {
   citations: CitationLike[];
 }
 
-/** Marks each citation verified/unverified against the source text. Returns
- *  the payload unchanged structurally -- callers decide whether to keep a
- *  proposal whose citations all failed. */
-export function verifyCitations<T extends CitedPayload>(payload: T, sourceText: string): T {
+/**
+ * Marks each citation against the source. `sourceText` is `null` for an
+ * image/PDF submission (#73 Phase 2) -- there is no text to substring-match
+ * a quote against, so every citation there is marked 'unconfirmed_image'
+ * instead of mechanically checked. Confirming it against the document is the
+ * reviewer's job in that case, same as an 'edit' decision already requires
+ * human judgment elsewhere in this pipeline.
+ *
+ * Returns the payload unchanged structurally -- callers decide whether to
+ * keep a proposal whose citations all failed.
+ */
+export function verifyCitations<T extends CitedPayload>(payload: T, sourceText: string | null): T {
   return {
     ...payload,
     citations: payload.citations.map((citation) => ({
       ...citation,
-      citationStatus: verifyQuote(citation.quote, sourceText) ? 'verified' as const : 'unverified' as const,
+      citationStatus: sourceText === null
+        ? 'unconfirmed_image' as const
+        : verifyQuote(citation.quote, sourceText) ? 'verified' as const : 'unverified' as const,
     })),
   };
 }
 
 /** A proposal with zero citations, or every citation unverified, has nothing
  *  backing it -- #73's hard rule is that it gets dropped, not staged for
- *  review with a warning. */
+ *  review with a warning. 'unconfirmed_image' counts as backing: the quote
+ *  is still required and still shown, just not mechanically checked. */
 export function hasVerifiedCitation(payload: CitedPayload): boolean {
-  return payload.citations.some((citation) => citation.citationStatus === 'verified');
+  return payload.citations.some((citation) => citation.citationStatus === 'verified' || citation.citationStatus === 'unconfirmed_image');
 }

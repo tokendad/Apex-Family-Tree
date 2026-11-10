@@ -1,15 +1,22 @@
 /**
  * #73 AI Research Intake. A Citation is "a verbatim quote plus where it came
- * from" -- citationVerification.ts checks `quote` against the source text
- * before a proposal is ever persisted, so every stored proposal already has
- * at least one verified citation. `region` is reserved for Phase 2
- * (image/PDF intake) and is always null in Phase 1.
+ * from". For a text submission, citationVerification.ts checks `quote`
+ * against the source text before a proposal is ever persisted -- a
+ * substring match is mechanical, so 'verified'/'unverified' is a fact, not a
+ * judgment call. For an image/PDF submission (#73 Phase 2) there is no
+ * source text to substring-match against, so every citation is marked
+ * 'unconfirmed_image' instead: the quote is still required (extraction
+ * still drops anything with zero citations), but confirming it matches the
+ * document is the reviewer's job, not a mechanical check. `region` is
+ * reserved for a future crop-overlay UI and is always null for now --
+ * Phase 2 ships file upload and the unconfirmed-citation status, not a
+ * region picker.
  */
 export interface Citation {
   quote: string;
   locator?: string | null;
   region?: { x: number; y: number; w: number; h: number } | null;
-  citationStatus: 'verified' | 'unverified';
+  citationStatus: 'verified' | 'unverified' | 'unconfirmed_image';
 }
 
 export interface PersonProposalPayload {
@@ -70,6 +77,8 @@ export type ProposalDecision = 'accept' | 'edit' | 'reject';
 export interface IntakeItem {
   id: string;
   created_by: string | null;
+  /** '' for a file-only submission -- the column stays NOT NULL rather than
+   *  needing a table rebuild to make it nullable. */
   source_text: string;
   source_artifact_id: string | null;
   source_hash: string;
@@ -77,6 +86,12 @@ export interface IntakeItem {
   status: 'pending' | 'extracting' | 'awaiting_review' | 'committed' | 'cancelled' | 'failed';
   created_at: string;
   committed_at: string | null;
+  /** Set when this turn attached a file (#73 Phase 2). source_file_path is a
+   *  staged, uncommitted location under DATA_DIR until commit creates the
+   *  real artifact from it. */
+  source_file_path: string | null;
+  source_file_mime_type: string | null;
+  source_file_original_name: string | null;
 }
 
 export interface IntakeProposal {

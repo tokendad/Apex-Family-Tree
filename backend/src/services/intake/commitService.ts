@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { getDatabase } from '../../db/connection.js';
 import { createPreImportBackup } from '../backup.js';
 import { createLogger } from '../logger.js';
@@ -9,6 +11,7 @@ import { EventRepository } from '../../repositories/EventRepository.js';
 import { FamilyRepository } from '../../repositories/FamilyRepository.js';
 import { ClaimRepository } from '../../repositories/ClaimRepository.js';
 import { ArtifactRepository } from '../../repositories/ArtifactRepository.js';
+import { MediaRepository } from '../../repositories/MediaRepository.js';
 import type { Citation, EventProposalPayload, FactProposalPayload, IntakeProposal, PersonProposalPayload, ProposalPayload, RelationshipProposalPayload } from '../../types/intake.js';
 
 const logger = createLogger();
@@ -19,10 +22,22 @@ function personLabel(payload: PersonProposalPayload): string {
   return [payload.givenName, payload.surname].filter(Boolean).join(' ').trim() || 'Unknown Person';
 }
 
-/** Attaches a claim evidencing one or more verified citations against the
- *  intake's source artifact. Unverified citations never reach here --
+/** Attaches a claim evidencing one or more citable citations against the
+ *  intake's source artifact. 'unverified' citations never reach here --
  *  the caller re-verifies against the source text before this is called, so
- *  an edited quote can't introduce something the source doesn't say. */
+ *  an edited quote can't introduce something the source doesn't say.
+ *  'unconfirmed_image' ones do: there was never a source text to mechanically
+ *  check them against, so the reviewer's accept decision is what stands in
+ *  for verification -- the citation still gets recorded as evidence, just
+ *  noted as unconfirmed.
+ *
+ * claim_evidence has a UNIQUE(claim_id, evidence_object_id, evidence_role)
+ * constraint -- one evidence row per claim per source, which matches the
+ * actual shape here (every citation on a proposal points at the same
+ * intake source artifact). So this bundles every citable quote into a
+ * single addEvidence call rather than one call per citation, which a
+ * multi-citation proposal (a person with both a birth and a death quote,
+ * say) would otherwise violate on the second call. */
 function attachCitationClaim(
   claimRepo: ClaimRepository,
   sourceArtifactId: string,
@@ -34,13 +49,18 @@ function attachCitationClaim(
 ): string {
   const claim = claimRepo.create({ statement, claim_type: claimType, subject_object_id: subjectObjectId });
   if (governsObjectId) claimRepo.setGovernedObject(claim.id, governsObjectId);
-  for (const citation of citations) {
-    if (citation.citationStatus !== 'verified') continue;
+
+  const citable = citations.filter((citation) => citation.citationStatus === 'verified' || citation.citationStatus === 'unconfirmed_image');
+  if (citable.length > 0) {
+    const hasUnconfirmed = citable.some((citation) => citation.citationStatus === 'unconfirmed_image');
     claimRepo.addEvidence(claim.id, {
       evidence_object_id: sourceArtifactId,
       evidence_role: 'supports',
-      excerpt: citation.quote,
-      locator: citation.locator ?? null,
+      excerpt: citable.map((citation) => citation.quote).join('\n'),
+      locator: citable.find((citation) => citation.locator)?.locator ?? null,
+      notes: hasUnconfirmed
+        ? 'Transcribed from an image; accepted by reviewer, not mechanically verified against source text.'
+        : undefined,
     });
   }
   return claim.id;
@@ -103,6 +123,11 @@ function reconcileDate(
 export interface CommitResult {
   committed: number;
   conflicts: number;
+  /** The committed source artifact's id, so the caller can kick off
+   *  thumbnail generation for an uploaded-file source -- that's an async
+   *  filesystem+sharp operation that has no place inside the synchronous
+   *  better-sqlite3 transaction above. Null when nothing was committed. */
+  sourceArtifactId: string | null;
 }
 
 /**
@@ -165,8 +190,15 @@ export function commitIntakeItem(intakeItemId: string, userId: string): CommitRe
    *  downstream should take "citationStatus: verified" on faith just because
    *  extraction said so originally. Returns null (and records a conflict)
    *  when nothing in the payload verifies. */
+  // A file-based submission has no source text to substring-match a quote
+  // against -- its citations stay 'unconfirmed_image', same as extraction.ts
+  // marked them originally. Passing '' here instead of null would silently
+  // flip every one of them to 'unverified' and fail every image proposal's
+  // citation check at commit, which is not what re-verifying is for.
+  const sourceTextForVerification = item.source_file_path ? null : item.source_text;
+
   function verifiedPayload<T extends ProposalPayload & { citations: Citation[] }>(proposal: IntakeProposal, payload: T): T | null {
-    const reverified = verifyCitations(payload, item!.source_text);
+    const reverified = verifyCitations(payload, sourceTextForVerification);
     if (!hasVerifiedCitation(reverified)) {
       conflict(proposal, 'citations', JSON.stringify(payload.citations));
       return null;
@@ -179,19 +211,44 @@ export function commitIntakeItem(intakeItemId: string, userId: string): CommitRe
   // visible, evidence-free "Pasted research text" Document behind.
   const hasNonRejectedProposal = proposals.some((proposal) => proposal.decision !== 'reject');
 
+  let sourceArtifactIdResult: string | null = null;
+
   const runCommit = getDatabase().transaction(() => {
     // Only ever read below when hasNonRejectedProposal is true: every loop
     // that uses it `continue`s past a 'reject' decision first.
     let sourceArtifactId: string | undefined;
     if (hasNonRejectedProposal) {
       const sourceArtifact = artifactRepo.create({
-        title: `Pasted research text — ${item.created_at.slice(0, 10)}`,
+        title: item.source_file_original_name
+          ? `Uploaded source — ${item.source_file_original_name}`
+          : `Pasted research text — ${item.created_at.slice(0, 10)}`,
         artifact_type_id: 'artifact_type_document',
-        transcription: item.source_text,
+        transcription: item.source_text || null,
         created_by: userId,
       });
       intakeRepo.setSourceArtifact(intakeItemId, sourceArtifact.id);
       sourceArtifactId = sourceArtifact.id;
+
+      // The staged upload becomes the artifact's file here -- through
+      // MediaRepository, not a raw artifact_files insert, so it also gets a
+      // media_items row under the same id. Without one, a later manual
+      // directory scan (routes/media.ts) would not recognize this file as
+      // already belonging to an artifact and would catalogue it a second
+      // time as an unrelated new one.
+      if (item.source_file_path) {
+        const stats = fs.statSync(item.source_file_path);
+        new MediaRepository().attachFileToExistingArtifact(sourceArtifactId, {
+          filename: path.basename(item.source_file_path),
+          original_filename: item.source_file_original_name ?? path.basename(item.source_file_path),
+          mime_type: item.source_file_mime_type ?? 'application/octet-stream',
+          file_size: stats.size,
+          file_path: item.source_file_path,
+          uploaded_by: userId,
+        });
+        // The artifact owns the file from here on; stop tracking it as a
+        // staged upload against this intake item.
+        intakeRepo.clearSourceFile(intakeItemId);
+      }
     }
 
     const refToPersonId = new Map<string, string>();
@@ -310,11 +367,21 @@ export function commitIntakeItem(intakeItemId: string, userId: string): CommitRe
     }
 
     intakeRepo.markCommitted(intakeItemId);
+    sourceArtifactIdResult = sourceArtifactId ?? null;
   });
 
   runCommit();
 
+  // An all-rejected turn creates no artifact (above), so its staged upload
+  // -- if any -- would otherwise sit in DATA_DIR/intake-uploads forever with
+  // nothing pointing at it. Deleted outside the transaction: filesystem
+  // state was never part of what that transaction could roll back anyway.
+  if (!hasNonRejectedProposal && item.source_file_path) {
+    fs.unlink(item.source_file_path, () => undefined);
+    intakeRepo.clearSourceFile(intakeItemId);
+  }
+
   recordBulk('intake', 'intake_commit', intakeItemId, { committed, conflicts });
 
-  return { committed, conflicts };
+  return { committed, conflicts, sourceArtifactId: sourceArtifactIdResult };
 }

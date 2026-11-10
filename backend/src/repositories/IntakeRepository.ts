@@ -23,12 +23,25 @@ function parseProposal(row: IntakeProposalRow): IntakeProposal {
 }
 
 export class IntakeRepository extends BaseRepository {
-  createItem(data: { created_by: string | null; source_text: string; source_hash: string }): IntakeItem {
+  createItem(data: {
+    created_by: string | null;
+    source_text: string;
+    source_hash: string;
+    source_file_path?: string | null;
+    source_file_mime_type?: string | null;
+    source_file_original_name?: string | null;
+  }): IntakeItem {
     const id = this.generateId();
     this.db.prepare(
-      `INSERT INTO intake_items (id, created_by, source_text, source_hash, created_at)
-       VALUES (?, ?, ?, ?, ?)`,
-    ).run(id, data.created_by, data.source_text, data.source_hash, this.now());
+      `INSERT INTO intake_items (
+        id, created_by, source_text, source_hash,
+        source_file_path, source_file_mime_type, source_file_original_name, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      id, data.created_by, data.source_text, data.source_hash,
+      data.source_file_path ?? null, data.source_file_mime_type ?? null, data.source_file_original_name ?? null,
+      this.now(),
+    );
     return this.findItemById(id)!;
   }
 
@@ -39,6 +52,13 @@ export class IntakeRepository extends BaseRepository {
   /** Most recent first, for the AI Assistant panel's transcript history. */
   findAllItems(limit = 50): IntakeItem[] {
     return this.db.prepare('SELECT * FROM intake_items ORDER BY created_at DESC, id DESC LIMIT ?').all(limit) as IntakeItem[];
+  }
+
+  /** Items left 'pending' or 'extracting' by a process that never came back
+   *  -- same situation ai_jobs sweeps for, and for the same reason: nothing
+   *  will ever resume a setImmediate-deferred call after a restart. */
+  findOrphanedItems(): IntakeItem[] {
+    return this.db.prepare(`SELECT * FROM intake_items WHERE status IN ('pending', 'extracting')`).all() as IntakeItem[];
   }
 
   /** A pending/awaiting-review item with the same source text, so a
@@ -56,6 +76,15 @@ export class IntakeRepository extends BaseRepository {
 
   setSourceArtifact(id: string, sourceArtifactId: string): void {
     this.db.prepare('UPDATE intake_items SET source_artifact_id = ? WHERE id = ?').run(sourceArtifactId, id);
+  }
+
+  /** Called once a staged upload has either become the committed artifact's
+   *  file or been deleted off disk (extraction failure, all-rejected
+   *  commit) -- either way nothing should keep pointing at it afterward. */
+  clearSourceFile(id: string): void {
+    this.db.prepare(
+      `UPDATE intake_items SET source_file_path = NULL, source_file_mime_type = NULL, source_file_original_name = NULL WHERE id = ?`,
+    ).run(id);
   }
 
   setAiJob(id: string, aiJobId: string): void {

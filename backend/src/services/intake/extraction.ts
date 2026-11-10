@@ -98,14 +98,18 @@ const EXTRACTION_SCHEMA = {
   additionalProperties: false,
 };
 
-const SYSTEM_PROMPT = `You are a genealogy research assistant. Read the supplied text and extract
-discrete, citable facts about people: identities, relationships (spouse/parent/child),
-life events (birth, death, marriage, etc.), and any other named fact worth recording.
+const SYSTEM_PROMPT = `You are a genealogy research assistant. Read the supplied source -- which may be
+plain text, or a scanned document/photo/PDF -- and extract discrete, citable facts about
+people: identities, relationships (spouse/parent/child), life events (birth, death,
+marriage, etc.), and any other named fact worth recording.
 
 Rules:
-- Every fact you extract MUST include at least one citation with a verbatim quote from
-  the text that supports it. If you cannot quote the text verbatim to support a fact,
-  omit that fact entirely -- do not guess, infer, or extract anything you can't quote.
+- Every fact you extract MUST include at least one citation with a verbatim excerpt,
+  transcribed exactly as it appears in the source, that supports it. If the source is an
+  image or document, transcribe the relevant words exactly as written/printed, including
+  original spelling -- do not paraphrase or correct it. If you cannot quote the source
+  verbatim to support a fact, omit that fact entirely -- do not guess, infer, or extract
+  anything you can't quote.
 - Every "person" proposal has its own "ref" string (e.g. "person_1"), which you choose.
   personARef/personBRef/personRef/subjectRef on relationship/event/fact proposals must
   match the "ref" of a "person" proposal elsewhere in this same response -- that is how a
@@ -177,22 +181,39 @@ export interface ExtractionResult {
   outputTokens: number;
 }
 
+export interface ExtractionSource {
+  /** Pasted text. May accompany a file (a caption or context note alongside
+   *  an attached photo), or be the only source. */
+  text?: string;
+  /** An uploaded image or PDF (#73 Phase 2). When present, citations cannot
+   *  be substring-verified against anything -- see citationVerification.ts. */
+  file?: { bytes: Buffer; mediaType: string };
+}
+
 /**
- * Runs extraction against the source text, verifies every citation, drops
- * any proposal with no verified citation, and ranks person proposals against
- * the existing tree. What comes back is exactly what gets staged as
- * intake_proposals -- nothing downstream re-checks citations.
+ * Runs extraction against the given source (text, a file, or both), verifies
+ * every citation, drops any proposal with no citable evidence, and ranks
+ * person proposals against the existing tree. What comes back is exactly
+ * what gets staged as intake_proposals -- nothing downstream re-checks
+ * citations.
  */
-export async function extractProposals(sourceText: string): Promise<ExtractionResult> {
+export async function extractProposals(source: ExtractionSource): Promise<ExtractionResult> {
+  if (!source.text && !source.file) throw new LLMProviderError('invalid_response', 'extractProposals requires text or a file.');
+
   const provider = await createLLMProvider();
   const result = await provider.extract<{ proposals: RawExtractedProposal[] }>(
-    { text: sourceText, systemPrompt: SYSTEM_PROMPT },
+    { text: source.text, file: source.file, systemPrompt: SYSTEM_PROMPT },
     EXTRACTION_SCHEMA,
   );
 
+  // No source text to substring-match a quote against once a file is
+  // involved -- citationVerification.ts marks every citation
+  // 'unconfirmed_image' in that case instead of mechanically checking it.
+  const sourceTextForVerification = source.file ? null : (source.text ?? '');
+
   const proposals: RawProposal[] = [];
   for (const raw of result.data.proposals ?? []) {
-    const payload = verifyCitations(toPayload(raw), sourceText);
+    const payload = verifyCitations(toPayload(raw), sourceTextForVerification);
     if (!hasVerifiedCitation(payload)) continue;
 
     if (payload.type === 'person') {

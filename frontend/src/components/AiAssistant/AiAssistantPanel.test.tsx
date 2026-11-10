@@ -114,4 +114,52 @@ describe('AiAssistantPanel', () => {
 
     expect(screen.getAllByText('Same text.')).toHaveLength(1);
   });
+
+  it('submits an attached file as multipart FormData, with no explicit Content-Type, and renders unconfirmed_image citations', async () => {
+    vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob:fake-preview'), revokeObjectURL: vi.fn() });
+
+    const proposal = {
+      id: 'prop-file-1',
+      intake_item_id: 'item-file-1',
+      proposal_type: 'fact',
+      payload: { citations: [{ quote: 'transcribed from the photo', citationStatus: 'unconfirmed_image' }], statement: 'Shown in the photo.', subjectRef: 'person_1' },
+      confidence: null,
+      decision: null,
+      edited_payload: null,
+      committed_object_id: null,
+    };
+
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (url === '/api/v1/intake' && (!init || init.method === undefined)) return jsonOk({ items: [] });
+      if (url === '/api/v1/intake' && init?.method === 'POST') return jsonOk({ intakeItemId: 'item-file-1' });
+      if (url === '/api/v1/intake/item-file-1') {
+        return jsonOk({
+          item: {
+            id: 'item-file-1', source_text: '', status: 'awaiting_review', created_at: '2026-01-01',
+            source_file_path: null, source_file_mime_type: 'image/jpeg', source_file_original_name: 'photo.jpg',
+          },
+          error: null,
+        });
+      }
+      if (url === '/api/v1/intake/item-file-1/proposals') return jsonOk({ proposals: [proposal], conflicts: [] });
+      return jsonErr(404, {});
+    });
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    render(<AiAssistantPanel />);
+    const file = new File(['fake-bytes'], 'photo.jpg', { type: 'image/jpeg' });
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    await userEvent.upload(fileInput, file);
+
+    expect(screen.getByText(/photo\.jpg/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await vi.advanceTimersByTimeAsync(2000);
+
+    const submitCall = fetchMock.mock.calls.find(([url, init]) => url === '/api/v1/intake' && (init as RequestInit)?.method === 'POST');
+    expect(submitCall![1].body).toBeInstanceOf(FormData);
+    expect((submitCall![1] as RequestInit).headers).toBeUndefined();
+
+    expect(await screen.findByText(/from image, verify against the source/i)).toBeInTheDocument();
+  });
 });
