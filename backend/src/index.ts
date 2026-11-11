@@ -15,6 +15,8 @@ import { initializeDatabase, closeDatabase } from './db/connection.js';
 import { runMigrations, hasPendingMigrations } from './db/migrator.js';
 import { applyRetentionPolicy, createPreMigrationBackup, createStartupBackup } from './services/backup.js';
 import { pruneExpiredTokens } from './services/tokenPruning.js';
+import { sweepOrphanedAiJobs } from './services/aiJobs.js';
+import { sweepOrphanedIntakeItems } from './services/intake/sweep.js';
 import { firstRunCheck } from './middleware/firstRun.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -86,6 +88,12 @@ async function start() {
     backfillFamilyLifecycleEvents(db, logger);
 
     pruneExpiredTokens(logger);
+
+    // A process restart mid-LLM-call leaves its ai_jobs row stuck 'running'
+    // forever -- there is no worker to resume it, so mark it failed instead
+    // of leaving a client polling a job that will never move again.
+    sweepOrphanedAiJobs();
+    sweepOrphanedIntakeItems();
 
     // After this boot's backups exist, so they count towards their own caps.
     applyRetentionPolicy(logger);

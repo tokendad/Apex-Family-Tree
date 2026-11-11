@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { verifyAccessToken, type TokenPayload } from '../services/auth.js';
+import { SettingsRepository } from '../repositories/SettingsRepository.js';
 
 declare global {
   // Augmenting Express's Request type requires its namespace; there is no
@@ -28,6 +29,24 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 
   req.user = payload;
   next();
+}
+
+/**
+ * Gates a route on a feature_flags row, which until this existed was
+ * stored and toggleable in Admin Settings but checked nowhere. Flags gated
+ * this way are opt-in, off-by-default switches for features with a real
+ * cost or privacy implication (sending documents to a third-party LLM),
+ * not a deploy-time kill switch -- an admin can flip it back off instantly
+ * if something goes wrong, without a restart.
+ */
+export function requireFlag(key: string) {
+  return (_req: Request, res: Response, next: NextFunction): void => {
+    if (!new SettingsRepository().isFlagEnabled(key)) {
+      res.status(403).json({ error: 'Feature disabled' });
+      return;
+    }
+    next();
+  };
 }
 
 export function requireRole(...roles: string[]) {

@@ -8,6 +8,7 @@ import { AdminRoute } from './components/AdminRoute.js';
 import ErrorBoundary from './components/ErrorBoundary/ErrorBoundary';
 import OfflineBanner from './components/OfflineBanner/OfflineBanner';
 import ModalHost from './components/modals/ModalHost';
+import AiAssistantHost from './components/AiAssistant/AiAssistantHost';
 
 // Lazy-loaded page components
 const TreePage = React.lazy(() => import('./pages/TreePage'));
@@ -86,6 +87,7 @@ function App() {
           <ThemeProvider>
           <PageActionsProvider>
           <ModalHost />
+          <AiAssistantHost />
           <OfflineBanner />
           <Suspense fallback={<LoadingFallback />}>
             <Routes>

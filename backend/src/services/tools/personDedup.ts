@@ -74,7 +74,7 @@ export interface PeopleMergeResult extends PeopleMergePreview {
   mergedPersonIds: string[];
 }
 
-interface PersonFactRow {
+export interface PersonFactRow {
   id: string;
   sex: string | null;
   is_living: number | null;
@@ -167,7 +167,7 @@ function personDisplayNameSql(personIdExpr: string): string {
   )`;
 }
 
-function findPersonFacts(ids?: string[]): PersonFactRow[] {
+export function findPersonFacts(ids?: string[]): PersonFactRow[] {
   const db = getDatabase();
   const where = ids && ids.length > 0 ? `WHERE p.id IN (${ids.map(() => '?').join(',')})` : '';
   return db.prepare(`
@@ -286,7 +286,7 @@ function toSummary(row: PersonFactRow): PeopleDuplicatePersonSummary {
   };
 }
 
-function classifyGroup(rows: PersonFactRow[]): { confidence: PeopleDuplicateConfidence; reasons: string[] } {
+export function classifyGroup(rows: PersonFactRow[]): { confidence: PeopleDuplicateConfidence; reasons: string[] } {
   const normalizedNames = new Set(rows.map((row) => normalizeName(row.given_name, row.surname)).filter(Boolean));
   const soundexNames = new Set(rows.map((row) => nameSoundex(row.given_name, row.surname)));
   const birthYears = new Set(rows.map((row) => yearFromSortKey(row.birth_sort) ?? yearFromDate(row.birth_date)).filter(Boolean));
@@ -320,7 +320,7 @@ function classifyGroup(rows: PersonFactRow[]): { confidence: PeopleDuplicateConf
   return { confidence: 'low', reasons };
 }
 
-function matchScore(rows: PersonFactRow[]): number | null {
+export function matchScore(rows: PersonFactRow[]): number | null {
   if (rows.length < 2) return null;
   const normalizedNames = new Set(rows.map((row) => normalizeName(row.given_name, row.surname)).filter(Boolean));
   const soundexNames = new Set(rows.map((row) => nameSoundex(row.given_name, row.surname)));
@@ -369,7 +369,7 @@ function hasSurname(row: PersonFactRow): boolean {
    name at all falls back to a surname-soundex key so it still gets a chance
    at being compared -- the old exact-match rule covered it; dropping it
    would be a regression, not just a missed improvement. */
-function blockingKey(row: PersonFactRow): string | null {
+export function blockingKey(row: PersonFactRow): string | null {
   const givenKey = soundex(row.given_name ?? '');
   if (givenKey) return `given:${givenKey}`;
   const surnameKey = soundex(row.surname ?? '');
@@ -383,7 +383,7 @@ function blockingKey(row: PersonFactRow): string | null {
      - identical normalized full name (the original exact rule)
      - phonetically identical full name (soundex on given AND surname)
      - same given name where exactly one side has no surname recorded */
-function isCandidatePair(a: PersonFactRow, b: PersonFactRow): boolean {
+export function isCandidatePair(a: PersonFactRow, b: PersonFactRow): boolean {
   const normA = normalizeName(a.given_name, a.surname);
   const normB = normalizeName(b.given_name, b.surname);
   if (!normA || !normB) return false;

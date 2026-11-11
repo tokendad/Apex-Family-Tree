@@ -13,7 +13,7 @@ const logger = createLogger();
 settingsRouter.use(requireRole('admin'));
 
 // Sensitive keys that should be encrypted
-const ENCRYPTED_KEYS = new Set(['smtp_pass']);
+const ENCRYPTED_KEYS = new Set(['smtp_pass', 'llm_api_key']);
 
 // GET /api/v1/admin/settings — Get all settings
 settingsRouter.get('/settings', (_req, res) => {

@@ -58,6 +58,13 @@
   margin: 0 0 var(--space-4) 0;
 }
 
+.sectionHint {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin: calc(-1 * var(--space-2)) 0 var(--space-4) 0;
+  line-height: 1.5;
+}
+
 .fieldGroup {
   display: flex;
   flex-direction: column;

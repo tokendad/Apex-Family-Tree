@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Navbar from './Navbar';
+import { useAiAssistantStore } from '@/stores/aiAssistantStore';
 
 const navigateMock = vi.fn();
 vi.mock('react-router-dom', async (importOriginal) => {
@@ -33,6 +34,14 @@ vi.mock('@/contexts/AuthContext.js', () => ({
 vi.mock('@/components/Avatar/Avatar', () => ({
   default: ({ name }: { name: string }) => <span>{name}</span>,
 }));
+
+// The AI Assistant toggle's feature-flag check (#73) calls /instance on
+// mount; every test here is unrelated to it, so just answer with the flag
+// off rather than letting a real fetch hit an invalid relative URL in jsdom.
+beforeEach(() => {
+  global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ features: { ai_intake: false } }) }) as unknown as typeof fetch;
+  useAiAssistantStore.setState({ open: false });
+});
 
 describe('Navbar role-aware tools navigation', () => {
   beforeEach(() => {
@@ -84,6 +93,23 @@ describe('Navbar archive topbar', () => {
     const input = screen.getByRole('searchbox', { name: /search the archive/i });
     await userEvent.type(input, 'draft letter{Enter}');
     expect(navigateMock).toHaveBeenCalledWith('/search?q=draft%20letter');
+  });
+
+  it('hides the AI Assistant toggle when the ai_intake flag is off', async () => {
+    render(<Navbar />, { wrapper: MemoryRouter });
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/v1/instance'));
+    expect(screen.queryByRole('button', { name: /ai assistant/i })).not.toBeInTheDocument();
+  });
+
+  it('shows the AI Assistant toggle when the ai_intake flag is on, and it opens the panel', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ features: { ai_intake: true } }) }) as unknown as typeof fetch;
+    render(<Navbar />, { wrapper: MemoryRouter });
+
+    const toggle = await screen.findByRole('button', { name: /show ai assistant/i });
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+
+    await userEvent.click(toggle);
+    expect(screen.getByRole('button', { name: /hide ai assistant/i })).toHaveAttribute('aria-pressed', 'true');
   });
 });
 

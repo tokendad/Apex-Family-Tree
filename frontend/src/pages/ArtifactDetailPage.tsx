@@ -376,6 +376,9 @@ const ArtifactDetailPage: React.FC = () => {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [aiTranscriptionEnabled, setAiTranscriptionEnabled] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [transcribeError, setTranscribeError] = useState<string | null>(null);
 
   // ── Identification history: note + optional person pickers, append-only ──
   const [identificationNote, setIdentificationNote] = useState('');
@@ -451,6 +454,16 @@ const ArtifactDetailPage: React.FC = () => {
     setConfidenceLevels(json.data);
   }, []);
 
+  // Issue #75: the Transcribe button is opt-in, off until an admin turns on
+  // both the LLM provider (Admin Settings) and this flag. /instance is the
+  // only endpoint a non-admin can read a flag's state from.
+  const loadAiFeatures = useCallback(async () => {
+    const res = await fetch('/api/v1/instance');
+    if (!res.ok) return;
+    const json = await res.json() as { features?: { ai_transcription?: boolean } };
+    setAiTranscriptionEnabled(Boolean(json.features?.ai_transcription));
+  }, []);
+
   useEffect(() => {
     void loadArtifact();
   }, [loadArtifact]);
@@ -468,6 +481,10 @@ const ArtifactDetailPage: React.FC = () => {
     void loadIdentifications();
     void loadConfidenceLevels();
   }, [loadIdentifications, loadConfidenceLevels]);
+
+  useEffect(() => {
+    void loadAiFeatures();
+  }, [loadAiFeatures]);
 
   const handleSave = async (event: FormEvent) => {
     event.preventDefault();
@@ -493,6 +510,58 @@ const ArtifactDetailPage: React.FC = () => {
       setSaveError(err instanceof Error ? err.message : 'Failed to save artifact');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Issue #75. Writes nothing itself: the result only fills the transcript
+  // textarea's draft, in edit mode, so the existing Save Transcript button
+  // is still the one and only thing that commits it -- the AI never gets a
+  // silent write any more than a manual edit would.
+  const handleTranscribe = async () => {
+    if (!id || !artifact) return;
+    setIsTranscribing(true);
+    setTranscribeError(null);
+    try {
+      const startRes = await fetch(`/api/v1/artifacts/${id}/transcribe`, { method: 'POST' });
+      if (!startRes.ok) {
+        const body = await startRes.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? 'Failed to start transcription');
+      }
+      const { jobId } = await startRes.json() as { jobId: string };
+
+      // Simple interval poll, same shape as the GEDCOM import job status
+      // checks elsewhere in the app -- there is no push channel for job
+      // completion in this backend. ~150 attempts at 2s comfortably outlasts
+      // the provider client's own 120s request timeout plus its retries, so
+      // a slow-but-successful call does not get reported as failed here
+      // while it is still genuinely in flight server-side.
+      let job: { status: string; result_json: string | null; error_message: string | null } | null = null;
+      for (let attempt = 0; attempt < 150; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const jobRes = await fetch(`/api/v1/ai/jobs/${jobId}`);
+        if (!jobRes.ok) throw new Error('Failed to check transcription status');
+        job = await jobRes.json();
+        if (job!.status === 'completed' || job!.status === 'failed') break;
+      }
+      if (job?.status === 'failed') {
+        throw new Error(job.error_message ?? 'Transcription failed');
+      }
+      if (job?.status !== 'completed') {
+        // Still pending/running after the poll window: genuinely unknown,
+        // not a failure -- say so rather than implying the job is dead.
+        throw new Error('Transcription is taking longer than expected. It may still finish — check back in a minute.');
+      }
+
+      const { text, truncated } = JSON.parse(job.result_json!) as { text: string; truncated: boolean };
+      setForm({ ...formFromArtifact(artifact), transcription: text });
+      setTranscriptEditing(true);
+      if (truncated) {
+        setTranscribeError('The transcript was cut off before the document finished — it may be too long. Review the end of it before saving.');
+      }
+    } catch (err) {
+      setTranscribeError(err instanceof Error ? err.message : 'Failed to transcribe');
+    } finally {
+      setIsTranscribing(false);
     }
   };
 
@@ -843,6 +912,7 @@ const ArtifactDetailPage: React.FC = () => {
                         belongs in Notes, on the Details tab.
                       </span>
                     </label>
+                    {transcribeError && <div className={styles.error}>{transcribeError}</div>}
                     {saveError && <div className={styles.error}>{saveError}</div>}
                     <div className={styles.actions}>
                       <Button type="submit" loading={isSaving}>Save Transcript</Button>
@@ -863,12 +933,27 @@ const ArtifactDetailPage: React.FC = () => {
                   <section className={styles.detailCard}>
                     <div className={styles.sectionTitleRow}>
                       <h2>Transcript</h2>
-                      {canEdit && (
-                        <Button variant="ghost" size="sm" onClick={() => setTranscriptEditing(true)}>
-                          {artifact.transcription ? 'Edit' : 'Add Transcript'}
-                        </Button>
-                      )}
+                      <div className={styles.actions}>
+                        {canEdit && aiTranscriptionEnabled && (artifact.files?.length ?? 0) > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={isTranscribing}
+                            loading={isTranscribing}
+                            onClick={() => { void handleTranscribe(); }}
+                          >
+                            Transcribe with AI
+                          </Button>
+                        )}
+                        {canEdit && (
+                          <Button variant="ghost" size="sm" onClick={() => setTranscriptEditing(true)}>
+                            {artifact.transcription ? 'Edit' : 'Add Transcript'}
+                          </Button>
+                        )}
+                      </div>
                     </div>
+
+                    {transcribeError && <div className={styles.error}>{transcribeError}</div>}
 
                     {artifact.transcription ? (
                       <p className={styles.transcriptBody}>{artifact.transcription}</p>
