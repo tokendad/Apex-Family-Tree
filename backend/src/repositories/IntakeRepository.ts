@@ -30,16 +30,23 @@ export class IntakeRepository extends BaseRepository {
     source_file_path?: string | null;
     source_file_mime_type?: string | null;
     source_file_original_name?: string | null;
+    /** Only for a 'suggested' item (#73 Phase 3), whose artifact already
+     *  exists -- a 'manual' item's source_artifact_id is set later, at
+     *  commit, by setSourceArtifact. */
+    source_artifact_id?: string | null;
+    trigger?: IntakeItem['trigger'];
   }): IntakeItem {
     const id = this.generateId();
     this.db.prepare(
       `INSERT INTO intake_items (
         id, created_by, source_text, source_hash,
-        source_file_path, source_file_mime_type, source_file_original_name, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        source_file_path, source_file_mime_type, source_file_original_name,
+        source_artifact_id, trigger, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       id, data.created_by, data.source_text, data.source_hash,
       data.source_file_path ?? null, data.source_file_mime_type ?? null, data.source_file_original_name ?? null,
+      data.source_artifact_id ?? null, data.trigger ?? 'manual',
       this.now(),
     );
     return this.findItemById(id)!;
@@ -59,6 +66,21 @@ export class IntakeRepository extends BaseRepository {
    *  will ever resume a setImmediate-deferred call after a restart. */
   findOrphanedItems(): IntakeItem[] {
     return this.db.prepare(`SELECT * FROM intake_items WHERE status IN ('pending', 'extracting')`).all() as IntakeItem[];
+  }
+
+  /** Artifact ids any intake item already points at -- a 'manual' submission
+   *  that committed and created this artifact, or a prior 'suggested' scan
+   *  of it -- so a later scan doesn't re-suggest an artifact already
+   *  reviewed, and doesn't re-propose the exact same facts from the exact
+   *  same text a human already saw. A 'failed' item is excluded: nothing
+   *  was ever reviewed there (no API key configured, a restart mid-scan),
+   *  so that artifact should be retried on the next scan, not locked out
+   *  permanently by a run that never got anywhere. */
+  findIntakeSourceArtifactIds(): Set<string> {
+    const rows = this.db.prepare(
+      `SELECT DISTINCT source_artifact_id AS id FROM intake_items WHERE source_artifact_id IS NOT NULL AND status != 'failed'`,
+    ).all() as { id: string }[];
+    return new Set(rows.map((row) => row.id));
   }
 
   /** A pending/awaiting-review item with the same source text, so a

@@ -85,7 +85,7 @@ function seedSchema(database: Database.Database) {
 
     CREATE TABLE intake_items (
       id TEXT PRIMARY KEY, created_by TEXT, source_text TEXT NOT NULL, source_artifact_id TEXT,
-      source_hash TEXT NOT NULL, ai_job_id TEXT, status TEXT NOT NULL DEFAULT 'pending',
+      source_hash TEXT NOT NULL, ai_job_id TEXT, status TEXT NOT NULL DEFAULT 'pending', trigger TEXT NOT NULL DEFAULT 'manual',
       source_file_path TEXT, source_file_mime_type TEXT, source_file_original_name TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')), committed_at TEXT
     );
@@ -105,6 +105,21 @@ function seedSchema(database: Database.Database) {
 function seedIntakeItem(status: IntakeItemStatus = 'awaiting_review') {
   const repo = new IntakeRepository();
   const item = repo.createItem({ created_by: 'user-1', source_text: 'John Smith was born in 1920.', source_hash: 'hash1' });
+  repo.setStatus(item.id, status);
+  return { repo, item };
+}
+
+/** A #73 Phase 3 suggestion: the artifact already exists before the intake
+ *  item does, unlike a manual submission's deferred-to-commit artifact. */
+function seedSuggestedIntakeItem(status: IntakeItemStatus = 'awaiting_review') {
+  db.prepare(`INSERT INTO archive_objects (id, object_type, title) VALUES ('existing_artifact', 'artifact', 'Letter from 1920')`).run();
+  db.prepare(`INSERT INTO artifacts (id, artifact_type_id, transcription) VALUES ('existing_artifact', 'artifact_type_document', 'John Smith was born in 1920.')`).run();
+
+  const repo = new IntakeRepository();
+  const item = repo.createItem({
+    created_by: 'user-1', source_text: 'John Smith was born in 1920.', source_hash: 'hash-suggested',
+    source_artifact_id: 'existing_artifact', trigger: 'suggested',
+  });
   repo.setStatus(item.id, status);
   return { repo, item };
 }
@@ -561,5 +576,37 @@ describe('commitIntakeItem', () => {
     expect(result.conflicts).toBe(1);
     const conflicts = repo.findConflictsByItem(item.id);
     expect(conflicts[0].field_name).toBe('subjectRef');
+  });
+
+  it('commits a suggested item against its pre-existing artifact, creating no new artifact (#73 Phase 3)', () => {
+    const { repo, item } = seedSuggestedIntakeItem();
+    const [proposal] = repo.createProposals(item.id, [{
+      proposal_type: 'person',
+      confidence: null,
+      payload: { type: 'person', ref: 'person_1', givenName: 'John', surname: 'Smith', citations: verifiedCitation('John Smith was born in 1920'), matches: [] },
+    }]);
+    repo.recordDecision(proposal.id, 'accept', null);
+
+    const result = commitIntakeItem(item.id, 'user-1');
+
+    expect(result).toEqual({ committed: 1, conflicts: 0, sourceArtifactId: 'existing_artifact' });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM artifacts').get()).toEqual({ n: 1 }); // just the one seeded, none created
+    const evidence = db.prepare('SELECT evidence_object_id FROM claim_evidence').get() as { evidence_object_id: string };
+    expect(evidence.evidence_object_id).toBe('existing_artifact');
+  });
+
+  it('does not create or delete any artifact when every proposal on a suggested item is rejected', () => {
+    const { repo, item } = seedSuggestedIntakeItem();
+    const [proposal] = repo.createProposals(item.id, [{
+      proposal_type: 'person',
+      confidence: null,
+      payload: { type: 'person', ref: 'person_1', givenName: 'John', surname: 'Smith', citations: verifiedCitation('John Smith was born in 1920'), matches: [] },
+    }]);
+    repo.recordDecision(proposal.id, 'reject', null);
+
+    const result = commitIntakeItem(item.id, 'user-1');
+
+    expect(result).toEqual({ committed: 0, conflicts: 0, sourceArtifactId: 'existing_artifact' });
+    expect(db.prepare('SELECT COUNT(*) AS n FROM artifacts').get()).toEqual({ n: 1 }); // the pre-existing artifact survives untouched
   });
 });

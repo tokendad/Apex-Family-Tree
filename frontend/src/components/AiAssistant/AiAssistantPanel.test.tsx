@@ -3,9 +3,16 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AiAssistantPanel from './AiAssistantPanel';
 
+let currentRole: 'admin' | 'editor' = 'editor';
+
+vi.mock('@/contexts/AuthContext.js', () => ({
+  useAuth: () => ({ user: { id: 'user-1', email: 'user@example.test', display_name: 'Test User', role: currentRole } }),
+}));
+
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
+  currentRole = 'editor';
   fetchMock = vi.fn();
   global.fetch = fetchMock as unknown as typeof fetch;
 });
@@ -161,5 +168,69 @@ describe('AiAssistantPanel', () => {
     expect((submitCall![1] as RequestInit).headers).toBeUndefined();
 
     expect(await screen.findByText(/from image, verify against the source/i)).toBeInTheDocument();
+  });
+
+  it('hides the Scan for Suggestions button for a non-admin', async () => {
+    fetchMock.mockImplementation(() => jsonOk({ items: [] }));
+    render(<AiAssistantPanel />);
+    await screen.findByText(/paste research text below/i);
+    expect(screen.queryByRole('button', { name: /scan for suggestions/i })).not.toBeInTheDocument();
+  });
+
+  it('tells the admin when a scan finds nothing new, rather than silently doing nothing', async () => {
+    currentRole = 'admin';
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (url === '/api/v1/intake' && (!init || init.method === undefined)) return jsonOk({ items: [] });
+      if (url === '/api/v1/intake/scan-suggestions' && init?.method === 'POST') return jsonOk({ queued: 0 });
+      return jsonErr(404, {});
+    });
+
+    render(<AiAssistantPanel />);
+    await userEvent.click(await screen.findByRole('button', { name: /scan for suggestions/i }));
+
+    expect(await screen.findByText(/nothing new to scan/i)).toBeInTheDocument();
+  });
+
+  it('shows the Scan for Suggestions button for an admin, and renders a suggested turn distinctly', async () => {
+    currentRole = 'admin';
+    const proposal = {
+      id: 'prop-sugg-1',
+      intake_item_id: 'item-sugg-1',
+      proposal_type: 'fact',
+      payload: { citations: [{ quote: 'John Smith was a sailor', citationStatus: 'verified' }], statement: 'John Smith was a sailor.', subjectRef: 'person_1' },
+      confidence: null,
+      decision: null,
+      edited_payload: null,
+      committed_object_id: null,
+    };
+    let scanned = false;
+
+    fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+      if (url === '/api/v1/intake' && (!init || init.method === undefined)) {
+        return jsonOk({
+          items: scanned
+            ? [{
+                id: 'item-sugg-1', source_text: 'John Smith was a sailor.', status: 'awaiting_review', created_at: '2026-01-01',
+                source_file_path: null, source_file_mime_type: null, source_file_original_name: null,
+                source_artifact_id: 'artifact-1', trigger: 'suggested',
+              }]
+            : [],
+        });
+      }
+      if (url === '/api/v1/intake/scan-suggestions' && init?.method === 'POST') {
+        scanned = true;
+        return jsonOk({ queued: 1 });
+      }
+      if (url === '/api/v1/intake/item-sugg-1/proposals') return jsonOk({ proposals: [proposal], conflicts: [] });
+      return jsonErr(404, {});
+    });
+
+    render(<AiAssistantPanel />);
+    const scanButton = await screen.findByRole('button', { name: /scan for suggestions/i });
+    await userEvent.click(scanButton);
+
+    expect(await screen.findByText('🔍 Suggested')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /from this artifact/i })).toHaveAttribute('href', '/artifacts/artifact-1');
+    expect(await screen.findByText('John Smith was a sailor.')).toBeInTheDocument();
   });
 });

@@ -187,6 +187,25 @@ export class ArtifactRepository extends BaseRepository {
   }
 
   /**
+   * Artifacts with a non-empty transcription, for #73 Phase 3's suggestion
+   * scan to read facts out of. `excludeIds` is every artifact a scan has
+   * already suggested from before (whatever the outcome), so a repeat scan
+   * doesn't keep re-suggesting the same ones.
+   */
+  findWithTranscription(excludeIds: string[], limit: number): { id: string; title: string; transcription: string }[] {
+    const exclusion = excludeIds.length > 0 ? `AND a.id NOT IN (${excludeIds.map(() => '?').join(',')})` : '';
+    return this.db.prepare(
+      `SELECT a.id, ao.title, a.transcription
+       FROM artifacts a
+       INNER JOIN archive_objects ao ON ao.id = a.id
+       WHERE ao.is_deleted = 0 AND a.transcription IS NOT NULL AND TRIM(a.transcription) != ''
+       ${exclusion}
+       ORDER BY ao.id ASC
+       LIMIT ?`,
+    ).all(...excludeIds, limit) as { id: string; title: string; transcription: string }[];
+  }
+
+  /**
    * Artifact count for every type, including types with no artifacts.
    *
    * The LEFT JOIN matters: the filter UI needs to show empty types (and

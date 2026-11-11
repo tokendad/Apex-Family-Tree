@@ -11,6 +11,7 @@ import { handleIntakeUpload } from '../services/uploads.js';
 import { ensureThumbnail } from '../services/thumbnails.js';
 import { extractProposals } from '../services/intake/extraction.js';
 import { commitIntakeItem, IntakeCommitError } from '../services/intake/commitService.js';
+import { scanForSuggestions } from '../services/intake/suggest.js';
 import type { ProposalDecision, ProposalPayload } from '../types/intake.js';
 
 export const intakeRouter = Router();
@@ -33,6 +34,20 @@ function hashSubmission(text: string, filePath?: string): string {
 intakeRouter.get('/', requireRole('admin', 'editor'), requireFlag('ai_intake'), (_req, res) => {
   const items = new IntakeRepository().findAllItems();
   res.json({ items });
+});
+
+// POST /intake/scan-suggestions — #73 Phase 3. Admin-only: this scans
+// (and spends LLM tokens on) up to `limit` existing artifacts at once, a
+// bulk action the same way GEDCOM import/export are, not a per-item action
+// an editor takes on their own work.
+intakeRouter.post('/scan-suggestions', requireRole('admin'), requireFlag('ai_intake'), (req, res) => {
+  try {
+    const limit = typeof req.body?.limit === 'number' && req.body.limit > 0 ? Math.min(req.body.limit, 20) : 5;
+    const result = scanForSuggestions(req.user!.userId, limit);
+    res.status(202).json(result);
+  } catch (error) {
+    res.status(500).json({ error: 'Scan failed: ' + String(error instanceof Error ? error.message : error) });
+  }
 });
 
 // GET /intake/:id — poll status while extraction runs.

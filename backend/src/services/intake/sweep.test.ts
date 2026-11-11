@@ -18,7 +18,7 @@ beforeEach(() => {
   db.exec(`
     CREATE TABLE intake_items (
       id TEXT PRIMARY KEY, created_by TEXT, source_text TEXT NOT NULL, source_artifact_id TEXT,
-      source_hash TEXT NOT NULL, ai_job_id TEXT, status TEXT NOT NULL DEFAULT 'pending',
+      source_hash TEXT NOT NULL, ai_job_id TEXT, status TEXT NOT NULL DEFAULT 'pending', trigger TEXT NOT NULL DEFAULT 'manual',
       source_file_path TEXT, source_file_mime_type TEXT, source_file_original_name TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')), committed_at TEXT
     );

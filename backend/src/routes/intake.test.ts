@@ -117,7 +117,7 @@ function seedSchema(database: Database.Database) {
     );
     CREATE TABLE intake_items (
       id TEXT PRIMARY KEY, created_by TEXT, source_text TEXT NOT NULL, source_artifact_id TEXT,
-      source_hash TEXT NOT NULL, ai_job_id TEXT, status TEXT NOT NULL DEFAULT 'pending',
+      source_hash TEXT NOT NULL, ai_job_id TEXT, status TEXT NOT NULL DEFAULT 'pending', trigger TEXT NOT NULL DEFAULT 'manual',
       source_file_path TEXT, source_file_mime_type TEXT, source_file_original_name TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')), committed_at TEXT
     );
@@ -311,5 +311,41 @@ describe('intake routes', () => {
     const item = (await request(buildApp('editor')).get(`/api/v1/intake/${intakeItemId}`)).body.item;
     expect(item.status).toBe('failed');
     expect(item.source_file_path).toBeNull();
+  });
+
+  describe('POST /intake/scan-suggestions (#73 Phase 3)', () => {
+    beforeEach(() => {
+      db.prepare(`INSERT INTO archive_objects (id, object_type, title) VALUES ('art1', 'artifact', 'Letter')`).run();
+      db.prepare(`INSERT INTO artifacts (id, artifact_type_id, transcription) VALUES ('art1', 'artifact_type_document', 'John Smith was born in 1920.')`).run();
+    });
+
+    it('403s for an editor -- scanning is admin-only', async () => {
+      const res = await request(buildApp('editor')).post('/api/v1/intake/scan-suggestions');
+      expect(res.status).toBe(403);
+    });
+
+    it('queues a suggested intake item per transcribed artifact for an admin', async () => {
+      extractMock.mockResolvedValue({ data: { proposals: [] }, inputTokens: 1, outputTokens: 1 });
+
+      const res = await request(buildApp('admin')).post('/api/v1/intake/scan-suggestions');
+      expect(res.status).toBe(202);
+      expect(res.body).toEqual({ queued: 1 });
+
+      await new Promise((resolve) => setImmediate(resolve));
+
+      const items = (await request(buildApp('admin')).get('/api/v1/intake')).body.items;
+      expect(items).toHaveLength(1);
+      expect(items[0].trigger).toBe('suggested');
+      expect(items[0].source_artifact_id).toBe('art1');
+    });
+
+    it('does not re-queue the same artifact on a second scan', async () => {
+      extractMock.mockResolvedValue({ data: { proposals: [] }, inputTokens: 1, outputTokens: 1 });
+      await request(buildApp('admin')).post('/api/v1/intake/scan-suggestions');
+      await new Promise((resolve) => setImmediate(resolve));
+
+      const second = await request(buildApp('admin')).post('/api/v1/intake/scan-suggestions');
+      expect(second.body).toEqual({ queued: 0 });
+    });
   });
 });

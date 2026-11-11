@@ -214,10 +214,16 @@ export function commitIntakeItem(intakeItemId: string, userId: string): CommitRe
   let sourceArtifactIdResult: string | null = null;
 
   const runCommit = getDatabase().transaction(() => {
-    // Only ever read below when hasNonRejectedProposal is true: every loop
-    // that uses it `continue`s past a 'reject' decision first.
+    // Only ever read below when hasNonRejectedProposal is true (for
+    // 'manual') or always (for 'suggested'): every loop that uses it
+    // `continue`s past a 'reject' decision first.
     let sourceArtifactId: string | undefined;
-    if (hasNonRejectedProposal) {
+    if (item.trigger === 'suggested') {
+      // The artifact already existed before this scan found it -- nothing
+      // to create, and nothing to delete on an all-rejected review either,
+      // since this commit never owned that artifact's existence.
+      sourceArtifactId = item.source_artifact_id ?? undefined;
+    } else if (hasNonRejectedProposal) {
       const sourceArtifact = artifactRepo.create({
         title: item.source_file_original_name
           ? `Uploaded source — ${item.source_file_original_name}`

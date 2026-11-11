@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAiAssistantStore } from '@/stores/aiAssistantStore';
+import { useAuth } from '@/contexts/AuthContext.js';
 import ProposalCard from './ProposalCard';
 import type { IntakeConflict, IntakeItem, IntakeProposal } from './intakeReview';
 import { unresolvedCount } from './intakeReview';
@@ -36,7 +37,21 @@ interface TurnProps {
 /** One past submission, rendered as a chat "turn": the pasted text and/or
  *  attached file, then the assistant's reply as a list of structured
  *  proposal cards (not free-text chat) once extraction finishes. */
-const IntakeTurn: React.FC<TurnProps> = ({ item, pending, error, previewUrl }) => {
+const IntakeTurn: React.FC<TurnProps> = ({ item: initialItem, pending, error, previewUrl }) => {
+  // A manual submission's extraction is actively polled by the parent
+  // (handleSubmit), which owns pendingItemId/errorsByItem for it. A
+  // 'suggested' item (#73 Phase 3) is created by a scan the parent doesn't
+  // track the same way -- several may be queued at once -- so this turn
+  // polls its own status independently until it settles.
+  const [item, setItem] = useState(initialItem);
+  const [selfError, setSelfError] = useState<string | null>(null);
+
+  // The parent actively updates its items array as a manual submission's
+  // extraction resolves (pollIntakeItem) -- that new prop value has to win
+  // here too, or this turn keeps showing its stale initial mount state.
+  useEffect(() => {
+    setItem(initialItem);
+  }, [initialItem]);
   const [proposals, setProposals] = useState<IntakeProposal[]>([]);
   const [conflicts, setConflicts] = useState<IntakeConflict[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -56,6 +71,32 @@ const IntakeTurn: React.FC<TurnProps> = ({ item, pending, error, previewUrl }) =
   useEffect(() => {
     if (item.status === 'awaiting_review' || item.status === 'committed') void loadProposals();
   }, [item.status, loadProposals]);
+
+  useEffect(() => {
+    if (item.trigger !== 'suggested' || (item.status !== 'pending' && item.status !== 'extracting')) return;
+    let cancelled = false;
+    void (async () => {
+      for (let attempt = 0; attempt < 150 && !cancelled; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        const res = await fetch(`/api/v1/intake/${item.id}`);
+        if (!res.ok || cancelled) return;
+        const body = await res.json() as { item: IntakeItem; error: string | null };
+        if (body.item.status === 'awaiting_review') {
+          if (!cancelled) setItem(body.item);
+          return;
+        }
+        if (body.item.status === 'failed') {
+          if (!cancelled) {
+            setItem(body.item);
+            setSelfError(body.error ?? 'Extraction failed');
+          }
+          return;
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.id, item.trigger]);
 
   const decide = async (proposalId: string, decision: 'accept' | 'edit' | 'reject', editedPayload?: Record<string, unknown>) => {
     const res = await fetch(`/api/v1/intake/${item.id}/proposals/${proposalId}`, {
@@ -85,27 +126,41 @@ const IntakeTurn: React.FC<TurnProps> = ({ item, pending, error, previewUrl }) =
   };
 
   const remaining = unresolvedCount(proposals);
+  const selfPending = item.status === 'pending' || item.status === 'extracting';
+  const isPending = pending || (item.trigger === 'suggested' && selfPending);
+  const effectiveError = error ?? selfError;
 
   return (
     <div className={styles.turn}>
-      <div className={styles.userBubble}>
-        {item.source_text && <p className={styles.userBubbleText}>{item.source_text}</p>}
-        {item.source_file_original_name && (
-          <div className={styles.userBubbleFile}>
-            {previewUrl && item.source_file_mime_type?.startsWith('image/') ? (
-              <img src={previewUrl} alt={item.source_file_original_name} className={styles.userBubbleImage} />
-            ) : (
-              <span className={styles.fileChip}>📎 {item.source_file_original_name}</span>
-            )}
-          </div>
-        )}
-      </div>
+      {item.trigger === 'suggested' ? (
+        <div className={styles.suggestedBubble}>
+          <span className={styles.suggestedBadge}>🔍 Suggested</span>
+          {item.source_artifact_id && (
+            <a href={`/artifacts/${item.source_artifact_id}`} className={styles.suggestedLink} target="_blank" rel="noreferrer">
+              from this artifact
+            </a>
+          )}
+        </div>
+      ) : (
+        <div className={styles.userBubble}>
+          {item.source_text && <p className={styles.userBubbleText}>{item.source_text}</p>}
+          {item.source_file_original_name && (
+            <div className={styles.userBubbleFile}>
+              {previewUrl && item.source_file_mime_type?.startsWith('image/') ? (
+                <img src={previewUrl} alt={item.source_file_original_name} className={styles.userBubbleImage} />
+              ) : (
+                <span className={styles.fileChip}>📎 {item.source_file_original_name}</span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className={styles.assistantReply}>
-        {pending && <p className={styles.muted}>Reading the source and looking for citable facts…</p>}
-        {!pending && error && <p className={styles.error}>{error}</p>}
+        {isPending && <p className={styles.muted}>Reading the source and looking for citable facts…</p>}
+        {!isPending && effectiveError && <p className={styles.error}>{effectiveError}</p>}
 
-        {!pending && !error && loaded && proposals.length === 0 && (
+        {!isPending && !effectiveError && loaded && proposals.length === 0 && (
           <p className={styles.muted}>No citable facts found in this source.</p>
         )}
 
@@ -158,6 +213,7 @@ const ACCEPTED_FILE_TYPES = 'image/jpeg,image/png,image/gif,image/webp,applicati
  *  this in; it is otherwise a normal component so it's easy to test. */
 const AiAssistantPanel: React.FC = () => {
   const close = useAiAssistantStore((s) => s.close);
+  const { user } = useAuth();
   const [items, setItems] = useState<IntakeItem[]>([]);
   const [text, setText] = useState('');
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
@@ -166,6 +222,9 @@ const AiAssistantPanel: React.FC = () => {
   const [pendingItemId, setPendingItemId] = useState<string | null>(null);
   const [errorsByItem, setErrorsByItem] = useState<Record<string, string>>({});
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({});
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [scanNotice, setScanNotice] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -253,6 +312,8 @@ const AiAssistantPanel: React.FC = () => {
             source_file_path: null,
             source_file_mime_type: attachedFile?.type ?? null,
             source_file_original_name: attachedFile?.name ?? null,
+            source_artifact_id: null,
+            trigger: 'manual',
           }]));
       setErrorsByItem((prev) => { const { [intakeItemId]: _omit, ...rest } = prev; return rest; });
       setPendingItemId(intakeItemId);
@@ -274,10 +335,45 @@ const AiAssistantPanel: React.FC = () => {
     }
   };
 
+  // #73 Phase 3. Admin-only server-side (the route 403s anyone else), and
+  // the button is hidden for anyone else too rather than shown-then-denied.
+  const handleScan = async () => {
+    setScanning(true);
+    setScanError(null);
+    setScanNotice(null);
+    try {
+      const res = await fetch('/api/v1/intake/scan-suggestions', { method: 'POST' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? 'Scan failed');
+      }
+      const { queued } = await res.json() as { queued: number };
+      if (queued === 0) {
+        setScanNotice('Nothing new to scan — every transcribed artifact has already been reviewed.');
+      }
+      await loadItems();
+    } catch (err) {
+      setScanError(err instanceof Error ? err.message : 'Scan failed');
+    } finally {
+      setScanning(false);
+    }
+  };
+
   return (
     <div className={styles.panel} role="dialog" aria-label="AI Assistant">
       <div className={styles.header}>
         <span className={styles.title}>AI Assistant</span>
+        {user?.role === 'admin' && (
+          <button
+            type="button"
+            className={styles.scanButton}
+            disabled={scanning}
+            onClick={() => void handleScan()}
+            title="Scan existing artifacts with a transcript for facts worth suggesting"
+          >
+            {scanning ? 'Scanning…' : '🔍 Scan for Suggestions'}
+          </button>
+        )}
         <button type="button" className={styles.closeButton} aria-label="Close AI Assistant" onClick={close}>
           ×
         </button>
@@ -303,6 +399,8 @@ const AiAssistantPanel: React.FC = () => {
       </div>
 
       {submitError && <p className={styles.error}>{submitError}</p>}
+      {scanError && <p className={styles.error}>{scanError}</p>}
+      {scanNotice && <p className={styles.muted}>{scanNotice}</p>}
 
       <div className={styles.inputRow}>
         {attachedFile && (

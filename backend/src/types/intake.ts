@@ -80,12 +80,20 @@ export interface IntakeItem {
   /** '' for a file-only submission -- the column stays NOT NULL rather than
    *  needing a table rebuild to make it nullable. */
   source_text: string;
+  /** For 'manual' (#73 Phase 1/2), set only at commit, when the pasted
+   *  text/uploaded file becomes a new archive artifact. For 'suggested'
+   *  (#73 Phase 3), set immediately at scan time -- the artifact already
+   *  existed before this intake item did, so there's nothing to create. */
   source_artifact_id: string | null;
   source_hash: string;
   ai_job_id: string | null;
   status: 'pending' | 'extracting' | 'awaiting_review' | 'committed' | 'cancelled' | 'failed';
   created_at: string;
   committed_at: string | null;
+  /** 'manual': a user pasted text or attached a file. 'suggested' (#73
+   *  Phase 3): an admin-triggered scan over an existing artifact's
+   *  transcription, extracting facts nobody asked to analyze this session. */
+  trigger: 'manual' | 'suggested';
   /** Set when this turn attached a file (#73 Phase 2). source_file_path is a
    *  staged, uncommitted location under DATA_DIR until commit creates the
    *  real artifact from it. */

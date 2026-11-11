@@ -3,6 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AiAssistantHost from './AiAssistantHost';
 import { useAiAssistantStore } from '@/stores/aiAssistantStore';
 
+vi.mock('@/contexts/AuthContext.js', () => ({
+  useAuth: () => ({ user: { id: 'user-1', email: 'user@example.test', display_name: 'Test User', role: 'editor' } }),
+}));
+
 beforeEach(() => {
   global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ items: [] }) }) as unknown as typeof fetch;
   useAiAssistantStore.setState({ open: false });

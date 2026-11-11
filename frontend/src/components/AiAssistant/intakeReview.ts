@@ -39,6 +39,10 @@ export interface IntakeItem {
   source_file_path: string | null;
   source_file_mime_type: string | null;
   source_file_original_name: string | null;
+  source_artifact_id: string | null;
+  /** 'suggested' (#73 Phase 3): an admin-triggered scan over an existing
+   *  artifact, not something the user pasted or attached this session. */
+  trigger: 'manual' | 'suggested';
 }
 
 /** How many proposals in this turn still have no decision -- the commit
