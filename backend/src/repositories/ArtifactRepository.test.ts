@@ -340,4 +340,36 @@ describe('ArtifactRepository', () => {
       expect(repo.listIdentifications(photo.id)[0].identified_person_id).toBeNull();
     });
   });
+
+  describe('findWithTranscription (#73 Phase 3)', () => {
+    it('returns only artifacts with a non-empty transcription', () => {
+      const repo = new ArtifactRepository();
+      const withText = repo.create({ title: 'Letter', artifact_type_id: 'artifact_type_letter', transcription: 'Dear Sir,' });
+      repo.create({ title: 'No transcript', artifact_type_id: 'artifact_type_photo' });
+      repo.create({ title: 'Blank transcript', artifact_type_id: 'artifact_type_letter', transcription: '   ' });
+
+      const candidates = repo.findWithTranscription([], 10);
+
+      expect(candidates).toHaveLength(1);
+      expect(candidates[0].id).toBe(withText.id);
+    });
+
+    it('excludes the given ids', () => {
+      const repo = new ArtifactRepository();
+      const a = repo.create({ title: 'A', artifact_type_id: 'artifact_type_letter', transcription: 'text a' });
+      const b = repo.create({ title: 'B', artifact_type_id: 'artifact_type_letter', transcription: 'text b' });
+
+      const candidates = repo.findWithTranscription([a.id], 10);
+
+      expect(candidates.map((c) => c.id)).toEqual([b.id]);
+    });
+
+    it('respects the limit', () => {
+      const repo = new ArtifactRepository();
+      repo.create({ title: 'A', artifact_type_id: 'artifact_type_letter', transcription: 'text a' });
+      repo.create({ title: 'B', artifact_type_id: 'artifact_type_letter', transcription: 'text b' });
+
+      expect(repo.findWithTranscription([], 1)).toHaveLength(1);
+    });
+  });
 });

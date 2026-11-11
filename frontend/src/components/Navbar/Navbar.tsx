@@ -7,6 +7,7 @@ import ContextActionsMenu from '@/components/archive-object/ContextActionsMenu';
 import SearchSidebar from '@/components/SearchSidebar/SearchSidebar';
 import { hasActiveFilters, useSearchStore } from '@/stores/searchStore';
 import type { SidebarContext } from '@/stores/searchStore';
+import { useAiAssistantStore } from '@/stores/aiAssistantStore';
 import styles from './Navbar.module.css';
 
 const NAV_ITEMS = [
@@ -127,10 +128,33 @@ const Navbar: React.FC = () => {
   const searchContext = Object.entries(contextByPath)
     .find(([path]) => path === '/' ? location.pathname === '/' || location.pathname === '/tree' : location.pathname.startsWith(path))?.[1];
   const filtersActive = hasActiveFilters(searchState, searchContext);
+  const aiAssistantOpen = useAiAssistantStore((s) => s.open);
+  const toggleAiAssistant = useAiAssistantStore((s) => s.toggle);
+  const [aiIntakeEnabled, setAiIntakeEnabled] = useState(false);
 
   useEffect(() => {
     setFiltersOpen(false);
   }, [location.pathname]);
+
+  // #73: the AI Assistant toggle is opt-in, off until an admin turns on both
+  // the LLM provider (Admin Settings) and this flag. /instance is the only
+  // endpoint a non-admin can read a flag's state from.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/v1/instance');
+        if (!res.ok || cancelled) return;
+        const json = await res.json() as { features?: { ai_intake?: boolean } };
+        if (!cancelled) setAiIntakeEnabled(Boolean(json.features?.ai_intake));
+      } catch {
+        // Navbar renders on every page; a network hiccup here just means the
+        // toggle stays hidden, which is the same safe default as the flag
+        // being off.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (!filtersOpen) return;
@@ -200,6 +224,18 @@ const Navbar: React.FC = () => {
             }}
           />
         </div>
+
+        {aiIntakeEnabled && (
+          <button
+            type="button"
+            className={styles.filterButton}
+            aria-pressed={aiAssistantOpen}
+            aria-label={aiAssistantOpen ? 'Hide AI Assistant' : 'Show AI Assistant'}
+            onClick={toggleAiAssistant}
+          >
+            AI Assistant
+          </button>
+        )}
 
         {searchContext && (
           <div className={styles.filterMenu} ref={filterMenuRef}>

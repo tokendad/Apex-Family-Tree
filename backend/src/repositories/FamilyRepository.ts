@@ -319,4 +319,15 @@ export class FamilyRepository extends BaseRepository {
          AND divorce_date IS NULL`
     ).all(personId, personId) as { id: string; spouse1_id: string | null; spouse2_id: string | null; marriage_date: string | null }[];
   }
+
+  /** Every family where personId is a spouse, divorced or not -- a parent's
+   *  family of a divorced couple is still the right place to attach their
+   *  child, so findActiveByPerson's divorce_date filter is wrong here. */
+  findByPerson(personId: string): { id: string; spouse1_id: string | null; spouse2_id: string | null; marriage_date: string | null }[] {
+    return this.db.prepare(
+      `SELECT id, spouse1_id, spouse2_id, marriage_date
+       FROM families
+       WHERE spouse1_id = ? OR spouse2_id = ?`
+    ).all(personId, personId) as { id: string; spouse1_id: string | null; spouse2_id: string | null; marriage_date: string | null }[];
+  }
 }
