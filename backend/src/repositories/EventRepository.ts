@@ -13,18 +13,38 @@ export class EventRepository extends BaseRepository {
     return this.db.prepare('SELECT * FROM events WHERE id = ?').get(id) as Event | undefined;
   }
 
-  findAll(options?: { limit?: number; cursor?: string }): { data: Event[]; next_cursor: string | null } {
+  findAll(options?: { limit?: number; cursor?: string; search?: string }): { data: Event[]; next_cursor: string | null } {
     const limit = options?.limit || 500;
     const conditions: string[] = [];
     const params: unknown[] = [];
 
+    /* One condition per word, matched against the event's own fields and the
+       name of whoever it belongs to -- the same per-word AND that
+       FamilyRepository.findAll uses, so "wake raymond" finds Raymond's wake
+       without needing the words in order or in one field. */
+    if (options?.search?.trim()) {
+      for (const word of options.search.trim().split(/\s+/)) {
+        const term = `%${word}%`;
+        conditions.push(
+          `(e.event_type LIKE ? OR e.event_place LIKE ? OR e.description LIKE ? OR e.event_date LIKE ? OR
+            EXISTS (SELECT 1 FROM names WHERE person_id = e.person_id AND (surname LIKE ? OR given_name LIKE ? OR middle_name LIKE ?)) OR
+            EXISTS (
+              SELECT 1 FROM families fam
+              JOIN names n ON n.person_id IN (fam.spouse1_id, fam.spouse2_id)
+              WHERE fam.id = e.family_id AND (n.surname LIKE ? OR n.given_name LIKE ? OR n.middle_name LIKE ?)
+            ))`
+        );
+        params.push(term, term, term, term, term, term, term, term, term, term);
+      }
+    }
+
     if (options?.cursor) {
-      conditions.push('id > ?');
+      conditions.push('e.id > ?');
       params.push(options.cursor);
     }
 
     const where = conditions.length ? ' WHERE ' + conditions.join(' AND ') : '';
-    const query = `SELECT * FROM events${where} ORDER BY id ASC LIMIT ?`;
+    const query = `SELECT e.* FROM events e${where} ORDER BY e.id ASC LIMIT ?`;
     params.push(limit + 1);
 
     const rows = this.db.prepare(query).all(...params) as Event[];

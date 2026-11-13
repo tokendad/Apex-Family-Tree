@@ -104,8 +104,11 @@ eventsRouter.get('/', (req, res) => {
     const repo = new EventRepository();
     const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 500, 1), 1000);
     const cursor = req.query.cursor as string | undefined;
-    const result = repo.findAll({ limit, cursor });
-    res.json(result);
+    const search = (req.query.q as string | undefined)?.trim() || undefined;
+    const result = repo.findAll({ limit, cursor, search });
+    // The subject lookup is a query per row, so it is only worth paying for
+    // the short, filtered list a search returns -- not the default bulk page.
+    res.json(search ? { ...result, data: result.data.map(withSubject) } : result);
   } catch {
     res.status(500).json({ error: 'Failed to list events' });
   }

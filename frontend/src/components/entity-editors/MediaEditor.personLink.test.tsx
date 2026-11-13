@@ -85,14 +85,14 @@ describe('MediaEditor — connecting a person', () => {
     expect(screen.getByRole('button', { name: /^add$/i })).toBeEnabled();
   });
 
-  /* Family, event and source have no picker yet, so they stay selects -- but
-     switching to one must still give a usable control. */
+  /* Source has no picker yet, so it stays a select -- but switching to it
+     must still give a usable control. */
   it('keeps a list for the link types that have no picker', async () => {
     renderEditor();
 
     await screen.findByRole('button', { name: /select a person/i });
     fireEvent.change(screen.getByRole('combobox', { name: /link type/i }), {
-      target: { value: 'event' },
+      target: { value: 'source' },
     });
 
     expect(screen.getByRole('combobox', { name: /select entity to link/i })).toBeInTheDocument();
@@ -114,11 +114,28 @@ describe('MediaEditor — connecting a person', () => {
     expect(screen.queryByRole('combobox', { name: /select entity to link/i })).not.toBeInTheDocument();
   });
 
+  /* An event used to be a dropdown of every event, sorted only by
+     "Type - date" -- indistinguishable once the tree had more than a
+     handful of wakes or baptisms. It searches by name, type, date and
+     place now, like the other pickers. */
+  it('searches for an event instead of listing every one', async () => {
+    renderEditor();
+
+    await screen.findByRole('button', { name: /select a person/i });
+    fireEvent.change(screen.getByRole('combobox', { name: /link type/i }), {
+      target: { value: 'event' },
+    });
+
+    expect(screen.getByRole('button', { name: /select an event/i })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: /select entity to link/i })).not.toBeInTheDocument();
+  });
+
   it('does not prefetch the whole tree', async () => {
     renderEditor();
 
     await screen.findByRole('button', { name: /select a person/i });
     const urls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.map((c) => String(c[0]));
     expect(urls.some((u) => u.includes('/people?limit=500'))).toBe(false);
+    expect(urls.some((u) => u.includes('/events?limit=500'))).toBe(false);
   });
 });
