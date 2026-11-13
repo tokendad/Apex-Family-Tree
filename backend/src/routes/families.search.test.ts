@@ -49,7 +49,7 @@ beforeEach(() => {
     `CREATE TABLE names (id TEXT PRIMARY KEY, person_id TEXT, given_name TEXT, surname TEXT, is_primary INTEGER, sort_order INTEGER, name_type TEXT, middle_name TEXT, prefix TEXT, suffix TEXT, nickname TEXT, created_at TEXT, updated_at TEXT)`,
     `CREATE TABLE families (id TEXT PRIMARY KEY, spouse1_id TEXT, spouse2_id TEXT, marriage_date TEXT, marriage_date_qualifier TEXT, marriage_date_sort_key TEXT, marriage_place TEXT, divorce_date TEXT, divorce_place TEXT, gedcom_id TEXT, created_at TEXT, updated_at TEXT)`,
     `CREATE TABLE family_members (id TEXT PRIMARY KEY, family_id TEXT, person_id TEXT, role TEXT, sort_order INTEGER, created_at TEXT)`,
-    `CREATE TABLE events (id TEXT PRIMARY KEY, person_id TEXT, family_id TEXT, event_type TEXT, event_date TEXT, event_date_qualifier TEXT, event_date_sort_key INTEGER, event_place TEXT, plot TEXT, description TEXT, source_url TEXT, source_url_checked_at TEXT, created_at TEXT, updated_at TEXT)`,
+    `CREATE TABLE events (id TEXT PRIMARY KEY, person_id TEXT, family_id TEXT, event_type TEXT, event_date TEXT, event_date_qualifier TEXT, event_date_sort_key INTEGER, event_date_end TEXT, event_date_end_sort_key INTEGER, event_place TEXT, plot TEXT, description TEXT, source_url TEXT, source_url_checked_at TEXT, created_at TEXT, updated_at TEXT)`,
     `CREATE TABLE app_settings (key TEXT PRIMARY KEY, value TEXT)`,
   ]) db.exec(sql);
   seed();

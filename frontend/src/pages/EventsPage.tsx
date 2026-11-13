@@ -8,19 +8,19 @@ import PersonPicker from '@/components/entity-pickers/PersonPicker';
 import { EventSourceFields, EventSourceLink, EMPTY_EVENT_SOURCE } from '@/components/EventSource';
 import type { PersonResult } from '@/components/PersonSearch/PersonSearch';
 import { usePermissions } from '@/hooks/usePermissions';
-import { formatEventType, groupedTypeOptions, isAttributeType } from '@/utils/eventTypes';
+import { displayEventDate, formatEventType, groupedTypeOptions, isAttributeType } from '@/utils/eventTypes';
 import PlaceInput from '@/components/entity-pickers/PlaceInput';
 import styles from './ArtifactsPage.module.css';
 import { DATE_INPUT_HINT } from '@/utils/dateInput';
 
-interface EventRecord { id: string; person_id: string | null; family_id: string | null; event_type: string; event_date: string | null; event_place: string | null; plot: string | null; description: string | null; source_url: string | null; source_url_checked_at: string | null }
+interface EventRecord { id: string; person_id: string | null; family_id: string | null; event_type: string; event_date: string | null; event_date_end: string | null; event_place: string | null; plot: string | null; description: string | null; source_url: string | null; source_url_checked_at: string | null }
 
 const EventsPage: React.FC = () => {
   const navigate = useNavigate();
   const { canCreate } = usePermissions();
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [selectedPerson, setSelectedPerson] = useState<PersonResult | null>(null);
-  const [form, setForm] = useState({ event_type: 'custom', event_date: '', event_place: '', plot: '', description: '', ...EMPTY_EVENT_SOURCE });
+  const [form, setForm] = useState({ event_type: 'custom', event_date: '', event_date_end: '', event_place: '', plot: '', description: '', ...EMPTY_EVENT_SOURCE });
   const [showCreate, setShowCreate] = useState(false);
   const [kindFilter, setKindFilter] = useState<'all' | 'events' | 'attributes'>('all');
   const [isLoading, setIsLoading] = useState(true);
@@ -51,7 +51,7 @@ const EventsPage: React.FC = () => {
     const res = await fetch('/api/v1/events', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ person_id: selectedPerson.id, event_type: form.event_type, event_date: form.event_date.trim() || null, event_place: form.event_place.trim() || null, plot: form.plot.trim() || null, description: form.description.trim() || null, source_url: form.source_url.trim() || null, source_url_checked_at: form.source_url_checked_at || null }),
+      body: JSON.stringify({ person_id: selectedPerson.id, event_type: form.event_type, event_date: form.event_date.trim() || null, event_date_end: form.event_date_end.trim() || null, event_place: form.event_place.trim() || null, plot: form.plot.trim() || null, description: form.description.trim() || null, source_url: form.source_url.trim() || null, source_url_checked_at: form.source_url_checked_at || null }),
     });
     if (res.ok) {
       const created = await res.json() as EventRecord;
@@ -82,7 +82,7 @@ const EventsPage: React.FC = () => {
     <AppShell navbar={<Navbar />} context="events">
       <div className={styles.page}>
         <header className={styles.header}><div><p className={styles.eyebrow}>Apex Family Legacy</p><h1>Events</h1><p className={styles.subtitle}>Legacy genealogy events with archive-object identity for connections to places, artifacts, and people.</p></div>{canCreate && <Button onClick={() => setShowCreate((value) => !value)}>{showCreate ? 'Cancel' : 'New Event'}</Button>}</header>
-        {showCreate && <form className={styles.formCard} onSubmit={handleSubmit}><div className={styles.formGrid}><label className={styles.field}><span>Person</span><PersonPicker value={selectedPerson?.id ?? null} onSelect={setSelectedPerson} onClear={() => setSelectedPerson(null)} /></label><label className={styles.field}><span>Type</span><select value={form.event_type} onChange={(e) => setForm({ ...form, event_type: e.target.value })} required><optgroup label="Events">{groupedTypeOptions().events.map(([val, label]) => <option key={val} value={val}>{label}</option>)}</optgroup><optgroup label="Facts &amp; Attributes">{groupedTypeOptions().attributes.map(([val, label]) => <option key={val} value={val}>{label}</option>)}</optgroup></select></label><label className={styles.field}><span>Date</span><Input value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} placeholder={DATE_INPUT_HINT} /></label><label className={styles.field}><span>Place</span><PlaceInput value={form.event_place} onChange={(event_place) => setForm({ ...form, event_place })} /></label><label className={styles.field}><span>Plot</span><Input value={form.plot} onChange={(e) => setForm({ ...form, plot: e.target.value })} placeholder="Lot 482, Garden of Heritage I" /></label></div><label className={styles.field}><span>Description</span><textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} /></label><EventSourceFields idPrefix="events-create" value={form} onChange={(next) => setForm({ ...form, ...next })} /><div className={styles.actions}><Button type="submit">Create Event</Button></div></form>}
+        {showCreate && <form className={styles.formCard} onSubmit={handleSubmit}><div className={styles.formGrid}><label className={styles.field}><span>Person</span><PersonPicker value={selectedPerson?.id ?? null} onSelect={setSelectedPerson} onClear={() => setSelectedPerson(null)} /></label><label className={styles.field}><span>Type</span><select value={form.event_type} onChange={(e) => setForm({ ...form, event_type: e.target.value })} required><optgroup label="Events">{groupedTypeOptions().events.map(([val, label]) => <option key={val} value={val}>{label}</option>)}</optgroup><optgroup label="Facts &amp; Attributes">{groupedTypeOptions().attributes.map(([val, label]) => <option key={val} value={val}>{label}</option>)}</optgroup></select></label><label className={styles.field}><span>Date</span><Input value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} placeholder={DATE_INPUT_HINT} /></label><label className={styles.field}><span>End Date</span><Input value={form.event_date_end} onChange={(e) => setForm({ ...form, event_date_end: e.target.value })} placeholder={DATE_INPUT_HINT} /></label><label className={styles.field}><span>Place</span><PlaceInput value={form.event_place} onChange={(event_place) => setForm({ ...form, event_place })} /></label><label className={styles.field}><span>Plot</span><Input value={form.plot} onChange={(e) => setForm({ ...form, plot: e.target.value })} placeholder="Lot 482, Garden of Heritage I" /></label></div><label className={styles.field}><span>Description</span><textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} /></label><EventSourceFields idPrefix="events-create" value={form} onChange={(next) => setForm({ ...form, ...next })} /><div className={styles.actions}><Button type="submit">Create Event</Button></div></form>}
         {error && <div className={styles.error}>{error}</div>}
         {!isLoading && events.length > 0 && (
           <div className={styles.filterRow} role="group" aria-label="Filter by kind">
@@ -110,7 +110,7 @@ const EventsPage: React.FC = () => {
             {visibleEvents.map((event) => (
               <Link key={event.id} to={`/events/${event.id}`} className={styles.card}>
                 <div className={styles.cardType}>{formatEventType(event.event_type)}</div>
-                <h2>{event.event_date || 'Undated event'}</h2>
+                <h2>{displayEventDate(event) || 'Undated event'}</h2>
                 {event.description && <p>{event.description}</p>}
                 {event.source_url && (
                   <p><EventSourceLink url={event.source_url} checkedAt={event.source_url_checked_at} /></p>

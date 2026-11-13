@@ -96,6 +96,10 @@ export interface Event {
   event_date: string | null;
   event_date_qualifier: string | null;
   event_date_sort_key: number | null;
+  /** The end of a span ("Segment Treater, 1982-1990") or a GEDCOM DATE_PERIOD
+      / DATE_RANGE's second bound. Null for an event with no end (#33). */
+  event_date_end: string | null;
+  event_date_end_sort_key: number | null;
   event_place: string | null;
   /** Where inside the place, for a burial: "Lot 482 (Shrine of the Holy
       Family)". Not part of the address -- a plot does not receive mail. */

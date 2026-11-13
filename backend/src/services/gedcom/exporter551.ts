@@ -1,5 +1,6 @@
 import { getDatabase } from '../../db/connection.js';
 import type { Person, Name, Family, FamilyMember, Event, Source, SourceRepository as SourceRepoType } from '../../types/db.js';
+import { stripFromKeyword } from '../../utils/gedcom-date.js';
 
 const MONTH_ABBR = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
@@ -8,6 +9,31 @@ const MONTH_ABBR = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 
 function formatSex551(sex: string): string {
   if (sex === 'M' || sex === 'F') return sex;
   return 'U';
+}
+
+/**
+ * The GEDCOM DATE_PERIOD form (#33): "FROM x TO y" when a span has both
+ * ends. event_date_end lives in its own column precisely so this can be
+ * recomposed on export rather than re-parsing a string that may already
+ * contain "FROM"/"TO" (an open-ended "FROM x" or "TO y" is never split into
+ * the two columns in the first place -- see EventRepository.resolveEventDates
+ * -- so event_date is passed straight through unchanged for those).
+ *
+ * The same DATE_PERIOD grammar exists in GEDCOM 7.0, so exporter70 reuses
+ * this rather than silently dropping the end the way it would if each
+ * exporter read only event_date.
+ *
+ * stripFromKeyword guards a row from before that splitting rule existed, or
+ * one where only the End field was edited afterwards and event_date was
+ * deliberately left alone: without it, an event_date that already reads
+ * "FROM 1982" recomposes as "FROM FROM 1982 TO 1990".
+ */
+export function formatEventDate(event: Pick<Event, 'event_date' | 'event_date_end'>): string | null {
+  if (event.event_date_end) {
+    const start = stripFromKeyword(event.event_date);
+    return start ? `FROM ${start} TO ${event.event_date_end}` : `TO ${event.event_date_end}`;
+  }
+  return event.event_date || null;
 }
 
 function getGivenNames(name: Name): string | null {
@@ -202,7 +228,8 @@ export function generateGedcom551(data: ExportData): string {
       // bare tag and come back indistinguishable.
       const evenType = EVEN_TYPE_NAMES[event.event_type];
       if (tag === 'EVEN' && evenType) lines.push(`2 TYPE ${evenType}`);
-      if (event.event_date) lines.push(`2 DATE ${event.event_date}`);
+      const eventDate = formatEventDate(event);
+      if (eventDate) lines.push(`2 DATE ${eventDate}`);
       if (event.event_place) lines.push(`2 PLAC ${event.event_place}`);
       // A plot is where in the cemetery the person lies, which neither 5.5.1
       // nor 7.0 has a tag for -- there is no PLOT, and no registered extension

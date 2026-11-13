@@ -12,6 +12,7 @@ import Button from '@/components/Button/Button';
 import Input from '@/components/Form/Input';
 import PersonPicker from '@/components/entity-pickers/PersonPicker';
 import FamilyPicker from '@/components/entity-pickers/FamilyPicker';
+import EventPicker from '@/components/entity-pickers/EventPicker';
 import MediaBulkLink from '@/components/media/MediaBulkLink';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useSearchStore } from '@/stores/searchStore';
@@ -34,11 +35,6 @@ interface MediaItem {
   uploaded_by: string;
   is_external: number;
   created_at: string;
-}
-
-interface LinkOption {
-  id: string;
-  label: string;
 }
 
 type MediaFilter = 'all' | 'unlinked';
@@ -241,7 +237,6 @@ const MediaPage: React.FC = () => {
   const [uploadPersonId, setUploadPersonId] = useState('');
   const [uploadFamilyId, setUploadFamilyId] = useState('');
   const [uploadEventId, setUploadEventId] = useState('');
-  const [eventOptions, setEventOptions] = useState<LinkOption[]>([]);
 
   // ── Gallery filter & scan state ───────────────────────────────────────────
   const [mediaFilter, setMediaFilter] = useState<MediaFilter>('all');
@@ -357,34 +352,6 @@ const MediaPage: React.FC = () => {
     setUploadError(null);
     setUploadProgress(0);
     setShowUpload(true);
-    fetchLinkOptions();
-  };
-
-  const fetchLinkOptions = async () => {
-    try {
-      /* Neither people nor families are prefetched: their pickers search the
-         server as you type. The old ?limit=500 both capped the list and
-         offered it in whatever order the API returned, which is insertion
-         order. */
-      const [eventsRes] = await Promise.all([
-        fetch('/api/v1/events?limit=500', { credentials: 'include' }),
-      ]);
-
-      if (eventsRes.ok) {
-        const data = await eventsRes.json();
-        const items = data.data ?? data.events ?? [];
-        setEventOptions(
-          items
-            .map((e: Record<string, unknown>) => ({
-              id: e.id as string,
-              label: `${(e as Record<string, unknown>).event_type ?? 'Event'} - ${(e as Record<string, unknown>).event_date ?? ''}`.trim(),
-            }))
-            .sort((a: LinkOption, b: LinkOption) => a.label.localeCompare(b.label)),
-        );
-      }
-    } catch {
-      // Options are non-critical — fail silently
-    }
   };
 
   const handleScan = async () => {
@@ -810,29 +777,23 @@ const MediaPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Link to Event */}
-              {eventOptions.length > 0 && (
-                <div className={styles.formField}>
-                  <label className={styles.formLabel} htmlFor="upload-event">
-                    Link to Event{' '}
-                    <span className={styles.formLabelOptional}>(optional)</span>
-                  </label>
-                  <select
-                    id="upload-event"
-                    className={styles.formSelect}
-                    value={uploadEventId}
-                    onChange={(e) => setUploadEventId(e.target.value)}
-                    disabled={isUploading}
-                  >
-                    <option value="">— None —</option>
-                    {eventOptions.map((ev) => (
-                      <option key={ev.id} value={ev.id}>
-                        {ev.label}
-                      </option>
-                    ))}
-                  </select>
+              {/* Link to Event — type-to-search, like person and family.
+                  The list it replaced showed every event as "Type - date",
+                  indistinguishable once the tree had more than a handful of
+                  wakes or baptisms. */}
+              <div className={styles.formField}>
+                <label className={styles.formLabel} id="upload-event-label">
+                  Link to Event{' '}
+                  <span className={styles.formLabelOptional}>(optional)</span>
+                </label>
+                <div aria-labelledby="upload-event-label">
+                  <EventPicker
+                    value={uploadEventId || null}
+                    onSelect={(event) => setUploadEventId(event.id)}
+                    onClear={() => setUploadEventId('')}
+                  />
                 </div>
-              )}
+              </div>
 
               {/* Upload progress */}
               {isUploading && (

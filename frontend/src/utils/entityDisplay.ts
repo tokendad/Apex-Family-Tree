@@ -41,3 +41,17 @@ export function getFamilyDisplayName(f: {
     .map(getPersonDisplayName);
   return parts.length > 0 ? parts.join(' & ') : 'Unknown Family';
 }
+
+/**
+ * Who an event belongs to — the name EventPicker shows next to the event
+ * type, so "Wake" rows for different people read as different events instead
+ * of all collapsing to the same type-and-date string.
+ */
+export function getEventSubjectName(e: {
+  person: PersonNameParts | null;
+  family: { spouse1: PersonNameParts | null; spouse2: PersonNameParts | null } | null;
+}): string {
+  if (e.person) return getPersonDisplayName(e.person);
+  if (e.family) return getFamilyDisplayName(e.family);
+  return '';
+}

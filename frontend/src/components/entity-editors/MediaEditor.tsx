@@ -4,6 +4,7 @@ import Input from '@/components/Form/Input';
 import MediaPersonTagger from '@/components/MediaPersonTagger/MediaPersonTagger';
 import PersonPicker from '@/components/entity-pickers/PersonPicker';
 import FamilyPicker from '@/components/entity-pickers/FamilyPicker';
+import EventPicker from '@/components/entity-pickers/EventPicker';
 import { usePermissions } from '@/hooks/usePermissions';
 import type { ModalEditorProps, ModalResult } from '@/components/modals/modalTypes';
 import styles from './MediaEditor.module.css';
@@ -230,7 +231,6 @@ const MediaEditor: React.FC<MediaEditorProps> = ({
   const [addLinkType, setAddLinkType] = useState<'person' | 'family' | 'event' | 'source'>('person');
   const [addLinkId, setAddLinkId] = useState('');
 
-  const [eventOptions, setEventOptions] = useState<LinkOption[]>([]);
   const [sourceOptions, setSourceOptions] = useState<LinkOption[]>([]);
 
   // ── Fetch links ──────────────────────────────────────────────────────────
@@ -258,25 +258,13 @@ const MediaEditor: React.FC<MediaEditorProps> = ({
   useEffect(() => {
     const load = async () => {
       try {
-        /* Neither people nor families are prefetched: their pickers search
-           the server as you type. ?limit=500 both capped the list and offered
-           it in whatever order the API returned, which is insertion order. */
-        const [eventsRes, sourcesRes] = await Promise.all([
-          fetch('/api/v1/events?limit=500', { credentials: 'include' }),
+        /* Neither people, families nor events are prefetched: their pickers
+           search the server as you type. ?limit=500 both capped the list and
+           offered it in whatever order the API returned, which is insertion
+           order. */
+        const [sourcesRes] = await Promise.all([
           fetch('/api/v1/sources?limit=500', { credentials: 'include' }),
         ]);
-        if (eventsRes.ok) {
-          const data = await eventsRes.json();
-          const items = data.data ?? data.events ?? [];
-          setEventOptions(
-            items
-              .map((e: Record<string, unknown>) => ({
-                id: e.id as string,
-                label: `${(e.event_type as string | undefined) ?? 'Event'} - ${(e.event_date as string | undefined) ?? ''}`.trim(),
-              }))
-              .sort((a: LinkOption, b: LinkOption) => a.label.localeCompare(b.label)),
-          );
-        }
         if (sourcesRes.ok) {
           const data = await sourcesRes.json();
           const items = data.data ?? data.sources ?? [];
@@ -597,10 +585,10 @@ const MediaEditor: React.FC<MediaEditorProps> = ({
                 <option value="event">Event</option>
                 <option value="source">Source</option>
               </select>
-              {/* A person and a family are found by typing, the way the
-                  upload dialog does it. Events and sources are still lists,
-                  because there is no picker for them yet -- they are at least
-                  sorted, and they read as words rather than ids. */}
+              {/* A person, a family and an event are found by typing, the
+                  way the upload dialog does it. Source is still a list,
+                  because there is no picker for it yet -- it is at least
+                  sorted, and it reads as a word rather than an id. */}
               {addLinkType === 'person' ? (
                 <div className={styles.personPickerCell}>
                   <PersonPicker
@@ -617,6 +605,14 @@ const MediaEditor: React.FC<MediaEditorProps> = ({
                     onClear={() => setAddLinkId('')}
                   />
                 </div>
+              ) : addLinkType === 'event' ? (
+                <div className={styles.personPickerCell}>
+                  <EventPicker
+                    value={addLinkId || null}
+                    onSelect={(event) => setAddLinkId(event.id)}
+                    onClear={() => setAddLinkId('')}
+                  />
+                </div>
               ) : (
                 <select
                   className={styles.select}
@@ -625,9 +621,6 @@ const MediaEditor: React.FC<MediaEditorProps> = ({
                   aria-label="Select entity to link"
                 >
                   <option value="">Select…</option>
-                  {addLinkType === 'event' && eventOptions.map((o) => (
-                    <option key={o.id} value={o.id}>{o.label}</option>
-                  ))}
                   {addLinkType === 'source' && sourceOptions.map((o) => (
                     <option key={o.id} value={o.id}>{o.label}</option>
                   ))}

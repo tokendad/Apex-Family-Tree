@@ -13,7 +13,7 @@ import PlaceInput from '@/components/entity-pickers/PlaceInput';
 import { useModal } from '@/components/modals/useModal';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
 import { objectPath } from '@/utils/objectPath';
-import { formatEventType, isAttributeType, payloadLabel } from '@/utils/eventTypes';
+import { formatEventType, isAttributeType, payloadLabel, displayEventDate } from '@/utils/eventTypes';
 import { EventSourceFields, EventSourceLink, EMPTY_EVENT_SOURCE } from '@/components/EventSource';
 import styles from '@/components/archive-object/ArchiveDetailPage.module.css';
 import { DATE_INPUT_HINT } from '@/utils/dateInput';
@@ -33,6 +33,7 @@ interface EventRecord {
   family_id: string | null;
   event_type: string;
   event_date: string | null;
+  event_date_end: string | null;
   event_place: string | null;
   plot: string | null;
   description: string | null;
@@ -55,6 +56,7 @@ interface MediaItem {
 function mediaName(item: MediaItem): string {
   return item.title?.trim() || item.original_filename || item.filename || `Media ${item.id.slice(0, 8)}`;
 }
+
 
 interface ConnectedObject {
   relationship_id: string;
@@ -135,7 +137,7 @@ const EventDetailPage: React.FC = () => {
   const { canEdit, canDelete } = usePermissions();
   const { openModal } = useModal();
   const [event, setEvent] = useState<EventRecord | null>(null);
-  const [form, setForm] = useState({ event_type: '', event_date: '', event_place: '', plot: '', description: '', ...EMPTY_EVENT_SOURCE });
+  const [form, setForm] = useState({ event_type: '', event_date: '', event_date_end: '', event_place: '', plot: '', description: '', ...EMPTY_EVENT_SOURCE });
   const [connected, setConnected] = useState<ConnectedObject[]>([]);
   /* Media hangs off an event through event_media, which is older than the
      archive relationship graph and separate from it. Nothing on this page
@@ -160,7 +162,7 @@ const EventDetailPage: React.FC = () => {
       if (!res.ok) throw new Error('Event not found');
       const json = await res.json() as EventRecord;
       setEvent(json);
-      setForm({ event_type: json.event_type, event_date: json.event_date ?? '', event_place: json.event_place ?? '', plot: json.plot ?? '', description: json.description ?? '', source_url: json.source_url ?? '', source_url_checked_at: json.source_url_checked_at ?? '' });
+      setForm({ event_type: json.event_type, event_date: json.event_date ?? '', event_date_end: json.event_date_end ?? '', event_place: json.event_place ?? '', plot: json.plot ?? '', description: json.description ?? '', source_url: json.source_url ?? '', source_url_checked_at: json.source_url_checked_at ?? '' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load event');
     } finally {
@@ -200,7 +202,7 @@ const EventDetailPage: React.FC = () => {
   const handleSave = async (eventArg: FormEvent) => {
     eventArg.preventDefault();
     if (!id) return;
-    const res = await fetch(`/api/v1/events/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_type: form.event_type, event_date: form.event_date.trim() || null, event_place: form.event_place.trim() || null, plot: form.plot.trim() || null, description: form.description.trim() || null, source_url: form.source_url.trim() || null, source_url_checked_at: form.source_url_checked_at || null }) });
+    const res = await fetch(`/api/v1/events/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event_type: form.event_type, event_date: form.event_date.trim() || null, event_date_end: form.event_date_end.trim() || null, event_place: form.event_place.trim() || null, plot: form.plot.trim() || null, description: form.description.trim() || null, source_url: form.source_url.trim() || null, source_url_checked_at: form.source_url_checked_at || null }) });
     if (res.ok) {
       const updated = await res.json() as EventRecord;
       setEvent(updated);
@@ -268,13 +270,13 @@ const EventDetailPage: React.FC = () => {
             <ArchiveObjectLayout
               breadcrumb={<><Link to="/events">Events</Link> / Archive Profile</>}
               title={eventTitle}
-              subtitle={[event.event_date ?? 'Undated', event.event_place, event.plot].filter(Boolean).join(' • ')}
+              subtitle={[displayEventDate(event) ?? 'Undated', event.event_place, event.plot].filter(Boolean).join(' • ')}
               summary={event.description}
               avatar={<span>◆</span>}
               stats={[
                 { label: 'Connections', value: connected.length + media.length },
                 { label: 'Media', value: media.length },
-                { label: 'Date', value: event.event_date ?? '—' },
+                { label: 'Date', value: displayEventDate(event) ?? '—' },
               ]}
               tabs={[
                 { id: 'overview', label: 'Overview' },
@@ -299,6 +301,14 @@ const EventDetailPage: React.FC = () => {
                         <label className={styles.field}>
                           <span>Date</span>
                           <Input value={form.event_date} onChange={(e) => setForm({ ...form, event_date: e.target.value })} placeholder={DATE_INPUT_HINT} />
+                        </label>
+                        <label className={styles.field}>
+                          <span>End Date</span>
+                          <Input
+                            value={form.event_date_end}
+                            onChange={(e) => setForm({ ...form, event_date_end: e.target.value })}
+                            placeholder={DATE_INPUT_HINT}
+                          />
                         </label>
                         <label className={styles.field}>
                           <span>Place Text</span>
@@ -334,7 +344,7 @@ const EventDetailPage: React.FC = () => {
                           label={isAttributeType(event.event_type) ? 'Attribute' : 'Event Type'}
                           value={formatEventType(event.event_type)}
                         />
-                        <InfoRow label="Date" value={event.event_date} />
+                        <InfoRow label="Date" value={displayEventDate(event)} />
                         <InfoRow label="Place Text" value={event.event_place} />
                         <InfoRow label="Plot" value={event.plot} />
                         <InfoRow

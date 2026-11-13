@@ -45,6 +45,8 @@ function seedSchema(database: Database.Database) {
       event_date TEXT,
       event_date_qualifier TEXT,
       event_date_sort_key INTEGER,
+      event_date_end TEXT,
+      event_date_end_sort_key INTEGER,
       event_place TEXT,
       description TEXT,
       source_url TEXT,

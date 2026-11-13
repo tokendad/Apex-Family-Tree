@@ -95,6 +95,24 @@ export function payloadLabel(eventType: string): string {
   return isAttributeType(eventType) ? 'Value' : 'Description';
 }
 
+/**
+ * The date a reader sees, span-aware (#33): "1982–1990" when both ends are
+ * known, "to 1990" when only the end is. event_date never carries a span's
+ * end past the API boundary -- event_date_end is where it lives now -- so
+ * reading event_date alone here would quietly stop showing one.
+ *
+ * Strips a leading FROM the same way the backend's export composer does: a
+ * one-sided "FROM 1982" is stored verbatim rather than split (there is
+ * nothing to put in event_date_end), so an event that later gets an end
+ * added through its own field still carries the keyword here.
+ */
+export function displayEventDate(event: { event_date: string | null; event_date_end?: string | null }): string | null {
+  const start = event.event_date ? event.event_date.replace(/^FROM\s+/i, '').trim() || null : null;
+  if (start && event.event_date_end) return `${start}–${event.event_date_end}`;
+  if (event.event_date_end) return `to ${event.event_date_end}`;
+  return event.event_date;
+}
+
 interface TypedEvent {
   event_type: string;
 }

@@ -78,14 +78,15 @@ describe('EventsPage — the burial plot', () => {
 
   /* The parser understands four shapes and keeps anything else verbatim,
      half-read. The field has to say which one it wants, or "Nov 29 1990"
-     sorts to the start of 1990 with nothing on screen to explain it. */
+     sorts to the start of 1990 with nothing on screen to explain it. Both
+     Date and End Date (#33) carry the same hint. */
   it('says what shape a date should be', async () => {
     renderPage();
     await waitFor(() => expect(screen.getByText('Burial')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: /new event/i }));
 
-    expect(screen.getByPlaceholderText(/YYYY-MM-DD/)).toBeInTheDocument();
+    expect(screen.getAllByPlaceholderText(/YYYY-MM-DD/).length).toBeGreaterThanOrEqual(1);
   });
 
   it('sends the plot it was given', async () => {
