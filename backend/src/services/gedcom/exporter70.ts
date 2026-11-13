@@ -1,4 +1,4 @@
-import type { ExportData } from './exporter551.js';
+import { formatEventDate, type ExportData } from './exporter551.js';
 import type { Name } from '../../types/db.js';
 
 const MONTH_ABBR = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
@@ -125,7 +125,8 @@ export function generateGedcom70(data: ExportData): string {
       // bare tag and come back indistinguishable.
       const evenType = EVEN_TYPE_NAMES[event.event_type];
       if (tag === 'EVEN' && evenType) lines.push(`2 TYPE ${evenType}`);
-      if (event.event_date) lines.push(`2 DATE ${event.event_date}`);
+      const eventDate = formatEventDate(event);
+      if (eventDate) lines.push(`2 DATE ${eventDate}`);
       if (event.event_place) lines.push(`2 PLAC ${event.event_place}`);
       // A plot is where in the cemetery the person lies, which neither 5.5.1
       // nor 7.0 has a tag for -- there is no PLOT, and no registered extension

@@ -9,6 +9,21 @@ import { getDatabase } from '../../db/connection.js';
 import type { ImportConflict } from '../../types/db.js';
 import { buildMergeAnalysis, type MergeAnalysis } from './mergeAnalysis.js';
 import { coupleKey, sourceKey, type MatchPersonInput } from './matcher.js';
+import { formatEventDate } from './exporter551.js';
+
+/**
+ * Normalises a date string for dedup matching only (#33), never for storage
+ * or display. A re-import comparing the stored side's recomposed date
+ * against the incoming GEDCOM text verbatim is exact-string and case/space
+ * sensitive in a way nothing about the file format guarantees -- another
+ * program, or a hand-edited re-export, can write "From 1982 to 1990" or
+ * collapse whitespace differently and still mean the same span, so matching
+ * on the raw text would create a duplicate on a re-import that round-tripped
+ * through anything else.
+ */
+function normalizeDateForMatch(date: string | null): string {
+  return (date ?? '').trim().toUpperCase().replace(/\s+/g, ' ');
+}
 
 export interface ImportStats {
   persons: number;
@@ -606,10 +621,15 @@ export function processImport(jobId: string, content: string, userId: string, mo
             // are not duplicated.
             const existingEvents = eventRepo.findByPerson(candidateId);
 
-            // Add incoming events not already present (match by event_type + event_date)
+            // Add incoming events not already present (match by event_type + event_date).
+            // formatEventDate, not e.event_date directly: a fully-bounded span is split
+            // across event_date/event_date_end on create (#33), so the raw column no
+            // longer equals the "FROM x TO y" string a re-import of the same file sends --
+            // comparing columns straight would create a duplicate on every re-import.
             for (const incomingEvent of person.events) {
               const alreadyPresent = existingEvents.some(
-                (e) => e.event_type === incomingEvent.eventType && e.event_date === (incomingEvent.date ?? null),
+                (e) => e.event_type === incomingEvent.eventType
+                  && normalizeDateForMatch(formatEventDate(e)) === normalizeDateForMatch(incomingEvent.date ?? null),
               );
               if (!alreadyPresent) {
                 eventRepo.create({
@@ -712,7 +732,7 @@ export function processImport(jobId: string, content: string, userId: string, mo
       }
 
       const familyEventKey = (eventType: string, date: string | null, place: string | null, description: string | null) =>
-        [eventType, date ?? '', place ?? '', description ?? ''].join('|');
+        [eventType, normalizeDateForMatch(date), place ?? '', description ?? ''].join('|');
 
       const syncFamilyLifecycleEvent = (
         familyId: string,
@@ -732,9 +752,13 @@ export function processImport(jobId: string, content: string, userId: string, mo
         // without citations, and again in family.events with them. Skipping the
         // duplicate event must not also skip its citations, so they are
         // attached to the event that already exists.
+        // formatEventDate, not event.event_date directly -- see the matching
+        // comment on the person-events loop above: a bounded span is split
+        // across two columns on create, so the raw column alone no longer
+        // equals the "FROM x TO y" string the incoming side still carries.
         const existingByKey = new Map(
           existingEvents.map((event) => [
-            familyEventKey(event.event_type, event.event_date, event.event_place, event.description),
+            familyEventKey(event.event_type, formatEventDate(event), event.event_place, event.description),
             event.id,
           ])
         );

@@ -13,6 +13,8 @@ const event = (eventType: string): Event => ({
   event_date: '29 NOV 1990',
   event_date_qualifier: 'exact',
   event_date_sort_key: null,
+  event_date_end: null,
+  event_date_end_sort_key: null,
   event_place: 'Worcester, Massachusetts',
   plot: null,
   description: null,

@@ -82,4 +82,15 @@ describe('EventRepository.findAll — search', () => {
 
     expect(new EventRepository().findAll({ search: 'corey' }).data.map((e) => e.id)).toEqual([marriage.id]);
   });
+
+  /* #33: a fully-bounded span splits event_date/event_date_end across two
+     columns, so a search matching only the first would silently miss an
+     event by the one year that happens to be its end. */
+  it('finds a span event by its end year, not just its start', () => {
+    const person = createPerson('Raymond LeFort', 'Raymond', 'LeFort');
+    const events = new EventRepository();
+    const occupation = events.create({ person_id: person, event_type: 'occupation', event_date: 'FROM 1982 TO 1990' });
+
+    expect(events.findAll({ search: '1990' }).data.map((e) => e.id)).toEqual([occupation.id]);
+  });
 });

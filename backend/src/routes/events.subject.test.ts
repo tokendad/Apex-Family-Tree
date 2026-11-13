@@ -45,6 +45,7 @@ beforeEach(() => {
     CREATE TABLE events (
       id TEXT PRIMARY KEY, person_id TEXT, family_id TEXT, event_type TEXT,
       event_date TEXT, event_date_qualifier TEXT, event_date_sort_key INTEGER,
+      event_date_end TEXT, event_date_end_sort_key INTEGER,
       event_place TEXT, description TEXT, created_at TEXT, updated_at TEXT
     );
     CREATE TABLE app_settings (key TEXT PRIMARY KEY, value TEXT);

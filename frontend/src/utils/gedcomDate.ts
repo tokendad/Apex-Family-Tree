@@ -69,10 +69,17 @@ function yearsIn(value: string | null | undefined): string[] {
  * The qualifier is read from the stored column rather than sniffed out of the
  * date text, because the column is the authoritative one — the text is what a
  * source happened to say.
+ *
+ * `endValue` is event_date_end (#33): a span's end no longer arrives
+ * embedded in `value` the way a BET...AND range's does, so it has to be
+ * read from its own column. This is the attribute display the issue itself
+ * names as where a missing end is most visible -- an occupation or
+ * residence is almost always a span rather than a moment.
  */
 export function formatYear(
   value: string | null | undefined,
   qualifier?: DateQualifier,
+  endValue?: string | null,
 ): string {
   if (qualifier === 'between') {
     const [from, to] = yearsIn(value);
@@ -82,7 +89,12 @@ export function formatYear(
   }
 
   const year = yearOf(value);
+  const endYear = yearOf(endValue);
+
+  if (year && endYear) return `${year}–${endYear}`;
+  if (endYear) return `to ${endYear}`;
   if (!year) return '';
+
   const prefix = qualifier ? PREFIX[qualifier] : undefined;
   return prefix ? `${prefix} ${year}` : year;
 }

@@ -22,6 +22,7 @@ import type { FamilySummary } from '@/types/genealogy';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
 import { parseResearchSections, type ResearchSection } from '@/utils/researchSections';
 import {
+  displayEventDate,
   formatEventType,
   partitionByKind,
   sortEventsForTimeline,
@@ -52,6 +53,7 @@ interface PersonEvent {
   id: string;
   event_type: string;
   event_date: string | null;
+  event_date_end: string | null;
   /** Comes straight from the events table; the API passes the row through. */
   event_date_qualifier?: DateQualifier;
   /** Numeric YYYYMMDD the backend derives from the GEDCOM date, 0 for unknown parts. */
@@ -1077,7 +1079,7 @@ const PersonDetailPage: React.FC = () => {
      actually carries a marker: an event with no date displays none, and an
      attribute -- an occupation, a religion -- is listed separately and is never
      drawn with one. Offering either would store a link that marks nothing. */
-  const datedEvents = timelineEvents.filter((event) => event.event_date);
+  const datedEvents = timelineEvents.filter((event) => displayEventDate(event));
   const childFamilies = relationships.filter((r) => r.type === 'child_family');
   const parentFamilies = relationships.filter((r) => r.type === 'parent_family');
 
@@ -1324,7 +1326,7 @@ const PersonDetailPage: React.FC = () => {
                             {formatEventType(event.event_type)}
                           </Link>
                           <div className={styles.eventHeaderRight}>
-                            {event.event_date && (() => {
+                            {displayEventDate(event) && (() => {
                               /* A disputed date must not look like a settled
                                  one -- here or on the Timeline. The marker is a
                                  dotted underline plus the level's own pill, so
@@ -1336,7 +1338,7 @@ const PersonDetailPage: React.FC = () => {
                                     className={styles.eventDate}
                                     data-unsettled={governing ? 'true' : undefined}
                                   >
-                                    {event.event_date}
+                                    {displayEventDate(event)}
                                   </span>
                                   {governing && (
                                     <ConfidencePill
@@ -1488,7 +1490,7 @@ const PersonDetailPage: React.FC = () => {
                             {formatEventType(event.event_type)}
                           </Link>
                           <div className={styles.eventHeaderRight}>
-                            {event.event_date && (() => {
+                            {displayEventDate(event) && (() => {
                               /* A disputed date must not look like a settled
                                  one -- here or on the Timeline. The marker is a
                                  dotted underline plus the level's own pill, so
@@ -1500,7 +1502,7 @@ const PersonDetailPage: React.FC = () => {
                                     className={styles.eventDate}
                                     data-unsettled={governing ? 'true' : undefined}
                                   >
-                                    {event.event_date}
+                                    {displayEventDate(event)}
                                   </span>
                                   {governing && (
                                     <ConfidencePill
@@ -1556,14 +1558,15 @@ const PersonDetailPage: React.FC = () => {
                       </span>
                       <span className={styles.infoValue}>
                         {attribute.description || '—'}
-                        {attribute.event_date && (
+                        {(attribute.event_date || attribute.event_date_end) && (
                           // Raw GEDCOM reads "BET 1985 AND 1992" on screen; the
                           // shared helper renders that span as "1985–1992" and
                           // carries the other qualifiers as "abt.", "bef." and
-                          // so on.
+                          // so on. event_date_end is its own column rather than
+                          // embedded text (#33), so it is passed separately.
                           <span className={styles.eventDate}>
                             {' · '}
-                            {formatYear(attribute.event_date, attribute.event_date_qualifier) || attribute.event_date}
+                            {formatYear(attribute.event_date, attribute.event_date_qualifier, attribute.event_date_end) || attribute.event_date}
                           </span>
                         )}
                         {(attribute.event_place || attribute.plot) && (
@@ -2094,7 +2097,7 @@ const PersonDetailPage: React.FC = () => {
                 <option value="">— match by year —</option>
                 {datedEvents.map((event) => (
                   <option key={event.id} value={event.id}>
-                    {formatEventType(event.event_type)} · {event.event_date}
+                    {formatEventType(event.event_type)} · {displayEventDate(event)}
                   </option>
                 ))}
               </Select>

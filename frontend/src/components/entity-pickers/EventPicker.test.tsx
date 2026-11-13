@@ -7,6 +7,7 @@ const events = [
     id: 'e1',
     event_type: 'wake',
     event_date: '12 Jun 2010',
+    event_date_end: null,
     event_place: 'Lefort Funeral Home',
     person: { given_name: 'Raymond', middle_name: 'Earl', surname: 'LeFort' },
     family: null,

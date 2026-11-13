@@ -3,13 +3,14 @@ import Button from '@/components/Button/Button';
 import PersonPicker from '@/components/entity-pickers/PersonPicker';
 import FamilyPicker from '@/components/entity-pickers/FamilyPicker';
 import { getPersonDisplayName, getFamilyDisplayName } from '@/utils/entityDisplay';
-import { formatEventType } from '@/utils/eventTypes';
+import { displayEventDate, formatEventType } from '@/utils/eventTypes';
 import styles from './MediaBulkLink.module.css';
 
 interface SubjectEvent {
   id: string;
   event_type: string;
   event_date: string | null;
+  event_date_end: string | null;
   event_place: string | null;
 }
 
@@ -87,7 +88,7 @@ const MediaBulkLink: React.FC<MediaBulkLinkProps> = ({
   };
 
   const eventLabel = (event: SubjectEvent) =>
-    [formatEventType(event.event_type), event.event_date, event.event_place]
+    [formatEventType(event.event_type), displayEventDate(event), event.event_place]
       .filter(Boolean)
       .join(' — ');
 

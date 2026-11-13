@@ -5,6 +5,7 @@ import Input from '@/components/Form/Input';
 import Select from '@/components/Form/Select';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
 import {
+  displayEventDate,
   formatEventType,
   groupedTypeOptions,
   partitionByKind,
@@ -44,6 +45,7 @@ interface PersonEvent {
   id: string;
   event_type: string;
   event_date: string | null;
+  event_date_end: string | null;
   /** The numeric key the backend derives from the date; what the order is
       actually computed on, since the text may be approximate or unparseable. */
   event_date_sort_key?: number | null;
@@ -219,6 +221,7 @@ const DEFAULT_NAME_FORM = {
 const DEFAULT_EVENT_FORM = {
   event_type: 'birth',
   event_date: '',
+  event_date_end: '',
   event_place: '',
   plot: '',
   description: '',
@@ -682,6 +685,7 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
     setEventEditForm({
       event_type: event.event_type,
       event_date: event.event_date ?? '',
+      event_date_end: event.event_date_end ?? '',
       event_place: event.event_place ?? '',
       plot: event.plot ?? '',
       description: event.description ?? '',
@@ -698,6 +702,7 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
       const body = {
         event_type: eventEditForm.event_type,
         event_date: eventEditForm.event_date || null,
+        event_date_end: eventEditForm.event_date_end || null,
         event_place: eventEditForm.event_place || null,
         plot: eventEditForm.plot || null,
         description: eventEditForm.description || null,
@@ -753,6 +758,7 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
       const body = {
         event_type: addEventForm.event_type,
         event_date: addEventForm.event_date || null,
+        event_date_end: addEventForm.event_date_end || null,
         event_place: addEventForm.event_place || null,
         plot: addEventForm.plot || null,
         description: addEventForm.description || null,
@@ -1343,6 +1349,16 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
                       />
                     </label>
                     <label className={styles.formLabel}>
+                      End Date
+                      <Input
+                        value={eventEditForm.event_date_end}
+                        onChange={(e) =>
+                          setEventEditForm((f) => ({ ...f, event_date_end: e.target.value }))
+                        }
+                        placeholder={DATE_INPUT_HINT}
+                      />
+                    </label>
+                    <label className={styles.formLabel}>
                       Place
                       <Input
                         value={eventEditForm.event_place}
@@ -1416,8 +1432,8 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
                       {formatEventType(event.event_type)}
                     </span>
                     <div className={styles.eventMeta}>
-                      {event.event_date && (
-                        <span className={styles.eventDate}>{event.event_date}</span>
+                      {displayEventDate(event) && (
+                        <span className={styles.eventDate}>{displayEventDate(event)}</span>
                       )}
                       <div className={styles.eventActions}>
                         <button
@@ -1531,6 +1547,14 @@ const PersonEditModal: React.FC<PersonEditModalProps> = ({
                   <Input
                     value={addEventForm.event_date}
                     onChange={(e) => setAddEventForm((f) => ({ ...f, event_date: e.target.value }))}
+                    placeholder={DATE_INPUT_HINT}
+                  />
+                </label>
+                <label className={styles.formLabel}>
+                  End Date
+                  <Input
+                    value={addEventForm.event_date_end}
+                    onChange={(e) => setAddEventForm((f) => ({ ...f, event_date_end: e.target.value }))}
                     placeholder={DATE_INPUT_HINT}
                   />
                 </label>

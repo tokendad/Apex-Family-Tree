@@ -13,6 +13,8 @@ const burial = (plot: string | null): Event => ({
   event_date: '14 MAR 1962',
   event_date_qualifier: 'exact',
   event_date_sort_key: null,
+  event_date_end: null,
+  event_date_end_sort_key: null,
   event_place: "St. John's Cemetery, Worcester, Massachusetts",
   plot,
   description: null,

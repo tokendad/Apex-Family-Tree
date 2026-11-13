@@ -18,7 +18,8 @@ function seedSchema(database: Database.Database) {
     );
     CREATE TABLE events (
       id TEXT PRIMARY KEY, person_id TEXT NOT NULL, event_type TEXT NOT NULL,
-      event_date TEXT, event_date_sort_key INTEGER, event_place TEXT, description TEXT
+      event_date TEXT, event_date_sort_key INTEGER, event_date_end TEXT, event_date_end_sort_key INTEGER,
+      event_place TEXT, description TEXT
     );
     CREATE TABLE families (id TEXT PRIMARY KEY, spouse1_id TEXT, spouse2_id TEXT);
     CREATE TABLE family_members (id TEXT PRIMARY KEY, family_id TEXT, person_id TEXT, role TEXT);

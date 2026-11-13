@@ -13,7 +13,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import PersonPicker from '@/components/entity-pickers/PersonPicker';
 import type { PersonResult } from '@/components/PersonSearch/PersonSearch';
 import { getPersonDisplayName } from '@/utils/entityDisplay';
-import { formatEventType, sortEventsForTimeline } from '@/utils/eventTypes';
+import { displayEventDate, formatEventType, sortEventsForTimeline } from '@/utils/eventTypes';
 import { useModal } from '@/components/modals/useModal';
 import PlaceInput from '@/components/entity-pickers/PlaceInput';
 import archiveStyles from '@/components/archive-object/ArchiveDetailPage.module.css';
@@ -60,6 +60,7 @@ interface FamilyEvent {
   id: string;
   event_type: string;
   event_date: string | null;
+  event_date_end: string | null;
   /** The numeric key the backend derives from the date; what the order is
       actually computed on, since the text may be approximate or unparseable. */
   event_date_sort_key?: number | null;
@@ -219,7 +220,7 @@ const FamilyDetailPage: React.FC = () => {
   const [isAddingChild, setIsAddingChild] = useState(false);
   const [childError, setChildError] = useState<string | null>(null);
 
-  const [eventForm, setEventForm] = useState({ event_type: 'residence', event_date: '', event_place: '', plot: '', description: '', ...EMPTY_EVENT_SOURCE });
+  const [eventForm, setEventForm] = useState({ event_type: 'residence', event_date: '', event_date_end: '', event_place: '', plot: '', description: '', ...EMPTY_EVENT_SOURCE });
   const [isAddingEvent, setIsAddingEvent] = useState(false);
   const [eventError, setEventError] = useState<string | null>(null);
 
@@ -407,6 +408,7 @@ const FamilyDetailPage: React.FC = () => {
           family_id: id,
           event_type: eventForm.event_type,
           event_date: eventForm.event_date.trim() || null,
+          event_date_end: eventForm.event_date_end.trim() || null,
           event_place: eventForm.event_place.trim() || null,
           plot: eventForm.plot.trim() || null,
           description: eventForm.description.trim() || null,
@@ -415,7 +417,7 @@ const FamilyDetailPage: React.FC = () => {
         }),
       });
       if (!res.ok) throw new Error('Failed to add event');
-      setEventForm({ event_type: 'residence', event_date: '', event_place: '', plot: '', description: '', ...EMPTY_EVENT_SOURCE });
+      setEventForm({ event_type: 'residence', event_date: '', event_date_end: '', event_place: '', plot: '', description: '', ...EMPTY_EVENT_SOURCE });
       setDrawerMode(null);
       await fetchFamily();
     } catch (err) {
@@ -826,7 +828,7 @@ const FamilyDetailPage: React.FC = () => {
                           <Link className={styles.eventLink} to={`/events/${event.id}`}>
                             {formatEventType(event.event_type)}
                           </Link>
-                          {event.event_date && <span className={archiveStyles.muted}>{event.event_date}</span>}
+                          {displayEventDate(event) && <span className={archiveStyles.muted}>{displayEventDate(event)}</span>}
                         </div>
                         {(event.event_place || event.plot) && <p className={archiveStyles.muted}>📍 {[event.event_place, event.plot].filter(Boolean).join(' — ')}</p>}
                         {event.description && <p className={archiveStyles.muted}>{event.description}</p>}
@@ -948,6 +950,10 @@ const FamilyDetailPage: React.FC = () => {
         <label className={archiveStyles.field}>
           <span>Date</span>
           <Input value={eventForm.event_date} onChange={(e) => setEventForm({ ...eventForm, event_date: e.target.value })} placeholder={DATE_INPUT_HINT} />
+        </label>
+        <label className={archiveStyles.field}>
+          <span>End Date</span>
+          <Input value={eventForm.event_date_end} onChange={(e) => setEventForm({ ...eventForm, event_date_end: e.target.value })} placeholder={DATE_INPUT_HINT} />
         </label>
         <label className={archiveStyles.field}>
           <span>Place</span>

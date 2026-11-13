@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ATTRIBUTE_TYPES,
   EVENT_TYPE_LABELS,
+  displayEventDate,
   formatEventType,
   groupedTypeOptions,
   isAttributeType,
@@ -101,5 +102,39 @@ describe('eventTypes — database agreement', () => {
     const { events, attributes } = groupedTypeOptions();
     expect(events.map(([type]) => type)).toContain('anniversary');
     expect(attributes.map(([type]) => type)).not.toContain('anniversary');
+  });
+});
+
+/* #33: event_date never carries a span's end past the API boundary once
+   EventRepository splits a bounded span -- event_date_end is where it lives
+   now. A display spot that still read event_date alone would quietly stop
+   showing the end it used to show as part of a verbatim "FROM x TO y". */
+describe('displayEventDate', () => {
+  it('shows both ends of a span', () => {
+    expect(displayEventDate({ event_date: '1982', event_date_end: '1990' })).toBe('1982–1990');
+  });
+
+  it('shows a plain date with no end unchanged', () => {
+    expect(displayEventDate({ event_date: '1982', event_date_end: null })).toBe('1982');
+  });
+
+  it('shows a known end with no known start', () => {
+    expect(displayEventDate({ event_date: null, event_date_end: '1990' })).toBe('to 1990');
+  });
+
+  it('shows nothing for an undated event', () => {
+    expect(displayEventDate({ event_date: null, event_date_end: null })).toBeNull();
+  });
+
+  it('treats a missing event_date_end the same as null', () => {
+    expect(displayEventDate({ event_date: 'FROM 1982' })).toBe('FROM 1982');
+  });
+
+  /* A one-sided "FROM 1982" is stored verbatim rather than split, so adding
+     an end later through its own field leaves event_date still carrying the
+     keyword -- the display must strip it, the same way the backend's
+     export composer does, or it reads "FROM 1982–1990". */
+  it('strips a leading FROM once an end makes the keyword redundant', () => {
+    expect(displayEventDate({ event_date: 'FROM 1982', event_date_end: '1990' })).toBe('1982–1990');
   });
 });

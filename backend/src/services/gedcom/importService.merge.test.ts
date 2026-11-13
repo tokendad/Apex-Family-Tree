@@ -6,6 +6,7 @@ vi.mock('../../db/connection.js', () => ({ getDatabase: () => db }));
 
 const { processImport, analyzeMerge } = await import('./importService.js');
 const { ImportRepository } = await import('../../repositories/ImportRepository.js');
+const { EventRepository } = await import('../../repositories/EventRepository.js');
 
 // ─── Minimal schema copied from backend/src/migrations/ ──────────────────────
 
@@ -55,6 +56,8 @@ CREATE TABLE IF NOT EXISTS events (
   event_date TEXT,
   event_date_qualifier TEXT CHECK (event_date_qualifier IN ('exact', 'about', 'before', 'after', 'between', 'calculated', 'estimated')),
   event_date_sort_key INTEGER,
+  event_date_end TEXT,
+  event_date_end_sort_key INTEGER,
   event_place TEXT,
   plot TEXT,
   description TEXT,
@@ -332,6 +335,45 @@ describe('merge processing', () => {
     expect(analysis.counts.partial).toBe(0);
     expect(analysis.counts.none).toBe(0);
     expect(analysis.persons[0].candidate?.id).toBe('test-margaret-001');
+  });
+
+  /* #33: a fully-bounded span is split across event_date/event_date_end on
+     create, so the stored side no longer equals the "FROM x TO y" text a
+     re-import sends verbatim -- and even if it did, another program (or a
+     hand re-export) is not guaranteed to write the same case or spacing.
+     Either mismatch used to create a duplicate occupation event on every
+     re-import of a file that round-tripped through anything else. */
+  it('does not duplicate a span event on re-import with different case and spacing', () => {
+    const candidateId = seedMargaretNoEvents(db);
+    new EventRepository().create({
+      person_id: candidateId,
+      event_type: 'occupation',
+      event_date: 'FROM 1982 TO 1990',
+    });
+
+    const ged = `0 HEAD
+0 @I1@ INDI
+1 NAME Margaret /Smith/
+1 OCCU Segment Treater
+2 DATE from  1982  to  1990
+0 TRLR
+`;
+    const importRepo = new ImportRepository();
+    const job = importRepo.createJob({ user_id: 'u1', filename: 'span.ged', file_size: ged.length });
+    importRepo.saveMergeDecision({
+      import_job_id: job.id,
+      xref: '@I1@',
+      decision: 'same',
+      candidate_person_id: candidateId,
+      field_resolutions: '{}',
+    });
+
+    processImport(job.id, ged, 'u1', 'merge');
+
+    const occupationEvents = db.prepare(
+      `SELECT COUNT(*) c FROM events WHERE person_id = ? AND event_type = 'occupation'`,
+    ).get(candidateId) as { c: number };
+    expect(occupationEvents.c).toBe(1);
   });
 
   it('field-resolution birthPlace=new does not create a duplicate birth event when candidate has no prior birth event', () => {

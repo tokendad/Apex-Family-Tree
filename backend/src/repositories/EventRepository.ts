@@ -13,6 +13,107 @@ export class EventRepository extends BaseRepository {
     return this.db.prepare('SELECT * FROM events WHERE id = ?').get(id) as Event | undefined;
   }
 
+  /**
+   * Works out what actually goes in event_date / event_date_end (#33).
+   *
+   * A field left `undefined` in the result means "leave this column alone" --
+   * the distinction update() needs so that saving just the End field on an
+   * event that already has a start does not null the start out, and saving
+   * just the start does not erase an end that was set some other way.
+   * create() has no existing row to preserve, so it treats `undefined` here
+   * as "null" instead.
+   *
+   * The branch is chosen on whether `dateEnd` is a real value, not merely
+   * whether the parameter is `undefined` -- the End field editor sends a
+   * literal `null` for "left blank", same as an omitted key would mean for
+   * splitting purposes, and reading that `null` as "the caller is managing
+   * both halves explicitly" fed a bare `date` of "FROM 1982 TO 1990" into
+   * the plain-date parser, which has no FROM/TO branch: three whitespace
+   * tokens read as day, (unmatched month), year, mis-sorting the event.
+   * `undefined` is still tracked separately, purely to decide which columns
+   * update() touches.
+   */
+  private resolveEventDates(
+    date: string | null | undefined,
+    dateEnd: string | null | undefined,
+  ): {
+    date: string | null | undefined;
+    dateEnd: string | null | undefined;
+    qualifier: string | undefined;
+    sortKey: number | null | undefined;
+    endSortKey: number | null | undefined;
+  } {
+    const touchesEnd = dateEnd !== undefined;
+    const hasRealEnd = Boolean(dateEnd);
+
+    if (date !== undefined) {
+      const rawDate = date ?? null;
+
+      if (hasRealEnd) {
+        // A real end was asserted -- a two-field save with both filled in,
+        // or a GEDCOM importer that already split FROM ... TO. The start is
+        // parsed on its own; if it is itself still a period (typed directly
+        // into the Date field, FROM and all), its own start is what is
+        // kept and its own end is discarded in favour of the one the
+        // caller gave explicitly. Parsed as given, not pre-stripped of a
+        // leading FROM first -- stripping it before the isPeriod check is
+        // exactly what stopped "FROM 1982 TO 1990" from being read as a
+        // period at all: left with "1982 TO 1990", a bare three-token date
+        // with no FROM/TO keyword to match, it fell to the plain-date
+        // parser, which mis-read it as day 1982, (unmatched) month, year
+        // 1990.
+        const info = rawDate ? parseGedcomDate(rawDate) : null;
+        const startDate = info?.isPeriod ? info.startRaw : rawDate;
+        const startInfo = info?.isPeriod
+          ? (startDate ? parseGedcomDate(startDate) : null)
+          : info;
+        const endInfo = parseGedcomDate(dateEnd as string);
+        return {
+          date: startDate,
+          dateEnd,
+          qualifier: startInfo?.qualifier ?? 'exact',
+          // The end is a better anchor than nothing when the start alone
+          // carries no sort key -- an End-only save (date left blank) must
+          // not sort last while a single-string "TO 1990" sorts at 1990.
+          sortKey: startInfo?.sortKey || endInfo.sortKey || null,
+          endSortKey: endInfo.sortKey || null,
+        };
+      }
+
+      // No real end asserted. The date text alone decides: a fully-bounded
+      // span splits itself -- including when the caller explicitly cleared
+      // the End field, since "FROM 1982 TO 1990" typed as one string still
+      // means the same span either way. An open-ended "FROM 1982" or
+      // "TO 1990" stays verbatim instead: splitting it would store a start
+      // with no end and an end with no start that look identical to two
+      // different plain dates, and the exporter has no way back to
+      // "FROM"/"TO" from that.
+      const info = rawDate ? parseGedcomDate(rawDate) : null;
+      if (info?.isPeriod && info.startRaw && info.endRaw) {
+        return { date: info.startRaw, dateEnd: info.endRaw, qualifier: info.qualifier, sortKey: info.sortKey || null, endSortKey: info.endSortKey || null };
+      }
+      // A date with no usable start -- "TO 1990" is the one single-string
+      // form that reaches here, since a fully-bounded span was already
+      // returned above -- still has something to order by. Falling all
+      // the way to NULL would bury it at the end of every timeline despite
+      // knowing roughly when it was.
+      const sortKey = info?.sortKey || info?.endSortKey || null;
+      // touchesEnd: the End field was explicitly cleared, so the column
+      // follows; otherwise (create, or an update that never mentioned it)
+      // it is left alone rather than wiped by a save of the start alone.
+      return { date: rawDate, dateEnd: touchesEnd ? null : undefined, qualifier: info?.qualifier ?? 'exact', sortKey, endSortKey: touchesEnd ? null : undefined };
+    }
+
+    // Only the end changed. The start, its qualifier and its sort key are
+    // left alone.
+    if (touchesEnd) {
+      const endInfo = dateEnd ? parseGedcomDate(dateEnd) : null;
+      return { date: undefined, dateEnd: dateEnd || null, qualifier: undefined, sortKey: undefined, endSortKey: endInfo?.sortKey || null };
+    }
+
+    return { date: undefined, dateEnd: undefined, qualifier: undefined, sortKey: undefined, endSortKey: undefined };
+  }
+
   findAll(options?: { limit?: number; cursor?: string; search?: string }): { data: Event[]; next_cursor: string | null } {
     const limit = options?.limit || 500;
     const conditions: string[] = [];
@@ -26,7 +127,7 @@ export class EventRepository extends BaseRepository {
       for (const word of options.search.trim().split(/\s+/)) {
         const term = `%${word}%`;
         conditions.push(
-          `(e.event_type LIKE ? OR e.event_place LIKE ? OR e.description LIKE ? OR e.event_date LIKE ? OR
+          `(e.event_type LIKE ? OR e.event_place LIKE ? OR e.description LIKE ? OR e.event_date LIKE ? OR e.event_date_end LIKE ? OR
             EXISTS (SELECT 1 FROM names WHERE person_id = e.person_id AND (surname LIKE ? OR given_name LIKE ? OR middle_name LIKE ?)) OR
             EXISTS (
               SELECT 1 FROM families fam
@@ -34,7 +135,11 @@ export class EventRepository extends BaseRepository {
               WHERE fam.id = e.family_id AND (n.surname LIKE ? OR n.given_name LIKE ? OR n.middle_name LIKE ?)
             ))`
         );
-        params.push(term, term, term, term, term, term, term, term, term, term);
+        // e.event_date_end, not just e.event_date: a fully-bounded span
+        // (#33) is split across both columns, so "1990" must still find a
+        // "1982" / "1990" occupation event -- the picker search the user
+        // just verified with other events would silently miss any span.
+        params.push(term, term, term, term, term, term, term, term, term, term, term);
       }
     }
 
@@ -97,10 +202,14 @@ export class EventRepository extends BaseRepository {
     for (const event of combined) {
       // source_url is deliberately absent from the key. Two records of the
       // same event that differ only in where they were read are still one
-      // event, and keying on the URL would show both.
+      // event, and keying on the URL would show both. event_date_end is
+      // present (#33): without it, "occupation, 1982" and "occupation,
+      // 1982-1990" collapse into one, silently dropping whichever record
+      // the dedup happened to see second.
       const key = [
         event.event_type,
         event.event_date ?? '',
+        event.event_date_end ?? '',
         event.event_place ?? '',
         event.description ?? '',
       ].join('|');
@@ -121,6 +230,7 @@ export class EventRepository extends BaseRepository {
     family_id?: string;
     event_type: string;
     event_date?: string | null;
+    event_date_end?: string | null;
     event_place?: string | null;
     plot?: string | null;
     description?: string | null;
@@ -133,14 +243,15 @@ export class EventRepository extends BaseRepository {
 
     const id = this.generateId();
     const now = this.now();
-    const dateInfo = data.event_date ? parseGedcomDate(data.event_date) : null;
+    const resolved = this.resolveEventDates(data.event_date, data.event_date_end);
 
     const createEvent = this.db.transaction(() => {
       this.db.prepare(
-        'INSERT INTO events (id, person_id, family_id, event_type, event_date, event_date_qualifier, event_date_sort_key, event_place, plot, description, source_url, source_url_checked_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO events (id, person_id, family_id, event_type, event_date, event_date_qualifier, event_date_sort_key, event_date_end, event_date_end_sort_key, event_place, plot, description, source_url, source_url_checked_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
       ).run(
         id, data.person_id || null, data.family_id || null, data.event_type,
-        data.event_date || null, dateInfo?.qualifier || 'exact', dateInfo?.sortKey || null,
+        resolved.date ?? null, resolved.qualifier ?? 'exact', resolved.sortKey ?? null,
+        resolved.dateEnd ?? null, resolved.endSortKey ?? null,
         data.event_place || null, data.plot || null, data.description || null,
         data.source_url || null, data.source_url_checked_at || null,
         now, now,
@@ -150,7 +261,7 @@ export class EventRepository extends BaseRepository {
         this.archiveObjects.create({
           id,
           object_type: 'event',
-          title: this.eventTitle(data.event_type, data.event_date ?? null),
+          title: this.eventTitle(data.event_type, resolved.date ?? null),
           summary: data.description ?? null,
           privacy_level: 'family',
         });
@@ -202,21 +313,31 @@ export class EventRepository extends BaseRepository {
     });
   }
 
-  update(id: string, data: Partial<Pick<Event, 'event_type' | 'event_date' | 'event_place' | 'plot' | 'description' | 'source_url' | 'source_url_checked_at'>>): Event | undefined {
+  update(id: string, data: Partial<Pick<Event, 'event_type' | 'event_date' | 'event_date_end' | 'event_place' | 'plot' | 'description' | 'source_url' | 'source_url_checked_at'>>): Event | undefined {
     const fields: string[] = [];
     const values: unknown[] = [];
 
     for (const [key, value] of Object.entries(data)) {
+      // event_date and event_date_end are resolved together below: a plain
+      // write-through here would store "FROM 1982 TO 1990" verbatim instead
+      // of splitting it, and would not know to leave the other column alone.
+      if (key === 'event_date' || key === 'event_date_end') continue;
       if (value !== undefined) {
         fields.push(`${key} = ?`);
         values.push(value);
       }
     }
 
-    if (data.event_date !== undefined) {
-      const dateInfo = data.event_date ? parseGedcomDate(data.event_date) : null;
-      fields.push('event_date_qualifier = ?', 'event_date_sort_key = ?');
-      values.push(dateInfo?.qualifier || 'exact', dateInfo?.sortKey || null);
+    if (data.event_date !== undefined || data.event_date_end !== undefined) {
+      const resolved = this.resolveEventDates(data.event_date, data.event_date_end);
+      if (resolved.date !== undefined) {
+        fields.push('event_date = ?', 'event_date_qualifier = ?', 'event_date_sort_key = ?');
+        values.push(resolved.date, resolved.qualifier ?? 'exact', resolved.sortKey ?? null);
+      }
+      if (resolved.dateEnd !== undefined) {
+        fields.push('event_date_end = ?', 'event_date_end_sort_key = ?');
+        values.push(resolved.dateEnd, resolved.endSortKey ?? null);
+      }
     }
 
     if (fields.length === 0) return this.findById(id);

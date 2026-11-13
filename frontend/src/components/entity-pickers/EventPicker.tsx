@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Input from '@/components/Form/Input';
 import { getEventSubjectName, type PersonNameParts } from '@/utils/entityDisplay';
-import { formatEventType } from '@/utils/eventTypes';
+import { displayEventDate, formatEventType } from '@/utils/eventTypes';
 import styles from './EventPicker.module.css';
 
 export interface EventResult {
   id: string;
   event_type: string;
   event_date: string | null;
+  event_date_end: string | null;
   event_place: string | null;
   person: PersonNameParts | null;
   family: { spouse1: PersonNameParts | null; spouse2: PersonNameParts | null } | null;
@@ -100,7 +101,7 @@ const EventPicker: React.FC<EventPickerProps> = ({ label, value, onSelect, onCle
   };
 
   const eventMeta = (event: EventResult): string => {
-    const parts = [getEventSubjectName(event), event.event_date, event.event_place].filter(Boolean);
+    const parts = [getEventSubjectName(event), displayEventDate(event), event.event_place].filter(Boolean);
     return parts.join(' — ');
   };
 
